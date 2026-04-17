@@ -4,11 +4,18 @@ These ACs require external infrastructure or signal handling beyond the
 scope of a hermetic unit / integration run. They are covered by manual
 validation (Phase 7) and operator inspection.
 
-- **AC3** — TLS self-test against `expired.badssl.com`. Covered by
-  `http_client.tls_self_test()` which starts a local expired-cert server
-  dynamically. Not exercised in CI because it depends on `cryptography`
-  (present in venv but optional) and on a remote host the CI runner may
-  not reach.
+- **AC3** — ~~TLS self-test~~ **SATISFIED**. See
+  `lavandula/nonprofits/tests/integration/test_tls_selftest.py`. Two
+  scenarios covered:
+  - `test_local_expired_cert_passes_gate` — the dynamically-generated
+    local expired-cert endpoint trips a cert error (the authoritative
+    gate from the plan's hybrid design).
+  - `test_local_cert_accepted_halts` — if the local endpoint were to
+    succeed (i.e., verification silently disabled upstream), the
+    self-test raises `TLSMisconfigured`. This is the MITM-succeeded
+    failure mode.
+  The remote `expired.badssl.com` probe remains advisory-only per
+  plan.
 - **AC23, AC29, AC29a** — Checkpoint resume + SIGTERM shutdown. Exercised
   manually in Phase 7 via a 50-EIN live run; requires a full crawler
   process and a kill signal.
