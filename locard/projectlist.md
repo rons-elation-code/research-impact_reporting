@@ -112,7 +112,7 @@ projects:
   - id: "0001"
     title: "Nonprofit Seed List Extraction"
     summary: "Extract ~48K US nonprofit profiles (EIN, name, website URL, rating, revenue, sector, state) from Charity Navigator's public sitemap into a queryable SQLite database, to serve as the seed list for a future report-harvesting bot."
-    status: planned
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0001-nonprofit-seed-list-extraction.md
@@ -120,7 +120,7 @@ projects:
       review: null
     dependencies: []
     tags: [crawler, data-acquisition, nonprofit, lavandula-sales]
-    notes: "Spec approved 2026-04-17; plan approved 2026-04-17. 3-way review complete at all phases (Codex + Claude + Gemini Flash). Ready for builder spawn."
+    notes: "Spec + plan approved 2026-04-17. Builder spawned 2026-04-17 on branch builder/0001-nonprofit-seed-list-extraction (worktree .builders/0001). Terminal at localhost:4310."
 ```
 
 ## Next Available Number
