@@ -145,19 +145,27 @@ def fetched_eins(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in rows}
 
 
-def unfetched_sitemap_entries(conn: sqlite3.Connection, *, limit: int | None = None):
+def unfetched_sitemap_entries(
+    conn: sqlite3.Connection,
+    *,
+    limit: int | None = None,
+    start_ein: str | None = None,
+):
     """Yield (ein, source_sitemap, lastmod) for EINs not yet in nonprofits."""
     base = """
     SELECT s.ein, s.source_sitemap, s.lastmod
     FROM sitemap_entries s
     LEFT JOIN nonprofits n ON n.ein = s.ein
     WHERE n.ein IS NULL
-    ORDER BY s.first_seen_at, s.ein
     """
+    params: dict = {}
+    if start_ein is not None:
+        base += " AND s.ein >= :start_ein"
+        params["start_ein"] = str(start_ein)
+    base += " ORDER BY s.first_seen_at, s.ein"
     if limit is not None:
         base += " LIMIT :limit"
-        rows = conn.execute(base, {"limit": int(limit)}).fetchall()
-    else:
-        rows = conn.execute(base).fetchall()
+        params["limit"] = int(limit)
+    rows = conn.execute(base, params).fetchall()
     for r in rows:
         yield r[0], r[1], r[2]

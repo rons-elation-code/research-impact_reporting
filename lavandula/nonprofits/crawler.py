@@ -272,10 +272,10 @@ def run(opts: CrawlOptions) -> int:
     # Iterate EINs.
     fetched = 0
     for ein, source_sitemap, lastmod in db_writer.unfetched_sitemap_entries(
-        conn, limit=opts.limit if not opts.refresh else None,
+        conn,
+        limit=opts.limit if not opts.refresh else None,
+        start_ein=opts.start_ein,
     ):
-        if opts.start_ein and ein < opts.start_ein:
-            continue
         if opts.limit is not None and fetched >= opts.limit:
             break
         reason = stop.evaluate()
