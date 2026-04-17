@@ -92,38 +92,54 @@ implementation per TDD discipline.
 | AC | Acceptance Criterion (from spec) | Phase | Test Type | Test Location |
 |----|----------------------------------|-------|-----------|---------------|
 | AC1 | SQLite schema validates (CHECK constraints pass) | 1 | Unit | tests/unit/test_schema.py |
-| AC2 | Throttle enforcement: 100 reqs take greater than or equal to 300s | 1 | Integration | tests/integration/test_http_client.py |
-| AC3 | TLS startup self-test fails on expired.badssl.com | 1 | Integration | tests/integration/test_http_client.py |
+| AC2 | Throttle enforcement: 100 reqs take greater than or equal to 300s (fake-clock assertion on `time.monotonic` deltas) | 1 | Unit | tests/unit/test_http_client.py |
+| AC3 | TLS startup self-test fails on expired.badssl.com; also halts if self-test cannot determine outcome within 30s | 1 | Integration | tests/integration/test_http_client.py |
 | AC4 | Decompression bomb (10 MB decompressed) is size-capped | 1 | Integration | tests/integration/test_http_client.py |
 | AC5 | Cross-host redirect rejected | 1 | Integration | tests/integration/test_http_client.py |
+| AC5a | Scheme-downgrade redirect rejected (302 to http://www.charitynavigator.org/...) | 1 | Integration | tests/integration/test_http_client.py |
 | AC6 | Cookie non-persistence across sequential GETs | 1 | Integration | tests/integration/test_http_client.py |
 | AC7 | robots.txt stanza matching (most-specific wins) | 2 | Unit | tests/unit/test_robots.py |
-| AC8 | XXE fixture does not leak /etc/passwd | 2 | Unit | tests/unit/test_sitemap_parse.py |
+| AC7a | robots.txt fetch failure at startup halts | 2 | Integration | tests/integration/test_robots.py |
+| AC7b | robots.txt re-fetch revealing new `/ein/*` disallow halts | 2 | Integration | tests/integration/test_robots.py |
+| AC8 | XXE local-file entity not resolved (no /etc/passwd leak) | 2 | Unit | tests/unit/test_sitemap_parse.py |
+| AC8a | XXE SSRF entity (`SYSTEM "http://127.0.0.1:..."`) triggers no outbound network call | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC9 | Sitemap enumerates 48 child sitemaps | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC10 | Malformed EIN in sitemap skipped | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC11 | Disallowed EIN 86-3371262 is not enumerated | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC12 | Symlink refusal on archive write | 3 | Integration | tests/integration/test_archive.py |
 | AC13 | Cloudflare challenge body detected and isolated | 3 | Integration | tests/integration/test_fetch.py |
-| AC14 | Cross-EIN redirect populates redirected_to_ein | 3 | Integration | tests/integration/test_fetch.py |
+| AC13a | Challenge detection also triggers immediate halt (distinct from isolation) | 5 | Integration | tests/integration/test_stop_conditions.py |
+| AC14 | Cross-EIN redirect populates `redirected_to_ein` in source row | 3 | Integration | tests/integration/test_fetch.py |
+| AC14a | Second, independent row written when target EIN (B) is enumerated on its own | 3 | Integration | tests/integration/test_fetch.py |
+| AC14b | Query-time dedup: `GROUP BY COALESCE(redirected_to_ein, ein)` collapses redirect-pair to one logical org | 3 | Unit | tests/unit/test_db.py |
 | AC15 | Atomic archive write (crash mid-write leaves no partial file) | 3 | Integration | tests/integration/test_archive.py |
 | AC16 | Parser produces all fields for rated fixture | 4 | Unit | tests/unit/test_extract.py |
 | AC17 | Parser produces name/mission only for unrated fixture | 4 | Unit | tests/unit/test_extract.py |
-| AC18 | URL normalization: strip tracking params, lowercase host | 4 | Unit | tests/unit/test_url_normalize.py |
-| AC19 | mailto/tel/social links set website_url=NULL with reason | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC18 | URL normalization rule set (host lowercase, default-port strip, trailing-slash on root only, fragment drop) | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC18a | CN-redirect unwrap (wrapper URL becomes underlying URL) | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC18b | Tracking-parameter strip (utm_*, fbclid, gclid, mc_cid, mc_eid, _ga removed; other query params kept) | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC18c | IDN host punycode encoding | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC18d | Invalid/empty-host URL returns reason='invalid' | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC19 | mailto/tel/sms/javascript links rejected with correct `website_url_reason` | 4 | Unit | tests/unit/test_url_normalize.py |
+| AC19a | Social-only links (facebook/twitter/linkedin/etc.) rejected with `reason='social'` | 4 | Unit | tests/unit/test_url_normalize.py |
 | AC20 | SQL injection round-trip (mission with SQL keywords) | 4 | Integration | tests/integration/test_db.py |
 | AC21 | Log injection: CR/LF stripped from remote strings | 4 | Unit | tests/unit/test_log_sanitize.py |
 | AC22 | Single-instance flock prevents concurrent runs | 5 | Integration | tests/integration/test_cli.py |
 | AC23 | Checkpoint resume: partial run continues from last EIN | 5 | Integration | tests/integration/test_cli.py |
 | AC24 | Corrupt checkpoint renamed, fresh run starts | 5 | Integration | tests/integration/test_cli.py |
 | AC25 | Stop-condition halt on 3 consecutive 403s | 5 | Integration | tests/integration/test_stop_conditions.py |
-| AC26 | Stop-condition halt on 5 consecutive 429s | 5 | Integration | tests/integration/test_stop_conditions.py |
+| AC26 | Stop-condition halt on 5 consecutive unresolved 429s | 5 | Integration | tests/integration/test_stop_conditions.py |
+| AC26a | Stop-condition halt on 2 consecutive Retry-After values greater than 300s | 5 | Integration | tests/integration/test_stop_conditions.py |
+| AC26b | Stop-condition halt on cumulative runtime greater than 72 hours | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC27 | Stop-condition halt on disk-space less than 5 GB | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC28 | Stop-condition halt on cumulative archive greater than 50 GB | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC29 | SIGTERM graceful shutdown with checkpoint flush + HALT file | 5 | Integration | tests/integration/test_cli.py |
 | AC30 | File permissions: DB 0o600, raw/cn/ 0o700 after run | 5 | Integration | tests/integration/test_cli.py |
 | AC31 | coverage_report.md generated with empirical metrics | 6 | Integration | tests/integration/test_report.py |
-| AC32 | HANDOFF.md contains schema + query + refresh sections | 6 | Manual | inspection |
-| AC33 | Live small-batch run (50 EINs) matches fixture predictions | 7 | E2E | manual validation |
+| AC32 | HANDOFF.md contains schema + query + refresh + contact-protocol + usage-restrictions sections | 6 | Manual | inspection |
+| AC32a | `lavandula/nonprofits/README.md` quick-start exists and covers install + run + test | 6 | Manual | inspection |
+| AC32b | `locard/resources/arch.md` updated with `lavandula/nonprofits/` module entry (Review phase, owned by Phase 6 prep) | 6 | Manual | inspection |
+| AC33 | Live small-batch run (50 EINs) completes with zero halts; at least 8/10 spot-checked rows match browser-rendered values; field-population percentages in predicted range | 7 | E2E | manual validation |
 
 **Coverage Requirements:**
 
@@ -168,8 +184,21 @@ implementation per TDD discipline.
 
 - Reuse the throttle pattern from `nptech/http_client.py` but add:
   - `verify=True` explicit; reject `verify=False` in review.
-  - Pre-flight self-test against `https://expired.badssl.com` at client init;
-    must fail with cert error (otherwise raise `TLSMisconfigured`).
+  - Pre-flight self-test against `https://expired.badssl.com` at client init.
+    Behavior (tightened from Codex + Claude plan-review — previous draft was
+    internally inconsistent):
+    - Allow up to 2 retries on transient network errors.
+    - **Total budget 30 seconds** including retries.
+    - If the connection SUCCEEDS, raise `TLSVerificationDisabled` and halt —
+      somewhere along the path, verification is off (attacker CA in
+      `REQUESTS_CA_BUNDLE`, monkey-patched `verify=False`, etc.).
+    - If the connection FAILS with a cert error (as it should), pass.
+    - If 30 seconds elapse without a conclusive result (pure network
+      unreachability), raise `TLSSelfTestInconclusive` and halt. We do NOT
+      treat "cannot prove verification is on" as a warning — the self-test
+      is a security gate, not a nice-to-have.
+    - Optional: a backup endpoint can be tried (e.g., a self-signed cert
+      served by a test server); adding one doesn't relax the gate.
   - `allow_redirects=False`; custom redirect loop validates each hop (scheme ==
     'https' AND host == 'www.charitynavigator.org').
   - `requests.Session` with cookies cleared after every `get()`.
@@ -231,10 +260,12 @@ external state mutated.
 
 #### Risks
 
-- **Risk**: TLS self-test is flaky (expired.badssl.com down).
-  - **Mitigation**: allow a second endpoint as backup (e.g., self-issued local
-    cert); treat "self-test could not run at all" as a log-warning, not a halt
-    — but treat "self-test SUCCEEDED" (MITM-able) as a hard halt.
+- **Risk**: TLS self-test flaky (expired.badssl.com intermittently down).
+  - **Mitigation**: 30-second total budget with 2 retries. If still
+    inconclusive, HALT (not warn). A backup known-bad-cert endpoint is
+    allowed as an additional try, but "could not determine outcome"
+    remains a halt condition. The self-test is a security gate; skipping
+    it silently is strictly worse than halting on inconclusive result.
 
 ---
 
@@ -279,8 +310,7 @@ external state mutated.
     `https://www.charitynavigator.org/sitemap/`.
   - Child sitemap parser → `/ein/{EIN}` URLs. Filter to a regex that anchors
     both start and end of the path and requires exactly nine digits after
-    `/ein/`. In actual code, any conventional regex form works; the
-    dashboard-compatibility concern only applies to the spec/plan *text*.
+    `/ein/`.
   - Insert into `sitemap_entries` table with `first_seen_at`; `INSERT OR
     IGNORE` provides first-seen precedence on duplicates.
 
@@ -633,6 +663,11 @@ external state mutated.
 
 - `lavandula/nonprofits/report.py`.
 - `lavandula/nonprofits/HANDOFF.md`.
+- `lavandula/nonprofits/README.md` — quick-start (install, run, test,
+  troubleshoot) — one screenful. Required (Codex plan-review finding #1).
+- Update `locard/resources/arch.md` to include a `lavandula/nonprofits/`
+  module entry describing its role and relationship to `nptech/`
+  (required; Codex plan-review finding #1).
 - `tests/integration/test_report.py`.
 
 #### Implementation Details
@@ -654,14 +689,23 @@ external state mutated.
   - **Contact protocol** — if Charity Navigator reaches out, how we respond;
     escalation to paid API.
   - **Retention** — when to delete raw archive; what stays.
+  - **Usage restrictions** — required by Claude plan-review finding #7.
+    Enumerates spec's internal-use-only posture: `mission` field is NEVER
+    shown to a CN competitor, included in public Lavandula output, or
+    exported outside the internal DB. `rated`, `rating_stars`,
+    `overall_score`, `beacons_completed` may be used for internal
+    segmentation but MUST NOT be republished or presented as Lavandula's
+    own ratings. Raw archive is local-only; no cloud upload.
   - **Incidents log pointer** — `incidents/` directory.
 
-#### Acceptance Criteria (map to AC31-AC32)
+#### Acceptance Criteria (map to AC31-AC32b)
 
 - `report.py` against a 50-row synthetic DB produces a valid markdown file
   with all expected sections.
 - `HANDOFF.md` is human-readable (manual review); covers all required
-  sections.
+  sections including Usage Restrictions.
+- `README.md` is present and one-screen.
+- `locard/resources/arch.md` has a new `lavandula/nonprofits/` entry.
 
 #### Acceptance Test Design
 
@@ -669,6 +713,8 @@ external state mutated.
 |----|-----------|-------------|-------|-----------------|
 | AC31 | Integration | Report generation | 50-row synthetic DB | valid markdown with all sections |
 | AC32 | Manual | HANDOFF completeness | review by Ron | sections present, actionable |
+| AC32a | Manual | README exists | grep for "Install", "Run", "Test" headings | all present |
+| AC32b | Manual | arch.md updated | diff against pre-phase version | new module entry for `lavandula/nonprofits/` |
 
 #### Risks
 
@@ -682,18 +728,24 @@ external state mutated.
 
 **Dependencies**: Phase 6
 
+Scope note (Codex plan-review finding #2): the phase's acceptance is GATED
+on the 50-EIN validation only. Kicking off the full ~48K crawl is operational
+follow-on work and is listed under Post-Implementation Tasks. Codex correctly
+flagged that making "full crawl starts and completes" part of a phase AC would
+overreach the approved spec.
+
 #### Objectives
 
 - Execute a small live validation run (`--limit 50`) during off-peak hours.
-- Spot-check 20 rows for parsing accuracy vs a browser-rendered profile.
+- Spot-check 10 rows for parsing accuracy vs a browser-rendered profile.
 - Verify field-population percentages are within predicted ranges.
-- Commission the full ~48K crawl IF validation passes.
+- Produce a GO/ROLLBACK decision. If GO: the full crawl is then commissioned
+  as a Post-Implementation task, not as part of this phase.
 
 #### Deliverables
 
 - `validation_run_report.md` — observations from the 50-EIN run.
-- Either GO decision (kick off full crawl) or ROLLBACK decision (which phase
-  needs a fix).
+- A GO or ROLLBACK decision recorded with the PR review.
 
 #### Implementation Details
 
@@ -705,20 +757,18 @@ external state mutated.
     — name, website URL, rating, revenue must match byte-identically (or
     with explicable normalization).
   - Coverage percentages: if `website_url` populated is less than 70% OR
-    `rating_stars` less than 60%, investigate before commissioning full run.
+    `rating_stars` less than 60%, investigate before the Post-Implementation
+    full-crawl task runs.
   - Zero halt conditions fired; exit code 0.
-- Full crawl:
-  - `./venv/bin/python -m lavandula.nonprofits.crawler`
-  - Background (tmux or nohup); log to `logs/crawl-{date}.log`.
-  - Expected duration: ~48h wall-clock at 3s throttle.
+
+The actual full-crawl command + monitoring guidance lives in the Post-
+Implementation Tasks section, not here.
 
 #### Acceptance Criteria (map to AC33)
 
 - 50-EIN validation run completes without any halt.
 - At least 8 of 10 spot-checked rows match browser-rendered values.
 - Coverage within predicted range.
-- Full crawl starts and completes within 72 hours OR halts cleanly with a
-  known stop condition.
 
 #### Acceptance Test Design
 
@@ -878,24 +928,91 @@ elapsed time.
 
 ## Post-Implementation Tasks
 
+- **Commission the full ~48K crawl** (moved out of Phase 7 per Codex
+  plan-review finding #2):
+  - `./venv/bin/python -m lavandula.nonprofits.crawler` in tmux or nohup.
+  - Log to `logs/crawl-{date}.log`.
+  - Expected wall-clock approx 48h at 3 s throttle.
+  - Owner monitors for halt conditions; if any fires, investigate before
+    restart.
 - Performance validation: compare observed request rate vs configured 3 s.
 - Security audit: re-run red-team-impl on the committed PR.
-- Spot-check a random sample of 50 rows against live CN profiles.
+- Spot-check a random sample of 50 rows against live CN profiles after the
+  full crawl completes.
 - Operator sign-off: Ron confirms the dataset is usable for prospect-list
   filtering.
 - Document retention decision for the raw archive (delete now, delete after
   downstream project consumes, or keep indefinitely).
 
+## Cross-Phase Rollback Strategy (Claude plan-review finding #9)
+
+Per-phase rollback sections handle regressions within a phase. For regressions
+that surface in a later phase but originate in an earlier one, the policy is:
+
+- **Do not attempt in-place patches to earlier phases from a later phase's PR.**
+  A Phase-4 parser change that turns out to need a Phase-1 HTTP-client
+  adjustment is a TICK amendment targeting Phase 1; it does not ride in the
+  Phase-4 PR.
+- TICK amendments follow the TICK protocol: modify both spec and plan
+  together, get expert + red-team review, get human approval, then merge.
+- The original plan document and all its phase commits remain the record of
+  "what was planned at each point in time."
+
 ## Consultation Log
 
 ### First Consultation (After Initial Plan)
 
-**Date**: pending
-**Models Consulted**: will attempt GPT-5 Codex + Gemini Pro + Claude (Gemini
-has been quota-blocked all day; if still blocked, proceed with Codex + Claude
-as during the spec phase)
-**Key Feedback**: to be populated
-**Plan Adjustments**: to be populated
+**Date**: 2026-04-17
+**Models Consulted**: GPT-5 Codex ✅ (REQUEST_CHANGES, HIGH), Claude ✅ (COMMENT,
+HIGH), Gemini Pro ❌ (quota-exhausted for the second straight session)
+
+**Key Feedback**:
+
+*Codex (4 issues):*
+- README.md + arch.md updates unassigned to any phase; builder could ship
+  without them. Fixed by adding deliverables + ACs under Phase 6.
+- Phase 7 overreached spec by gating on full-crawl completion. Moved the
+  full crawl to Post-Implementation Tasks.
+- Security test matrix missing XXE-SSRF and scheme-downgrade redirect
+  rejection cases. Added AC8a and AC5a.
+- TLS self-test behavior internally inconsistent (Phase 1 said retry-then-halt;
+  risk mitigation said warn). Rewrote Phase 1 TLS self-test semantics
+  explicitly: 30 s total budget including 2 retries; successful connection =
+  halt; inconclusive = halt; failure with cert error = pass.
+
+*Claude (9 items, most minor):*
+- Stop-condition AC matrix only enumerated 4 of 9 halt triggers. Added
+  AC13a (challenge halt), AC26a (Retry-After > 300s), AC26b (runtime > 72h),
+  AC7a (robots fetch-fail), AC7b (robots re-fetch newly disallowing /ein).
+- URL normalization matrix covered 2 of 10 rules. Added AC18a (CN-redirect
+  unwrap), AC18b (tracking strip), AC18c (IDN punycode), AC18d (invalid host),
+  AC19a (social rejection).
+- Cross-EIN redirect missing ACs for (a) second row written when target EIN
+  enumerated, (b) query-time dedup pattern. Added AC14a and AC14b.
+- TLS self-test inconsistency — same as Codex; resolved together.
+- Phase 2 regex commentary mentioned "dashboard-compatibility" with no
+  referent. Stripped.
+- AC2 fake-clock vs real-clock ambiguity. Resolved: AC2 uses fake clock;
+  the throttle unit test asserts `time.monotonic` deltas under frozen time.
+- Mission-statement internal-use-only carve-out not in HANDOFF.md deliverable.
+  Added "Usage Restrictions" section to the Phase 6 HANDOFF deliverable.
+- (optional) Interim 5-EIN live smoke at end of Phase 4 — NOT adopted for
+  v1; skip.
+- Cross-phase rollback wording ambiguous. Added a Cross-Phase Rollback
+  Strategy section.
+
+**Plan Adjustments** (sections modified):
+
+- Acceptance Test Matrix: expanded from 33 to 47 rows.
+- Phase 1 TLS self-test: tightened semantics; halt on inconclusive.
+- Phase 2 implementation details: stripped confusing regex note.
+- Phase 6: added README.md + arch.md deliverables; added HANDOFF Usage
+  Restrictions section; added AC32a/AC32b.
+- Phase 7: scope pulled back to 50-EIN validation only.
+- Post-Implementation Tasks: added full-crawl commissioning.
+- Cross-Phase Rollback Strategy: new section.
+
+### Second Consultation (After Human Review)
 
 ### Second Consultation (After Human Review)
 
