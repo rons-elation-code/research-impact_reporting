@@ -1,1 +1,20 @@
+# Locard
+.agent-farm/
+.consult/
+locard/.update-hashes.json
+.builders/
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Python
 __pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+*.swp
+*.swo
