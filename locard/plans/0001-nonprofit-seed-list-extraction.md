@@ -742,6 +742,25 @@ external state mutated.
   from CN. If divergence greater than 5 minutes, log a warning. Bad
   `last_fetched_at` values would poison a future incremental-refresh
   TICK.
+- **Internal exception sanitization** (Gemini Flash red-team-plan LOW-3):
+  in addition to sanitizing remote-sourced strings before logging,
+  internal exception messages and stack traces are truncated to 2000
+  characters and stripped of absolute paths containing the operator's
+  home directory (replaced with `~/`) before being written to
+  `HALT-*.md` or log files. Prevents accidental disclosure of deployment
+  layout if a HALT file is shared with a third party (e.g., a
+  subcontractor or CN's support).
+- **HMAC key rotation procedure** (Gemini Flash red-team-plan LOW-2):
+  to rotate the checkpoint HMAC key, delete `.crawler.key` and let the
+  next run regenerate it with `secrets.token_bytes(32)`. Regeneration
+  invalidates all existing checkpoints (they fail MAC verification and
+  are treated as corrupt). Document this in HANDOFF.md.
+- **Encryption at rest** (Gemini Flash red-team-plan LOW-1): out of
+  scope for v1 (acknowledged trade-off — see PII posture in Legal
+  Constraints). A future TICK may add SQLCipher for the DB or LUKS
+  full-disk encryption on the deployment host. For v1, filesystem
+  permissions (`0o600`/`0o700`) + internal-only-use + no-cloud-backup
+  are the controls. Reconsider if the archive ever leaves the host.
 
 #### Deliverables
 
@@ -1317,9 +1336,29 @@ consult --model gemini --type red-team-plan plan 0001   # quota-exhausted (3 att
 
 **All 26 findings (Codex 5 + Claude 21) resolved in the plan body.**
 
-**Verdict**: Both reviewers' `REQUEST_CHANGES` addressed. The matrix grew
-from 47 → 63 ACs. Phase 0 added. Plan is substantially more defensible
-against supply-chain, TOCTOU, and adversarial-content threats.
+**Follow-up with Gemini 2.5 Flash (2026-04-17, after patching consult to
+swap gemini-2.5-pro → gemini-2.5-flash to work around the pro quota cap):**
+
+- **Plan-review**: `APPROVE`, HIGH confidence, 0 issues.
+- **Red-team-plan**: `APPROVE`, 0 CRITICAL / 0 HIGH / 0 MEDIUM / 3 LOW.
+
+Gemini Flash LOW findings (addressed in plan body):
+
+- **LOW-1 (Encryption at rest)**: acknowledged as out-of-scope trade-off;
+  filesystem permissions + internal-only use are the v1 controls.
+  Documented in Orchestration/Hygiene section as a future-TICK candidate.
+- **LOW-2 (HMAC key rotation)**: procedure added — delete `.crawler.key`,
+  next run regenerates; invalidates prior checkpoints. Documented for
+  HANDOFF.md.
+- **LOW-3 (Internal exception sanitization)**: added to Phase 5 Operational
+  Hygiene — internal exception messages and stack traces are truncated
+  and home-dir-redacted before HALT or log emission.
+
+**Verdict**: Codex `REQUEST_CHANGES`, Claude `REQUEST_CHANGES`, and Gemini
+(Flash) `APPROVE` all addressed. Gemini Pro was unavailable (quota cap);
+Flash was substituted as a limited third independent review. Plan has
+been through 3-way multi-agent review at both plan-review and
+red-team-plan checkpoints.
 
 ## Approval
 
