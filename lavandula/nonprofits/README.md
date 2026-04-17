@@ -7,11 +7,21 @@ nonprofit profiles from Charity Navigator's public sitemap. See
 ## Install
 
 ```bash
+cd lavandula/nonprofits
 python -m venv venv
-./venv/bin/pip install defusedxml requests beautifulsoup4 lxml pytest pytest-mock cryptography
+# Production:
+./venv/bin/pip install --require-hashes -r requirements.txt
+# Development (adds pytest/pip-audit/bandit):
+./venv/bin/pip install --require-hashes -r requirements-dev.txt
 ```
 
-(Python 3.12 required.)
+(Python 3.12 required; see `.python-version`.)
+
+## Lint / security checks
+
+```bash
+./lint.sh   # pip-audit + bandit + verify=False scan
+```
 
 ## Run
 
