@@ -1392,3 +1392,62 @@ checkpoints.
 ## Amendment History
 
 <!-- When adding a TICK amendment, add a new entry below this line in chronological order -->
+
+### TICK-001: Pivot seed source from full-sitemap to curated lists (2026-04-17)
+
+**Changes**:
+
+- **New Phase 2b (curated-lists enumerator)** — inserted between
+  Phase 2 (robots + sitemap) and Phase 3 (profile fetch). Delivers
+  `lavandula/nonprofits/curated_lists.py` that scrapes CN's
+  `/discover-charities/best-charities/*` index pages and populates
+  `sitemap_entries` with `source_sitemap='curated:<category>'`.
+- **Phase 5 (orchestration)** — add `--source {sitemap,curated-lists}`
+  CLI flag; default `curated-lists`. Enumeration dispatch chooses
+  between `sitemap.py` (legacy) and `curated_lists.py` (new
+  default).
+- **Bug fix committed already**: `db_writer.unfetched_sitemap_entries()`
+  now accepts `start_ein`; filter applied in SQL before LIMIT.
+  `crawler.py` passes `opts.start_ein` through. Prior logic
+  filtered in Python AFTER the LIMIT, causing `--limit 50
+  --start-ein 530000000` to fetch zero profiles.
+
+**Implementation steps**:
+
+1. Commit the `start_ein` bug fix (separate commit so it's clean
+   for revert if needed).
+2. Add `curated_lists.py` with a single entry point
+   `enumerate(client, conn) -> int`. Discover category URLs from
+   the CN homepage's `Discover Charities` nav; iterate each.
+3. Parser for category-page HTML: extract anchor `href` values
+   matching `^/ein/\d{9}$`, normalize, insert into
+   `sitemap_entries` with first-seen precedence.
+4. Extend argparse in `crawler.py` to accept `--source`.
+5. Wire up dispatch in `_enumerate_if_empty` (or a sibling
+   function) — fan out based on `opts.source`.
+6. Fixtures: commit 2–3 HTML snapshots from actual CN category
+   pages; tests assert per-fixture EIN counts.
+7. Update HANDOFF.md and README.md with the new `--source` flag
+   and expected sample scale.
+8. Add AC34–AC36 rows to the Acceptance Test Matrix.
+
+**Not-doing**:
+
+- Deleting `sitemap.py`. We keep it behind `--source=sitemap` so
+  (a) the XXE-defense tests still have a purpose, (b) if CN ever
+  opens a signed research-purpose full-access path, we can
+  re-enable it without re-implementing.
+- Rewriting the parser, DB schema, or any Phase 1 HTTP-client
+  behavior.
+
+**Validation after TICK**:
+
+- 96-test suite still passes (new tests for curated-list
+  enumerator raise to ~100).
+- Live `--limit 50 --source=curated-lists` fetch produces
+  rating coverage ≥ 95% (vs. 0% on the sitemap-tail sample of
+  2026-04-17).
+- No sitemap fetches are logged in `fetch_log` when
+  `--source=curated-lists`.
+
+**Review**: See `reviews/0001-nonprofit-seed-list-extraction.md`.

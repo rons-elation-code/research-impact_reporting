@@ -1089,3 +1089,96 @@ MITMed, or serves a tampered CDN cache.
 ## Amendments
 
 <!-- When adding a TICK amendment, add a new entry below this line in chronological order -->
+
+### TICK-001: Pivot seed source from full-sitemap to curated lists (2026-04-17)
+
+**Summary**: Replace the default seed-enumeration strategy from
+"fetch all 48 Charity Navigator sitemaps" to "scrape CN's curated
+Best Charities category pages." The full-sitemap approach, as
+originally specified, enumerates 2.3M EINs and would take ~82 days
+of continuous crawling at 3s throttle — economically infeasible
+and ethically questionable given CN monetizes the data. The curated
+paths enumerate ~3K–7K pre-filtered rated orgs, which is the scope
+Lavandula actually needs for the downstream report-harvesting bot.
+
+**Problem Addressed**:
+
+Four findings from the 50-EIN validation run on 2026-04-17
+invalidated the original scope assumptions:
+
+1. **Real sitemap size is 48×, not 1× of the original estimate**.
+   WebFetch's truncated response during initial recon showed
+   "~1,000 URLs" per child sitemap; the actual count is ~49,000 per
+   sitemap (confirmed: one sitemap is 6.6 MB uncompressed XML with
+   ~49K `<loc>` entries). Total corpus: **2,302,615 unique EINs**,
+   not ~48K.
+2. **Crawl is infeasible at 3s throttle** — 2.3M × 3s = ~82 days
+   continuous. Disk requirement also 45× higher than planned.
+3. **Sample quality is dreadful on the tail**. Validation #1 sampled
+   the lowest-EIN 50 rows (order `(first_seen_at, ein)`) and got 50
+   tiny religious ministries with 0% rating coverage, 0% revenue,
+   0% state — all `parse_status='partial'`. CN indexes 10× more
+   orgs than it rates; a random sample is dominated by unrated
+   small orgs.
+4. **CN monetizes bulk data**. Scraping 2.3M profiles without
+   paying would be a defensible ToS violation even at polite rates;
+   sampling their curated recommendations is arguably ethical fair
+   use.
+
+**Spec Changes**:
+
+- **Scope** (major): corpus size revised from ~48K to ~3K–7K
+  pre-rated orgs via CN's Best Charities category pages.
+- **Desired State**: crawler accepts a configurable `--source`
+  (`sitemap` legacy | `curated-lists` new default).
+- **Success Criteria / Empirical Coverage**: expected
+  `rating_stars` population for curated-list sample is ≥ 95% (was
+  "reported, not gated"); `website_url` ≥ 80% (was ≥ 70% reported
+  from full sitemap).
+- **Legal / Compliance**: updated posture — we use CN's own
+  curation as a recommender, not as bulk-data competitor. The
+  contact-protocol paragraph now mentions the outreach to Laura
+  Minniear (sent 2026-04-17) as the good-faith gesture.
+- **Open Questions**: new item — whether to keep the sitemap
+  enumerator as a legacy/opt-in path or delete it. Proposed:
+  keep, guarded behind `--source=sitemap` for future research use
+  with paid-API signing.
+- **Defensive Hardening**: add a unit test that asserts
+  `--source=curated-lists` does NOT fetch any sitemap files.
+
+**Plan Changes**:
+
+- **New module**: `lavandula/nonprofits/curated_lists.py` — fetches
+  the `/discover-charities/best-charities/*` index pages, extracts
+  `/ein/{EIN}` links from each, insertions into `sitemap_entries`
+  with `source_sitemap='curated:{category}'` so the same fetch/
+  extract path downstream just works.
+- **CLI flag**: `--source {sitemap,curated-lists}` (default
+  `curated-lists`).
+- **New test fixtures**: snapshots of 2–3 Best Charities category
+  HTML pages + a test that asserts parser extracts N EIN links.
+- **New ACs** (AC34–AC36): enumerator discovers at least 1,000 EINs
+  from public index pages; no sitemap fetch occurs with
+  `--source=curated-lists`; revised coverage metrics on the
+  resulting sample.
+- **Bug fix (already applied in master)**: `--start-ein` filter
+  moved from Python-post-LIMIT to SQL-pre-LIMIT
+  (`db_writer.unfetched_sitemap_entries`), so `--start-ein +
+  --limit` combination behaves as a user would reasonably expect.
+
+**Not changing**:
+
+- The HTTP client (TLS self-test, size cap, cookie policy,
+  redirect restrictions) — untouched.
+- The profile parser (`extract.py`) — CN profile pages are the
+  same URLs regardless of how we find them.
+- The schema — `source_sitemap` column already holds a string, so
+  `curated:highly-rated` fits.
+- Report / HANDOFF structure — same tables, same output.
+- File permissions, SQL parameterization, log sanitization,
+  flock, stop conditions — all unchanged.
+
+**Review**: See `reviews/0001-nonprofit-seed-list-extraction.md`
+(updates forthcoming under Amendments).
+
+---
