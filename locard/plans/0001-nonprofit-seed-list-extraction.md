@@ -1414,22 +1414,51 @@ checkpoints.
 
 **Implementation steps**:
 
-1. Commit the `start_ein` bug fix (separate commit so it's clean
-   for revert if needed).
+1. Commit the `start_ein` bug fix (separate commit so it's
+   cleanly attributable — already done as `8cf88a4` per Claude
+   review #8).
 2. Add `curated_lists.py` with a single entry point
-   `enumerate(client, conn) -> int`. Discover category URLs from
-   the CN homepage's `Discover Charities` nav; iterate each.
-3. Parser for category-page HTML: extract anchor `href` values
-   matching `^/ein/\d{9}$`, normalize, insert into
-   `sitemap_entries` with first-seen precedence.
-4. Extend argparse in `crawler.py` to accept `--source`.
-5. Wire up dispatch in `_enumerate_if_empty` (or a sibling
-   function) — fan out based on `opts.source`.
-6. Fixtures: commit 2–3 HTML snapshots from actual CN category
-   pages; tests assert per-fixture EIN counts.
-7. Update HANDOFF.md and README.md with the new `--source` flag
+   `enumerate(client, conn) -> int`. Use an **explicit hardcoded
+   list of category URLs** (NOT homepage-nav discovery) per Codex
+   MED-2. Entry points:
+   - `/discover-charities/best-charities/highly-rated-charities`
+   - `/discover-charities/best-charities/cost-effective-organizations`
+   - `/discover-charities/best-charities/popular-charities`
+   - `/discover-charities/best-charities/support-animal-rescue`
+   - Plus a configurable `EXTRA_CATEGORIES` list of known cause
+     slugs, HEAD-checked at enumeration time.
+3. **Pagination handling** per Claude #3: for each category URL,
+   follow `?p=N` or equivalent pagination links until a page
+   yields zero new EINs. Cap: 20 pages per category.
+4. Parser for category-page HTML: extract anchor `href` values
+   matching a start-and-end-anchored `/ein/` + nine-digit pattern,
+   canonicalize with the existing
+   `canonicalize_ein()`, insert into `sitemap_entries` with
+   `source_sitemap='curated:{category-slug}'` and first-seen
+   precedence via INSERT OR IGNORE.
+5. **Source-isolation in the DB query** per Codex HIGH-1: modify
+   `db_writer.unfetched_sitemap_entries()` to accept a `source`
+   argument. When `--source=curated-lists`, the SQL adds
+   `AND s.source_sitemap LIKE 'curated:%'`. Required so a
+   populated legacy sitemap table doesn't leak into the curated
+   run.
+6. Extend argparse in `crawler.py` to accept
+   `--source {sitemap,curated-lists}` (default `curated-lists`).
+   Pass through to `_enumerate_if_empty` dispatcher AND to
+   `unfetched_sitemap_entries()`.
+7. **robots.txt precondition** per Claude #5: on startup, the
+   robots parser MUST verify `/discover-charities/*` is allowed
+   for our UA. Any disallow → halt with `HALT-robots-change`.
+   Add a test for this.
+8. Fixtures: commit 2–3 HTML snapshots from actual CN category
+   pages. Tests assert per-fixture EIN counts **and** that an
+   older sitemap-enumerated DB doesn't pollute a curated-list
+   run.
+9. Update HANDOFF.md and README.md with the new `--source` flag
    and expected sample scale.
-8. Add AC34–AC36 rows to the Acceptance Test Matrix.
+10. Add AC34–AC36 rows to the Acceptance Test Matrix (using the
+    hardened thresholds from the spec amendment, not the prior
+    soft values).
 
 **Not-doing**:
 
@@ -1443,11 +1472,53 @@ checkpoints.
 **Validation after TICK**:
 
 - 96-test suite still passes (new tests for curated-list
-  enumerator raise to ~100).
-- Live `--limit 50 --source=curated-lists` fetch produces
-  rating coverage ≥ 95% (vs. 0% on the sitemap-tail sample of
-  2026-04-17).
-- No sitemap fetches are logged in `fetch_log` when
-  `--source=curated-lists`.
+  enumerator raise to ~100–105).
+- AC34 (GATING): enumerator produces ≥ 3,000 unique EIN
+  anchors across all categories.
+- AC35 (GATING): `--source=curated-lists` writes zero rows to
+  `fetch_log` with `url` starting `/sitemap/`; source-partition
+  isolation test passes (populated legacy table + new curated
+  run → only curated rows processed).
+- AC36 (GATING): live `--limit 50 --source=curated-lists`
+  fetch produces `rating_stars` ≥ 95% and `website_url` ≥ 80%
+  (vs. 0% / 38% on the sitemap-tail sample of 2026-04-17).
+- robots.txt precondition test: synthetic robots.txt with
+  `/discover-charities/` disallowed triggers halt.
+- Pagination cap test: mocked category with infinite pagination
+  stops after 20 pages.
+
+**Consultation Log (TICK-001)**:
+
+**Date**: 2026-04-17
+**Reviewers**: Codex (REQUEST_CHANGES, HIGH), Claude (APPROVE,
+MEDIUM, 8 items), Gemini Flash (APPROVE, HIGH, 3 items).
+
+Findings addressed in this updated amendment:
+
+- Codex HIGH-1 (source isolation on populated DB): added SQL
+  `WHERE s.source_sitemap LIKE 'curated:%'` guard; new AC35
+  partition test.
+- Codex MED-2 (brittle homepage-nav discovery): replaced with
+  explicit hardcoded category URL list + optional HEAD-checked
+  `EXTRA_CATEGORIES`.
+- Codex MED-3 (soft ACs): all three new ACs promoted to GATING
+  hard thresholds.
+- Claude #1 (AC floor too low): raised AC34 from ≥ 1,000 to
+  ≥ 3,000.
+- Claude #2 (static-HTML anchor assumption): explicitly stated
+  as a parser-level invariant; fixture tests verify.
+- Claude #3 (pagination): new pagination policy + 20-page cap.
+- Claude #4 (legal posture): tightened — no retention of
+  editorial content; deferral path to Minniear response.
+- Claude #5 (robots re-check for discover-charities): new
+  precondition + test.
+- Claude #6 (re-enumeration cadence): out-of-scope for v1 of
+  TICK-001; deferred to a future TICK.
+- Claude #7 (hard thresholds): same as Codex MED-3.
+- Claude #8 (start_ein bug attribution): the fix landed in a
+  separate commit `8cf88a4` before this TICK — attribution
+  preserved.
+- Gemini #1-3 (fragility, rate-limit, freshness): acknowledged
+  as known risks in the spec amendment.
 
 **Review**: See `reviews/0001-nonprofit-seed-list-extraction.md`.

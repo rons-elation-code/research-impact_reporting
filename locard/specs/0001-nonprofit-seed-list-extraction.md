@@ -1131,20 +1131,77 @@ invalidated the original scope assumptions:
   pre-rated orgs via CN's Best Charities category pages.
 - **Desired State**: crawler accepts a configurable `--source`
   (`sitemap` legacy | `curated-lists` new default).
-- **Success Criteria / Empirical Coverage**: expected
-  `rating_stars` population for curated-list sample is ≥ 95% (was
-  "reported, not gated"); `website_url` ≥ 80% (was ≥ 70% reported
-  from full sitemap).
-- **Legal / Compliance**: updated posture — we use CN's own
-  curation as a recommender, not as bulk-data competitor. The
-  contact-protocol paragraph now mentions the outreach to Laura
-  Minniear (sent 2026-04-17) as the good-faith gesture.
-- **Open Questions**: new item — whether to keep the sitemap
-  enumerator as a legacy/opt-in path or delete it. Proposed:
-  keep, guarded behind `--source=sitemap` for future research use
-  with paid-API signing.
-- **Defensive Hardening**: add a unit test that asserts
-  `--source=curated-lists` does NOT fetch any sitemap files.
+- **Source isolation in `sitemap_entries`** (addresses Codex
+  red-team HIGH-1): the `--source` selector MUST apply to both
+  enumeration AND profile-fetch selection. Concretely:
+  - `source_sitemap` column value determines origin:
+    `curated:{category}` for curated-list rows, `Sitemap{N}.xml`
+    for sitemap rows (existing shape).
+  - When `--source=curated-lists`, `unfetched_sitemap_entries()`
+    filters `WHERE source_sitemap LIKE 'curated:%'` — older
+    sitemap-enumerated rows from prior runs are ignored, not
+    re-fetched.
+  - A test asserts: given a DB with 10K rows from old sitemap
+    enumeration plus 100 rows from curated-list enumeration,
+    `--source=curated-lists --limit 50` processes only the
+    curated-list subset.
+- **Explicit curated-list index URLs** (addresses Codex MED-2):
+  the amendment specifies the starting URL list, not homepage-nav
+  discovery. Starting seeds (from our prior verification):
+  - `/discover-charities/best-charities/highly-rated-charities`
+  - `/discover-charities/best-charities/cost-effective-organizations`
+  - `/discover-charities/best-charities/popular-charities`
+  - `/discover-charities/best-charities/support-animal-rescue`
+  - Plus any additional categories discoverable via HEAD checks
+    against a short list of known cause slugs.
+  - Homepage-nav discovery is NOT a source of truth; it's used
+    ONLY as a cross-check to warn when the hardcoded list is
+    incomplete.
+- **Pagination policy** (addresses Claude #3): each category URL
+  is treated as potentially paginated. Parser walks `?p=N` or
+  equivalent pagination links until a page yields zero new EINs.
+  Per-category request cap: 20 pages (prevents runaway).
+- **Success Criteria / Empirical Coverage (HARD thresholds)**
+  (Codex MED-3 + Claude #1 + #7):
+  - **AC34 GATING**: enumerator produces ≥ 3,000 unique EIN
+    anchors across all categories (was ≥ 1,000). Rationale: the
+    3K–7K scope claim must be concretely testable.
+  - **AC35 GATING**: `--source=curated-lists` writes ZERO rows
+    to `fetch_log` with `url` starting `/sitemap/`; 0 profile
+    fetches for `source_sitemap LIKE 'Sitemap%'` rows.
+  - **AC36 GATING**: on a curated-list 50-EIN validation,
+    `rating_stars` population ≥ 95% and `website_url` ≥ 80%
+    (both hard thresholds, not reported).
+- **Legal / Compliance** (tightens Claude #4): the amendment does
+  NOT expand "fair use" rhetoric. Explicit posture: we treat CN's
+  Best Charities pages as a **recommender** over public data.
+  Retention of any scraped editorial content (category-page
+  descriptions, beacon commentary) is prohibited; only the EIN
+  anchors are harvested. If Laura Minniear's response (2026-04-17
+  outreach) comes back with API terms, this source is retired in
+  a follow-up TICK and the existing sample deleted per her
+  guidance.
+- **robots.txt coverage** (Claude #5): `/discover-charities/*` is
+  currently in `Allow:` / absent from `Disallow:` on CN's
+  robots.txt. At crawl startup, re-fetch robots.txt and verify
+  `/discover-charities/best-charities/` is permitted. Any change
+  that disallows it halts immediately.
+- **Re-enumeration cadence** (Claude #6): curated-list
+  enumeration is idempotent (INSERT OR IGNORE). For ongoing
+  freshness, a follow-up TICK may add `--refresh-curated=N-days`
+  to re-enumerate when `first_seen_at` is older than N days.
+  Out of scope for v1 of this TICK.
+- **Fragility / freshness / rate-limiting** (Gemini #1-3):
+  acknowledged as known risks. The 3s throttle already applies to
+  category-page fetches. Index-page HTML is simpler than profile
+  HTML; a selector change affects only `curated_lists.py` (one
+  module, 1-hour fix).
+- **Open Questions**: keep the sitemap enumerator behind
+  `--source=sitemap` for research use if CN ever signs a
+  partnership allowing it.
+- **Defensive Hardening**: add tests for (a) source-partition
+  isolation, (b) `/discover-charities/*` robots re-check,
+  (c) pagination-cap enforcement.
 
 **Plan Changes**:
 
