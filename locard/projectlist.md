@@ -112,15 +112,15 @@ projects:
   - id: "0001"
     title: "Nonprofit Seed List Extraction"
     summary: "Extract ~48K US nonprofit profiles (EIN, name, website URL, rating, revenue, sector, state) from Charity Navigator's public sitemap into a queryable SQLite database, to serve as the seed list for a future report-harvesting bot."
-    status: conceived
+    status: specified
     priority: high
     files:
       spec: locard/specs/0001-nonprofit-seed-list-extraction.md
-      plan: null
+      plan: locard/plans/0001-nonprofit-seed-list-extraction.md
       review: null
     dependencies: []
     tags: [crawler, data-acquisition, nonprofit, lavandula-sales]
-    notes: "First real project in this repo. Prerequisite to the report-harvesting bot (future project). Source is public sitemap; robots.txt allows /ein/* paths."
+    notes: "Spec approved by human 2026-04-17. First real project in this repo. Prerequisite to the report-harvesting bot (future project). Source is public sitemap; robots.txt allows /ein/* paths."
 ```
 
 ## Next Available Number
