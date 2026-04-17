@@ -46,10 +46,19 @@ def generate(db_path: Path | str = config.DB_PATH) -> str:
             "SELECT COUNT(DISTINCT url) FROM fetch_log"
         ).fetchone()[0]
 
+        # Hardcoded column → query mapping (no string interpolation on user
+        # input — bandit B608 compliant). Adding a column here is a deliberate
+        # schema change.
+        _POP_QUERIES = {
+            "website_url": "SELECT COUNT(*) FROM nonprofits WHERE website_url IS NOT NULL",
+            "rating_stars": "SELECT COUNT(*) FROM nonprofits WHERE rating_stars IS NOT NULL",
+            "total_revenue": "SELECT COUNT(*) FROM nonprofits WHERE total_revenue IS NOT NULL",
+            "state": "SELECT COUNT(*) FROM nonprofits WHERE state IS NOT NULL",
+            "mission": "SELECT COUNT(*) FROM nonprofits WHERE mission IS NOT NULL",
+        }
+
         def pop(col: str) -> int:
-            return conn.execute(
-                f"SELECT COUNT(*) FROM nonprofits WHERE {col} IS NOT NULL"
-            ).fetchone()[0]
+            return conn.execute(_POP_QUERIES[col]).fetchone()[0]
 
         website = pop("website_url")
         rating = pop("rating_stars")
