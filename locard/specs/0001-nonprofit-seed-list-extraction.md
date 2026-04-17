@@ -79,8 +79,8 @@ At the end of this project:
 CREATE TABLE IF NOT EXISTS nonprofits (
   ein                TEXT PRIMARY KEY,          -- 9-digit string, no dashes
   name               TEXT NOT NULL,
-  website_url        TEXT,                      -- canonical domain if resolvable; NULL if none on profile
-  website_url_raw    TEXT,                      -- exactly as scraped (may be a CN redirect wrapper or contain tracking params)
+  website_url        TEXT,                      -- canonical, normalized URL; NULL if none or non-resolvable
+  website_url_raw    TEXT,                      -- exactly as scraped (CN redirect wrapper or tracking params intact)
 
   rating_stars       INTEGER,                   -- 1..4 or NULL if unrated
   overall_score      REAL,                      -- 0..100 or NULL
@@ -103,15 +103,37 @@ CREATE TABLE IF NOT EXISTS nonprofits (
 
   cn_profile_url     TEXT NOT NULL,             -- https://www.charitynavigator.org/ein/{ein}
 
+  -- Diagnostic / status fields (added 2026-04-17 per Codex red-team feedback)
+  redirected_to_ein  TEXT,                      -- NULL for normal; if the profile 30x-redirected to a different EIN, record the target EIN here
+  parse_status       TEXT NOT NULL DEFAULT 'ok',-- 'ok' | 'partial' | 'blocked' | 'challenge' | 'unparsed'
+  website_url_reason TEXT,                      -- NULL if website_url is set; else one of: 'missing' | 'mailto' | 'tel' | 'social' | 'unwrap_failed' | 'invalid'
+
   last_fetched_at    TEXT NOT NULL,             -- ISO-8601 UTC
   content_sha256     TEXT NOT NULL,             -- SHA256 of the raw HTML at last fetch
-  parse_version      INTEGER NOT NULL DEFAULT 1 -- bumped when the parser changes; lets us detect rows that need re-extraction
+  parse_version      INTEGER NOT NULL DEFAULT 1,-- bumped when the parser changes; lets us detect rows that need re-extraction
+
+  CHECK (length(ein) = 9),
+  CHECK (rating_stars IS NULL OR rating_stars BETWEEN 1 AND 4),
+  CHECK (beacons_completed IS NULL OR beacons_completed BETWEEN 0 AND 4),
+  CHECK (overall_score IS NULL OR (overall_score >= 0 AND overall_score <= 100)),
+  CHECK (parse_status IN ('ok','partial','blocked','challenge','unparsed')),
+  CHECK (website_url_reason IS NULL OR website_url_reason IN ('missing','mailto','tel','social','unwrap_failed','invalid'))
 );
 
 CREATE INDEX idx_nonprofits_state        ON nonprofits(state);
 CREATE INDEX idx_nonprofits_rating_stars ON nonprofits(rating_stars);
 CREATE INDEX idx_nonprofits_ntee_major   ON nonprofits(ntee_major);
 CREATE INDEX idx_nonprofits_revenue      ON nonprofits(total_revenue);
+CREATE INDEX idx_nonprofits_parse_status ON nonprofits(parse_status);
+
+-- Redirect handling policy (Codex HIGH-1):
+-- When GET /ein/A returns a 30x redirect to /ein/B, we:
+--   1. Follow the redirect and parse B's profile body
+--   2. Write the row keyed by A (source-of-truth from sitemap enumeration)
+--   3. Populate all fields from B's body content
+--   4. Set redirected_to_ein = B
+--   5. Write a second row keyed by B (independently) when B is enumerated on its own
+-- Query-time deduplication groups rows by COALESCE(redirected_to_ein, ein).
 
 -- Audit table: one row per HTTP fetch. Helps diagnose 429/403/retry patterns.
 CREATE TABLE IF NOT EXISTS fetch_log (
@@ -119,12 +141,19 @@ CREATE TABLE IF NOT EXISTS fetch_log (
   ein            TEXT,
   url            TEXT NOT NULL,
   status_code    INTEGER,
-  attempt        INTEGER NOT NULL,
+  attempt        INTEGER NOT NULL,              -- 1-indexed; includes retries so metrics can distinguish them
+  is_retry       INTEGER NOT NULL DEFAULT 0,    -- 0 for first attempt, 1 for any retry
+  fetch_status   TEXT NOT NULL,                 -- 'ok' | 'not_found' | 'rate_limited' | 'forbidden' | 'challenge' | 'server_error' | 'network_error' | 'size_capped' | 'disallowed_by_robots'
   fetched_at     TEXT NOT NULL,
   elapsed_ms     INTEGER,
-  error          TEXT       -- NULL on success, error class on failure
+  bytes_read     INTEGER,                       -- for size-cap monitoring
+  notes          TEXT,                          -- free text (e.g., "redirected to ein 123456789", "Retry-After: 120")
+  error          TEXT,                          -- NULL on success, error class + message on failure
+  CHECK (fetch_status IN ('ok','not_found','rate_limited','forbidden','challenge','server_error','network_error','size_capped','disallowed_by_robots'))
 );
-CREATE INDEX idx_fetch_log_ein ON fetch_log(ein);
+CREATE INDEX idx_fetch_log_ein           ON fetch_log(ein);
+CREATE INDEX idx_fetch_log_status        ON fetch_log(fetch_status);
+CREATE INDEX idx_fetch_log_is_retry      ON fetch_log(is_retry);
 
 -- Sitemap enumeration cache (so we know the source of truth at enumeration time).
 CREATE TABLE IF NOT EXISTS sitemap_entries (
@@ -136,9 +165,37 @@ CREATE TABLE IF NOT EXISTS sitemap_entries (
 ```
 
 **Nullability rules:**
-- `ein, name, cn_profile_url, last_fetched_at, content_sha256, parse_version` are **NEVER NULL**.
+- `ein, name, cn_profile_url, last_fetched_at, content_sha256, parse_version, parse_status` are **NEVER NULL**.
 - `rating_stars, overall_score, beacons_completed, revenue, expenses, program_expense_pct` are NULL for unrated orgs — this is expected, not a bug.
-- `website_url_raw` is NULL only if no URL was visible on the profile. `website_url` may be NULL even when `website_url_raw` is set (if the raw value could not be resolved to a canonical domain).
+- `website_url_raw` is NULL only if no URL was visible on the profile. `website_url` may be NULL even when `website_url_raw` is set (if the raw value could not be resolved to a canonical domain — then `website_url_reason` explains why).
+- `redirected_to_ein` is NULL for rows whose fetch returned 200 from the requested EIN; populated only when the requested EIN 30x-redirected elsewhere.
+
+### Website URL Normalization Policy (Codex red-team MEDIUM-1)
+
+`website_url_raw` stores the scraped value as-is. `website_url` is derived by applying these rules in order. If any rule reveals the URL is unusable, `website_url` is set NULL and `website_url_reason` records why.
+
+1. **Unwrap Charity Navigator redirects**: if the URL starts with `https://www.charitynavigator.org/redirect?` (or similar), extract the `to=` / destination parameter and URL-decode it. Apply unwrap recursively up to 3 levels; if still wrapped, set `reason='unwrap_failed'`.
+2. **Reject non-HTTP schemes**: `mailto:`, `tel:`, `sms:`, `javascript:`, etc. → `reason='mailto'` / `'tel'` / `'invalid'` accordingly.
+3. **Reject social-media-only links**: destinations whose canonical host is `facebook.com`, `twitter.com`, `x.com`, `instagram.com`, `linkedin.com`, `youtube.com`, `tiktok.com`, `threads.net` → `reason='social'`. (These are not the org's primary web presence; a future pass can mine them separately.)
+4. **Lowercase the host** (RFC-3986 section 6.2.2.1).
+5. **Remove default ports**: `:80` for `http`, `:443` for `https`.
+6. **Punycode IDN hosts** to ASCII Compatible Encoding (e.g., `xn--`).
+7. **Strip tracking parameters**: remove `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `fbclid`, `gclid`, `mc_cid`, `mc_eid`, `_ga`. Preserve all other query parameters.
+8. **Remove trailing slash on root paths only** (`https://example.org/` → `https://example.org`). Do NOT strip trailing slashes elsewhere — `/foo/` and `/foo` are semantically different.
+9. **Drop fragments** (`#section`). They never affect which resource we'd fetch.
+10. **Validate** the result parses as a well-formed `http(s)` URL with a non-empty host. If not, `reason='invalid'`.
+
+Examples:
+
+| Input (`website_url_raw`) | Output (`website_url`) | `website_url_reason` |
+|---|---|---|
+| `https://redcross.org/?utm_source=charitynav` | `https://redcross.org` | NULL |
+| `HTTPS://Redcross.Org:443/?fbclid=abc` | `https://redcross.org` | NULL |
+| `mailto:info@example.org` | NULL | `mailto` |
+| `https://facebook.com/xyzorg` | NULL | `social` |
+| `https://www.charitynavigator.org/redirect?to=https%3A//redcross.org` | `https://redcross.org` | NULL |
+| `https://example.org/annual-report/` | `https://example.org/annual-report/` | NULL |
+| (empty) | NULL | `missing` |
 
 ## Stakeholders
 
@@ -177,7 +234,10 @@ If any field drops below 50%, that triggers a manual review (not an automated fa
 ### Operational / Compliance (GATING)
 
 - [ ] Effective sustained request rate ≤ 0.4 req/s.
-- [ ] **Post-retry 429 rate < 1%** of total requests (measured from `fetch_log`).
+- [ ] **Post-retry 429 rate < 1%** — defined precisely (Codex red-team LOW-1):
+  - **Numerator**: count of `fetch_log` rows where `fetch_status='rate_limited'` AND the URL never subsequently succeeded within the same run (i.e., retries did not resolve the 429).
+  - **Denominator**: count of distinct URLs attempted in this run (NOT total attempts — retries are already captured in the numerator logic).
+  - **Exclusions**: challenge-body 200s are counted separately under `fetch_status='challenge'` and contribute to the halt-trigger count, not the 429-rate metric.
 - [ ] **No CN-initiated IP block observed** during the run (if blocked mid-run, we'd see sustained 403/challenge → stop conditions trigger halt → this criterion fails).
 - [ ] Stop-condition halt: if any halt condition fires, the crawl exits with code 2 and writes `HALT-*.md`. A human must acknowledge before restart. (A halt is not itself a failure; hiding one would be.)
 - [ ] robots.txt re-fetched at crawl start; any change to the `/ein/*` allowance halts the crawl.
@@ -210,6 +270,11 @@ Our posture (tightened from "research use" framing per Claude review — Lavandu
 5. **No republishing of editorial content.** We do not copy Charity Navigator's rating narrative, reviewer commentary, or ranking prose.
 
 Mission statements require explicit treatment: they are the nonprofit's own marketing copy, but Charity Navigator is often the source-of-record for them. We persist `mission` **for internal segmentation only**. It is NEVER shown to a Charity Navigator competitor, included in any public Lavandula output, or exported outside the internal DB. If this posture changes, we re-verify source terms first.
+
+**PII in raw archive (Claude red-team MEDIUM)**: the raw HTML archive contains CN-rendered officer/director names and compensation figures as part of each profile. We do NOT extract these into DB columns, but they are present in the archived HTML. This is acknowledged openly (not hidden), and retention is scoped accordingly:
+- Raw archive is access-restricted on disk (directory `0o700`, files `0o600`).
+- Internal use only. No cloud backup. No sharing outside Ron's direct admin access.
+- Once the DB has been validated and the downstream report-harvesting bot has consumed it, the raw archive becomes a deletion candidate (operator decision documented in `HANDOFF.md`).
 
 ## Assumptions
 
@@ -348,10 +413,20 @@ The crawler MUST halt automatically and exit non-zero when any of the following 
 | Sustained `Retry-After` values > 300 s | 2 consecutive | Halt; we are being asked to slow down a lot, respect it |
 | Cumulative elapsed runtime | > 72 hours | Halt; diagnose before extending |
 
-**robots.txt policy:**
+**robots.txt policy (Codex red-team MEDIUM-2):**
 - Re-fetched at crawler startup; cached for the process lifetime.
-- The hardcoded disallow list (the two specific EINs + `/search/`, `/profile/`, `/basket/`) is overlaid with whatever the fresh fetch reveals.
-- If robots.txt fetch returns 5xx or times out, halt. Do not proceed on a stale cache.
+- **Stanza matching**: evaluate the MOST SPECIFIC `User-agent:` stanza whose token is a case-insensitive substring of our configured UA. If no specific match, fall back to `User-agent: *`. If multiple stanzas tie in specificity, **halt** — ambiguous robots semantics are a stop condition, not something to guess at.
+- The hardcoded disallow list (the two EINs of the form `86-3371262` + `/search/`, `/profile/`, `/basket/`) is applied IN ADDITION to whatever the fresh fetch reveals. Our hardcoded list is a floor, not a ceiling.
+- Parser must tolerate comments, blank lines, and order of directives per RFC 9309. A parse-time error is a halt condition.
+- If `robots.txt` fetch returns 5xx, times out, or is unparseable, halt. Do not proceed on a stale cache.
+
+**Provider complaint policy (Codex red-team LOW-2):**
+- If Charity Navigator contacts Ron (ronp@lavanduladesign.com) directly to object during or after a crawl:
+  1. **Immediate halt** of any running crawler process (SIGTERM; the process's signal handler must flush checkpoint + write `HALT-*.md`).
+  2. Preserve all `fetch_log` entries for post-incident review.
+  3. Review retention: decide whether the raw archive and derived DB are retained as-is, pruned, or deleted based on the nature of the objection.
+  4. Only restart after written resolution; flipping to the paid API path (Approach 2) is the default response if they request we stop scraping.
+  5. Document the incident in `lavandula/nonprofits/incidents/{date}-{subject}.md`.
 
 **Graceful halt behavior:**
 - Flush checkpoint to disk.
@@ -382,10 +457,24 @@ The crawler MUST halt automatically and exit non-zero when any of the following 
 ### Non-Functional Tests
 1. **Throttle enforcement**: 100 consecutive requests complete in ≥ 300 seconds (3 s × 100).
 2. **Retry behavior**: injected 429 response triggers exponential backoff; injected 503 triggers retry; permanent 404 logs and marks `fetch_status='not_found'` in `fetch_log` and skips.
-3. **Response-size cap**: a mocked 10 MB response body is truncated at 5 MB (spec-configured limit). Prevents a pathological/malicious response from OOMing BeautifulSoup.
+3. **Response-size cap (decompressed)**: a mocked gzip-compressed 50 KB response that decompresses to 10 MB is truncated at 5 MB (the cap applies to decompressed bytes, not wire bytes). `fetch_status='size_capped'`.
 4. **EIN filesystem-safety validation**: EINs pulled from URLs are validated against `^\d{9}$` before being used as filenames. A synthetic EIN like `../../etc/passwd` is rejected at extraction time.
-5. **Schema validation**: every row in `nonprofits.db` satisfies the declared schema (EIN is 9-digit string, rating_stars is 1–4 or NULL, etc.). Use SQLite `CHECK` constraints AND a post-run validator script.
-6. **Stop-condition triggers**: integration test injects 3 consecutive 403s → crawler halts with exit code 2, writes `HALT-*.md`. Same for 5 consecutive 429s, for a challenge-body signature, and for a `robots.txt` re-fetch newly disallowing `/ein/`.
+5. **Schema validation**: every row in `nonprofits.db` satisfies the declared schema (EIN is 9-digit string, rating_stars is 1–4 or NULL, enum columns have valid values, etc.). Use SQLite `CHECK` constraints AND a post-run validator script.
+6. **Stop-condition triggers**: integration test injects 3 consecutive 403s → crawler halts with exit code 2, writes `HALT-*.md`. Same for 5 consecutive 429s, for a challenge-body signature, for a `robots.txt` re-fetch newly disallowing `/ein/`, for disk-space below 5 GB, and for cumulative archive size above 50 GB.
+
+### Security Tests (added from Claude red-team)
+7. **XXE prevention (CRITICAL fixture)**: parse a fixture `tests/fixtures/cn/xxe-sitemap.xml` containing `<!DOCTYPE ... [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>`. Assert the parser does NOT resolve the entity; assert `/etc/passwd` content does NOT appear anywhere in the crawler's output, DB, or logs.
+8. **XXE SSRF prevention**: parse a fixture with `<!ENTITY xxe SYSTEM "http://127.0.0.1:1/">`. Assert NO outbound network request is made as a side effect of parsing (capture with a mock).
+9. **Decompression bomb**: a mocked gzip-compressed response whose decompressed body is 500 MB is rejected with `fetch_status='size_capped'`; peak memory during the test stays below 50 MB.
+10. **Cross-host redirect rejection**: mocked response `302 Location: http://attacker.example.org/` → crawler does NOT fetch `attacker.example.org`; records `fetch_status='server_error'` with note `"cross-host redirect to attacker.example.org"`.
+11. **Scheme-downgrade redirect rejection**: mocked response `302 Location: http://www.charitynavigator.org/...` (note `http` not `https`) → not followed.
+12. **TLS verification enforcement**: integration test issues startup self-test against `https://expired.badssl.com`; asserts the request fails with a cert error. If it succeeds, the crawler halts at startup.
+13. **Symlink refusal**: pre-plant a symlink at `raw/cn/530196605.html` pointing to `/tmp/sensitive`. Run crawler targeted at that EIN. Assert crawler halts with `HALT-*.md`; `/tmp/sensitive` is NOT modified.
+14. **SQL parameterization**: insert a mission statement containing `'; DROP TABLE nonprofits; --`; assert the table still exists afterwards; assert the stored mission is byte-identical to the input.
+15. **Log injection**: a remote `Retry-After` header containing `\r\nFAKE_LOG_LINE` is sanitized before being written to `fetch_log.notes` or disk logs.
+16. **Single-instance lock**: spawn two crawler processes simultaneously; first acquires the lock and runs; second exits with code 3 and a clear "already running" message.
+17. **File permissions**: after a run, assert `nonprofits.db` is mode `0o600`; `raw/cn/` is mode `0o700`; one-sample archive file is mode `0o600`.
+18. **Cookie non-persistence**: issue two sequential GETs; the second request's outgoing headers contain NO `Cookie:` header even if the first response set one.
 
 ### Integration Tests
 1. **Dry-run mode** (`--limit 10 --no-archive`): completes in < 45 s, exits cleanly, produces a parseable DB of 10 rows without mutating the real archive.
@@ -467,27 +556,106 @@ The crawler MUST halt automatically and exit non-zero when any of the following 
 **Sections Updated**: _to be populated_
 
 ### Red Team Security Review (MANDATORY)
-**Date**: _pending_
-**Command**: `consult --model gemini --type red-team-spec spec 0001`
-**Findings**: _to be populated after run_
+**Date**: 2026-04-17
+**Commands**:
+```
+consult --model codex  --type red-team-spec spec 0001   # ✅ REQUEST_CHANGES, HIGH
+consult --model claude --type red-team-spec spec 0001   # ✅ REQUEST_CHANGES, HIGH
+consult --model gemini --type red-team-spec spec 0001   # ❌ quota-exhausted (3 attempts)
+```
+**Reviewers**: GPT-5 Codex (7 findings) + Claude (15 findings). Gemini Pro attempted three times and was consistently quota-locked; per SPIDER protocol we would ideally have Gemini's independent take, but the two independent reviewers we did secure between them covered substantially different threat surfaces (Codex: schema/operational consistency; Claude: adversarial-content defenses including XXE, decompression bombs, cross-host redirects, TLS, filesystem attacks). Proceeding with the two-reviewer result as documented.
 
-| Severity | Issue | Attack Vector | Mitigation |
-|----------|-------|---------------|------------|
-| CRITICAL | _pending_ | _pending_ | _pending_ |
-| HIGH | _pending_ | _pending_ | _pending_ |
-| MEDIUM | _pending_ | _pending_ | _pending_ |
-| LOW | _pending_ | _pending_ | _pending_ |
+**Findings (from Codex):**
 
-**Verdict**: _pending_
+| Severity | Issue | Attack Vector / Impact | Mitigation |
+|----------|-------|------------------------|------------|
+| HIGH-1 | Redirect handling was referenced in tests but had no persistence target in the schema | Builder would invent ad-hoc storage; cross-EIN redirects (mergers, renumbering) produce silent data loss or duplication | Added `nonprofits.redirected_to_ein TEXT NULL` + explicit redirect policy (parse B's body into A's row, record B in column, dedup at query-time) |
+| HIGH-2 | Tests asserted behavior on `parse_status` / `fetch_status` but those fields didn't exist in the schema | Spec self-inconsistency; builder can't implement required test assertions | Added `nonprofits.parse_status TEXT NOT NULL` (enum: ok/partial/blocked/challenge/unparsed), `fetch_log.fetch_status TEXT NOT NULL` (enum: ok/not_found/rate_limited/forbidden/challenge/server_error/network_error/size_capped/disallowed_by_robots). Both with CHECK constraints. |
+| MEDIUM-1 | Website URL normalization rules under-specified (host case, ports, trailing slash, IDN, fragments) | Downstream dedup / querying inconsistent across re-runs; different implementers produce different outputs | Added explicit 10-rule "Website URL Normalization Policy" subsection with example table. Rejects social-only links with `reason='social'`. |
+| MEDIUM-2 | robots.txt stanza-matching behavior unspecified; ambiguous when site serves agent-specific directives vs `*` | We're using a named UA; site could serve us stricter rules that we silently ignore | Added robots.txt policy: most-specific substring match wins; multiple ties-in-specificity = halt; parse failures = halt; hardcoded list is a floor not a ceiling |
+| MEDIUM-3 | Archive writes not atomic; no runtime disk-space check | Mid-write crash leaves torn files in archive (poisons future re-parse); disk-full silently corrupts DB + archive | Added atomic write via `{ein}.html.tmp` + `os.replace`; preflight 50 GB free + runtime 5 GB check with halt condition |
+| LOW-1 | "< 1% 429 rate" metric ambiguous about numerator/denominator/retries | Success criterion not reproducibly measurable between runs | Defined precisely in terms of `fetch_log` columns: numerator = unresolved `rate_limited` URLs, denominator = distinct URLs attempted, challenge 200s excluded |
+| LOW-2 | No runtime policy for immediate halt on provider complaint during a crawl | If CN reaches out while crawler is running, implicit expectation that someone notices and stops it manually | Added Provider Complaint Policy: SIGTERM flushes checkpoint + writes HALT-*.md; document in `incidents/`; default response is pivot to paid API (Approach 2) |
 
-### Defensive Hardening (from Claude review)
+**Findings (from Claude):**
+
+| Severity | Issue | Attack Vector / Impact | Mitigation |
+|----------|-------|------------------------|------------|
+| CRITICAL-1 | XXE in XML sitemap parsing (`lxml` default resolves external entities) | Tampered sitemap with `<!ENTITY xxe SYSTEM "file:///etc/passwd">` yields local file disclosure; `SYSTEM "http://169.254.169.254/..."` yields SSRF against cloud metadata | Mandated `defusedxml` OR `lxml.etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)`. XXE fixture test required. |
+| HIGH-3 | 5 MB size cap didn't specify "decompressed" — gzip bomb bypass | 50 KB wire / 10 GB decompressed → OOM before cap fires | Cap applies to decompressed bytes; streamed decompression with incremental byte counter; abort on threshold. Test: 500 MB decompressed-size response rejected. |
+| HIGH-4 | Cross-host/scheme redirect following not restricted | Compromised redirect → fetch attacker.com wearing our identifiable UA (email leak), or `file://` for local read | Restrict redirects to exact host `www.charitynavigator.org` + scheme `https`. Manual redirect-chain handling. Test: cross-host 302 rejected. |
+| HIGH-5 | TLS cert verification not explicitly mandated | Builder silences `verify=False` to work around CI/proxy cert → MITM accepts tampered content | Mandate explicit verification; startup self-test against `expired.badssl.com` must fail; CI lint rule bans `verify=False`. |
+| HIGH-6 | `os.replace` follows symlinks | Local attacker pre-plants `raw/cn/{ein}.html -> /home/ubuntu/.ssh/authorized_keys`; next crawl overwrites the symlink target | Pre-write `os.lstat` check refuses symlinks; write via `O_NOFOLLOW` flag; archive dir `0o700`. Test: pre-planted symlink → halt. |
+| MEDIUM-4 | SQL parameterization not explicitly required | String-concat SQL with mission/name/address from HTML → injection once attacker content lands in a field | Mandate `?` placeholders; halt-worthy defect in review. Test: mission with `'; DROP TABLE --` round-trips intact. |
+| MEDIUM-5 | Cookie / session persistence unspecified | CN tracking cookies accumulate across 48K requests; fingerprinting + state leakage into checkpoints/logs | Clear cookies after each fetch; warn on `Set-Cookie`. Test: sequential GETs carry no `Cookie:` header. |
+| MEDIUM-6 | Log injection via URL / Retry-After / error strings | CR/LF in remote string → forged log lines; ANSI escapes → terminal spoofing when operator `cat`s logs | Strip control chars (`\x00-\x1f\x7f`); truncate to 500 chars; apply to all remote-sourced log writes. Test: Retry-After with CRLF is sanitized. |
+| MEDIUM-7 | PII in raw HTML archive (officer/director names, compensation) inconsistent with "we don't persist staff names" | Insider or accidental share of archive exposes embedded PII | Acknowledged in Legal/Compliance; access-control via `0o700` dir / `0o600` files; retention scoped; no cloud backup; deletion-candidate after DB validated |
+| MEDIUM-8 | No single-instance lock | Two accidentally-concurrent crawler processes race on checkpoint, DB, and archive | `fcntl.flock` on `.crawler.lock`; second instance exits code 3. Test: two concurrent processes → one halts cleanly. |
+| MEDIUM-9 | `website_url_reason` had no CHECK constraint (while peer enums did) | Inconsistency invites typos → silent schema drift | Added `CHECK (website_url_reason IS NULL OR website_url_reason IN ('missing','mailto','tel','social','unwrap_failed','invalid'))`. |
+| LOW-3 | Log rotation / retention policy absent | Unbounded log growth across re-runs | `RotatingFileHandler` 100 MB × 5 files; HALT files retained indefinitely. |
+| LOW-4 | DB / archive file permissions unspecified (world-readable on default umask) | Local read by other users | `0o600` for DB + archive files; `0o700` for directories. Test verifies modes post-run. |
+| LOW-5 | Subresource fetching not explicitly forbidden | If builder later switches to headless browser or resolves `<img>/<iframe>` → SSRF / third-party-resource fetching | Explicit ban: parser operates on HTML text only; never resolves subresources. |
+| LOW-6 | UA contains direct email (`ronp@lavanduladesign.com`) | Address becomes spam target → rotation requires refactor | Noted; user may choose to rotate to `crawler-contact@lavanduladesign.com` alias before implementation. |
+| LOW-7 | No cumulative archive-size cap | Pathological case (every response at 5 MB) → 240 GB | Halt when `du raw/` > 50 GB during run. |
+
+**All 22 findings (Codex 7 + Claude 15, including 1 CRITICAL) resolved in the spec.**
+
+**Verdict**: Codex `REQUEST_CHANGES` → addressed. Claude `REQUEST_CHANGES` → addressed. Gemini quota-blocked (3 attempts). Proceeding with two-reviewer coverage; Gemini can be invoked at the next consultation checkpoint (post-human-review) when quota resets.
+
+### Defensive Hardening (from Claude + Codex reviews)
 
 Items surfaced as proactive security hardening, not active threats:
 
 - **EIN filesystem safety**: every EIN is validated against `^\d{9}$` before being used as a filename. Even though the sitemap is trusted, a compromised intermediary or a regex bug could inject `../../etc/passwd`. Guard at extraction time; write fixture test.
-- **Response size cap**: the HTTP client enforces a **5 MB max response body**. A pathological or malicious proxy response could OOM BeautifulSoup. Streamed reads with a hard cap; exceeding = log and skip.
-- **Challenge-body poisoning**: a 200 OK response containing a Cloudflare challenge body must NOT be written to the `{ein}.html` archive as if it were a profile. We detect the challenge and write a separate `.challenge.html` marker file (not substituted for a future real profile).
-- **Checkpoint file integrity**: on startup, a corrupt/truncated checkpoint is renamed with a timestamp, not silently discarded. Operator can inspect.
+- **Response size cap**: the HTTP client enforces a **5 MB max DECOMPRESSED response body** (Claude red-team HIGH — a 5 MB raw cap would still permit a gzip bomb that decompresses to GB). Implementation: stream decompression with an incremental byte counter; abort once threshold exceeded. Log `fetch_status='size_capped'` and skip.
+- **Challenge-body poisoning**: a 200 OK response containing a Cloudflare challenge body must NOT be written to the `{ein}.html` archive as if it were a profile. We detect the challenge and write a separate `{ein}.challenge.html` marker file. The main `{ein}.html` path is never overwritten with challenge content.
+- **Checkpoint file integrity**: on startup, a corrupt/truncated checkpoint is renamed `checkpoint.corrupt-{timestamp}.json`, not silently discarded. Operator can inspect.
+- **Atomic archive writes (Codex red-team MEDIUM-3)**: every `{ein}.html` write goes to `{ein}.html.tmp` first and is atomically renamed on close. A crash mid-write leaves the old (or no) file intact.
+- **Symlink-safe archive writes (Claude red-team HIGH)**: before writing any archive file, `os.lstat` the destination; if it exists and is a symlink, refuse and halt. Create each temp file with `os.open(path, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW, 0o600)`. Archive directory created with mode `0o700`. This prevents a local attacker or stray symlink from redirecting writes elsewhere on the filesystem.
+- **Disk-space stop condition (Codex red-team MEDIUM-3)**:
+  - **Preflight**: at startup, verify ≥ 50 GB free on the partition holding `raw/`. If less, refuse to start.
+  - **Runtime check**: before each archive write, verify ≥ 5 GB free. If below, halt cleanly with `fetch_status='server_error'` and `HALT-disk_low-*.md`.
+  - **Cumulative archive cap (Claude red-team LOW)**: halt if total `raw/cn/` exceeds 50 GB during a run (defensive against every response hitting the 5 MB cap = 48K × 5 MB = 240 GB worst case).
+
+### Adversarial-Content Hardening (from Claude red-team)
+
+The threat model originally assumed Charity Navigator responses are benign. That's unsafe — CN is Cloudflare-fronted; every byte we parse is attacker-controlled-by-proxy if CN is ever compromised, MITMed, or serves a tampered CDN cache.
+
+- **XXE defense (Claude red-team CRITICAL)**: ALL XML parsing (the sitemap index and all 48 child sitemaps) MUST use `defusedxml` **OR** an explicitly-configured `lxml.etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)`. Default `lxml` will process external entities and fetch them on some platforms — a tampered sitemap with `<!DOCTYPE ... [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>` yields local file disclosure or SSRF against `169.254.169.254` (cloud metadata).
+  - **Test**: fixture `tests/fixtures/cn/xxe-sitemap.xml` contains an external-entity reference to `file:///etc/passwd`. Parser MUST NOT resolve it; content MUST NOT appear anywhere in output.
+
+- **Cross-host redirect restriction (Claude red-team HIGH)**: the HTTP client MUST only follow redirects where the target satisfies BOTH (a) scheme is `https`, AND (b) host is exactly `www.charitynavigator.org`. Any other redirect target → do NOT follow, record `fetch_status='server_error'` with note `"cross-host redirect to {host}"`, skip the EIN.
+  - Rationale: a compromised redirect could point our fetcher at `http://attacker.com/...` or `file:///...`; we would archive attacker content under a legitimate EIN filename, corrupting the seed list. Additionally, our UA contains `ronp@lavanduladesign.com` — leaking that to an attacker-controlled third party is a credential-in-UA leak.
+  - `requests` follows cross-host redirects by default; implementation MUST override via `allow_redirects=False` plus manual redirect chain handling, or via a `Session`-level hook that validates each redirect target.
+
+- **TLS certificate verification (Claude red-team HIGH)**: certificate verification MUST be enabled; `verify=False` or any equivalent bypass is a defect.
+  - **Startup self-test**: issue one GET against `https://expired.badssl.com` and assert the request fails. If it succeeds, halt (verification is silently disabled somewhere — e.g., by `REQUESTS_CA_BUNDLE` pointing at an attacker CA).
+  - Add as a lint rule in the implementation: any literal `verify=False` in the codebase is a CI failure.
+
+- **No subresource fetching (Claude red-team LOW, elevated)**: the parser MUST operate on raw HTML text only. It MUST NOT resolve, fetch, or render `<img>`, `<iframe>`, `<script>`, `<link>`, `<object>`, `<embed>`, or any other subresource referenced in the HTML. Only the top-level `GET /ein/{ein}` is permitted per profile.
+
+### Operational Hygiene (from Claude red-team)
+
+- **SQL parameterization (Claude red-team MEDIUM)**: ALL SQL writes MUST use `sqlite3` parameter binding (`?` placeholders). String-concatenated SQL (f-strings, `.format()`, `%s`) in any write path is a halt-worthy defect. Test: round-trip a mission statement containing `'; DROP TABLE nonprofits; --` and assert the string survives byte-identical in `nonprofits.mission`.
+
+- **Cookie handling (Claude red-team MEDIUM)**: do NOT persist cookies across requests. After each successful fetch, `session.cookies.clear()`. If `Set-Cookie` arrives, log a single-line warning with the cookie name (not value). Rationale: a persistent cookie jar would fingerprint our traffic and accumulate 48K sessions' worth of state in checkpoints/logs.
+
+- **Log-injection sanitation (Claude red-team MEDIUM)**: every remote-sourced string written to `fetch_log.notes`, `fetch_log.error`, or disk logs must be sanitized: strip control characters (`\x00-\x1f\x7f`) and truncate to 500 chars. Prevents CR/LF injection (forged log lines) and ANSI-escape-sequence injection (terminal spoofing when operator `cat`s a log).
+
+- **Single-instance lock (Claude red-team MEDIUM)**: on startup, acquire exclusive `fcntl.flock` on `lavandula/nonprofits/.crawler.lock`. If held, exit cleanly (exit code 3 = "already running"). Prevents two accidentally-concurrent crawlers racing on checkpoint, DB, and archive.
+
+- **File permissions (Claude red-team LOW)**:
+  - `nonprofits.db` created with mode `0o600` (owner read/write only).
+  - `raw/cn/` directory created with mode `0o700`.
+  - `logs/` directory created with mode `0o700`.
+  - Checkpoint + HALT files created with mode `0o600`.
+
+- **Log rotation (Claude red-team LOW)**: use `logging.handlers.RotatingFileHandler` with a 100 MB cap per file, keep the last 5 runs' logs. `HALT-*.md` files are small and retained indefinitely (never rotate — they're the forensic record of why a run stopped).
+
+- **PII-in-raw-archive acknowledgement (Claude red-team MEDIUM)**: the raw HTML we archive contains CN-rendered officer/director names and compensation figures, even though we don't extract these into DB columns. We acknowledge this openly in the Legal / Compliance section (already done there) and scope retention accordingly:
+  - Raw archive is access-restricted (dir mode `0o700`, files `0o600`).
+  - Internal use only; NO cloud backup, NO sharing.
+  - Once the DB is validated and the downstream report-harvesting bot has consumed it, the raw archive is a candidate for deletion. Retention decision is documented in `HANDOFF.md`.
 
 ## Approval
 - [ ] Technical Lead Review
