@@ -1,0 +1,5 @@
+User-agent: Mozilla
+Disallow: /a
+
+User-agent: crawler
+Disallow: /b

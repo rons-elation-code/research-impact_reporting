@@ -1,0 +1,11 @@
+# Security-floored runtime dependencies for the nonprofit crawler.
+# Pin floors derived from spec 0001 + plan Phase 1 red-team review:
+#   - defusedxml>=0.7.1 closes CVE-2021-45379 class XXE issues
+#   - lxml>=4.9.1 closes CVE-2022-2309 (NULL-pointer deref) + ships entity-safe defaults
+#   - requests>=2.31.0 closes CVE-2023-32681 (header leak via redirect)
+#   - cryptography is required for the local TLS self-test harness
+defusedxml>=0.7.1
+lxml>=4.9.1
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+cryptography>=42.0.0
