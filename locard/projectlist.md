@@ -120,12 +120,25 @@ projects:
       review: locard/reviews/0001-nonprofit-seed-list-extraction.md
     dependencies: []
     tags: [crawler, data-acquisition, nonprofit, lavandula-sales]
-    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. AC33 (50-EIN live validation) remains as Post-Implementation operator task before human can mark as 'integrated'."
+    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) added 2026-04-17 after validation revealed the full-sitemap path was both too large (2.3M vs 48K estimated) and too noisy (50% 404 rate). Project demoted from 'core product' to 'prospect-list helper' once 0002 is approved — 0002 is the actual report-catalogue product."
+
+  - id: "0002"
+    title: "Report Search Agent"
+    summary: "Search-first agent that queries public search engines for nonprofit annual/impact reports directly (PDFs) and builds a catalogue of well-designed reports. Bypasses the enumerate-orgs-then-find-reports pattern of 0001. Output is a queryable catalogue with org attribution derived from each report, doubling as a qualified prospect list."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0002-report-search-agent.md
+      plan: null
+      review: null
+    dependencies: []
+    tags: [search, agent, catalogue, lavandula-core]
+    notes: "Reframes the project root goal. 0001 enumerates nonprofits that might have reports; 0002 finds reports directly and derives the org attribution from each. The search-first shape more directly serves Lavandula's actual goal (design inspiration library + prospect signal based on demonstrated report commissioning)."
 ```
 
 ## Next Available Number
 
-**0002** - Reserve this number for your next project
+**0003** - Reserve this number for your next project
 
 ---
 
