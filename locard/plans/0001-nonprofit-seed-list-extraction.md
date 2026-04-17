@@ -97,15 +97,19 @@ implementation per TDD discipline.
 | AC4 | Decompression bomb (10 MB decompressed) is size-capped | 1 | Integration | tests/integration/test_http_client.py |
 | AC5 | Cross-host redirect rejected | 1 | Integration | tests/integration/test_http_client.py |
 | AC5a | Scheme-downgrade redirect rejected (302 to http://www.charitynavigator.org/...) | 1 | Integration | tests/integration/test_http_client.py |
-| AC6 | Cookie non-persistence across sequential GETs | 1 | Integration | tests/integration/test_http_client.py |
+| AC5b | Content-Type rejection: response not starting with `text/html` → fetch_status=server_error | 1 | Integration | tests/integration/test_http_client.py |
+| AC6 | Cookie non-persistence across sequential GETs (assert jar len == 0) | 1 | Integration | tests/integration/test_http_client.py |
+| AC6a | Retry-After HTTP-date form handled (not just seconds) | 1 | Unit | tests/unit/test_http_client.py |
 | AC7 | robots.txt stanza matching (most-specific wins) | 2 | Unit | tests/unit/test_robots.py |
 | AC7a | robots.txt fetch failure at startup halts | 2 | Integration | tests/integration/test_robots.py |
 | AC7b | robots.txt re-fetch revealing new `/ein/*` disallow halts | 2 | Integration | tests/integration/test_robots.py |
-| AC8 | XXE local-file entity not resolved (no /etc/passwd leak) | 2 | Unit | tests/unit/test_sitemap_parse.py |
+| AC7c | Periodic robots.txt re-fetch (every 6h or 1000 EINs) during long run | 5 | Integration | tests/integration/test_stop_conditions.py |
+| AC8 | XXE local-file entity not resolved (`file:///dev/null` sentinel, not /etc/passwd) | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC8a | XXE SSRF entity (`SYSTEM "http://127.0.0.1:..."`) triggers no outbound network call | 2 | Unit | tests/unit/test_sitemap_parse.py |
+| AC8b | HTML-mode XXE: BeautifulSoup parser does not resolve entities in HTML body | 4 | Unit | tests/unit/test_extract.py |
 | AC9 | Sitemap enumerates 48 child sitemaps | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC10 | Malformed EIN in sitemap skipped | 2 | Unit | tests/unit/test_sitemap_parse.py |
-| AC11 | Disallowed EIN 86-3371262 is not enumerated | 2 | Unit | tests/unit/test_sitemap_parse.py |
+| AC11 | Disallowed EIN 86-3371262 is not enumerated (both dashed + undashed forms rejected via canonicalize_ein) | 2 | Unit | tests/unit/test_sitemap_parse.py |
 | AC12 | Symlink refusal on archive write | 3 | Integration | tests/integration/test_archive.py |
 | AC13 | Cloudflare challenge body detected and isolated | 3 | Integration | tests/integration/test_fetch.py |
 | AC13a | Challenge detection also triggers immediate halt (distinct from isolation) | 5 | Integration | tests/integration/test_stop_conditions.py |
@@ -113,6 +117,8 @@ implementation per TDD discipline.
 | AC14a | Second, independent row written when target EIN (B) is enumerated on its own | 3 | Integration | tests/integration/test_fetch.py |
 | AC14b | Query-time dedup: `GROUP BY COALESCE(redirected_to_ein, ein)` collapses redirect-pair to one logical org | 3 | Unit | tests/unit/test_db.py |
 | AC15 | Atomic archive write (crash mid-write leaves no partial file) | 3 | Integration | tests/integration/test_archive.py |
+| AC15a | Parent-directory fsync after os.replace (crash-durability) | 3 | Integration | tests/integration/test_archive.py |
+| AC15b | Per-process temp subdir isolates in-flight writes (TOCTOU defense) | 3 | Integration | tests/integration/test_archive.py |
 | AC16 | Parser produces all fields for rated fixture | 4 | Unit | tests/unit/test_extract.py |
 | AC17 | Parser produces name/mission only for unrated fixture | 4 | Unit | tests/unit/test_extract.py |
 | AC18 | URL normalization rule set (host lowercase, default-port strip, trailing-slash on root only, fragment drop) | 4 | Unit | tests/unit/test_url_normalize.py |
@@ -127,6 +133,8 @@ implementation per TDD discipline.
 | AC22 | Single-instance flock prevents concurrent runs | 5 | Integration | tests/integration/test_cli.py |
 | AC23 | Checkpoint resume: partial run continues from last EIN | 5 | Integration | tests/integration/test_cli.py |
 | AC24 | Corrupt checkpoint renamed, fresh run starts | 5 | Integration | tests/integration/test_cli.py |
+| AC24a | Checkpoint HMAC mismatch treated as corrupt (tampering defense) | 5 | Unit | tests/unit/test_checkpoint.py |
+| AC24b | Corrupt-checkpoint retention cap: oldest deleted once more than 5 exist | 5 | Integration | tests/integration/test_cli.py |
 | AC25 | Stop-condition halt on 3 consecutive 403s | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC26 | Stop-condition halt on 5 consecutive unresolved 429s | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC26a | Stop-condition halt on 2 consecutive Retry-After values greater than 300s | 5 | Integration | tests/integration/test_stop_conditions.py |
@@ -134,7 +142,11 @@ implementation per TDD discipline.
 | AC27 | Stop-condition halt on disk-space less than 5 GB | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC28 | Stop-condition halt on cumulative archive greater than 50 GB | 5 | Integration | tests/integration/test_stop_conditions.py |
 | AC29 | SIGTERM graceful shutdown with checkpoint flush + HALT file | 5 | Integration | tests/integration/test_cli.py |
-| AC30 | File permissions: DB 0o600, raw/cn/ 0o700 after run | 5 | Integration | tests/integration/test_cli.py |
+| AC29a | SIGTERM fallback: HALT write failure falls back to stderr + _exit(2) | 5 | Integration | tests/integration/test_cli.py |
+| AC30 | File permissions: DB 0o600, raw/cn/ 0o700, coverage_report.md + HANDOFF.md 0o600 after run | 5 | Integration | tests/integration/test_cli.py |
+| AC30a | DNS IP-pin: startup resolves `www.charitynavigator.org` IP set; drift logs warning | 5 | Integration | tests/integration/test_cli.py |
+| AC30b | Clock-sync warning when local vs CN `Date:` header diverges greater than 5 min | 5 | Integration | tests/integration/test_cli.py |
+| AC30c | Content-Length vs actual-bytes sanity warning at greater than 10× divergence | 1 | Unit | tests/unit/test_http_client.py |
 | AC31 | coverage_report.md generated with empirical metrics | 6 | Integration | tests/integration/test_report.py |
 | AC32 | HANDOFF.md contains schema + query + refresh + contact-protocol + usage-restrictions sections | 6 | Manual | inspection |
 | AC32a | `lavandula/nonprofits/README.md` quick-start exists and covers install + run + test | 6 | Manual | inspection |
@@ -151,9 +163,54 @@ implementation per TDD discipline.
 
 ## Phase Breakdown
 
+### Phase 0: TDD Acceptance Test Scaffolding
+
+**Dependencies**: none (must commit BEFORE any Phase-1 implementation)
+
+Rationale: Codex red-team-plan MEDIUM-2 flagged that the repo's TDD workflow
+(see CLAUDE.md / AGENTS.md) requires acceptance-test scaffolding to be
+generated and committed BEFORE implementation begins. A builder starting
+Phase 1 without this committed would be violating the workflow even while
+following the plan.
+
+#### Objectives
+
+- Generate failing acceptance-test skeletons for every AC in the matrix.
+- Commit `locard/tests/0001-nonprofit-seed-list-extraction/` as the
+  TDD scaffolding.
+
+#### Deliverables
+
+- `locard/tests/0001-nonprofit-seed-list-extraction/README.md` — which AC
+  each test file covers, mapping identical to the matrix.
+- `tests/unit/test_*.py` and `tests/integration/test_*.py` stubs — one
+  `pytest` function per AC, marked `@pytest.mark.xfail(reason="not yet
+  implemented")` or equivalent, asserting the observable behavior.
+- Suite runs; **all tests fail or xfail** (none pass yet — that's the point).
+- Committed as: `[Spec 0001] TDD acceptance test scaffolding`.
+
+#### Acceptance Criteria
+
+- Every AC in the matrix has at least one test stub.
+- `pytest -q` completes without framework errors.
+- No test passes unexpectedly (would mean the AC is already satisfied by
+  the empty implementation, which is a smell).
+
+#### Rollback
+
+Pure additive scaffolding; revert the commit.
+
+#### Risks
+
+- **Risk**: Stubs drift from the matrix as phases evolve.
+  - **Mitigation**: the builder MUST update stubs in the same commit as
+    any AC-matrix change.
+
+---
+
 ### Phase 1: Scaffolding + Schema + HTTP Client
 
-**Dependencies**: none
+**Dependencies**: Phase 0 (TDD scaffolding committed)
 
 #### Objectives
 
@@ -177,43 +234,101 @@ implementation per TDD discipline.
 - `lavandula/nonprofits/logging_utils.py` — log-injection-safe formatter
   (strip control chars, truncate to 500).
 - `tests/unit/test_schema.py`, `tests/integration/test_http_client.py`.
-- `pyproject.toml` or `requirements.txt` pinning: requests, beautifulsoup4,
-  lxml, **defusedxml**, pytest, pytest-mock.
+- **`pyproject.toml` (Poetry) OR `requirements.txt` generated by `pip-tools`
+  with `--generate-hashes`** (Claude red-team-plan HIGH-1 — supply chain):
+  - Minimum versions documented as security requirements:
+    `defusedxml>=0.7.1`, `lxml>=4.9.1` (XXE hardening for both XML and HTML
+    modes), `requests>=2.31.0` (CVE-2023-32681 fix).
+  - Install command uses `--require-hashes --only-binary=:all:`.
+  - Lockfile committed; no unpinned transitive deps.
+- `.python-version` file pinning `3.12.x` (Claude LOW-6 — prevent major
+  version drift).
+- Pre-commit / CI step running `pip-audit` (or `safety`) against the
+  lockfile; a HIGH/CRITICAL CVE is a failing check.
+- Pre-commit / CI step running `bandit` or `ruff` with S-rules enabled;
+  explicitly flag `verify=False`, `shell=True`, `eval(`, pickle usage (Claude
+  LOW-7).
 
 #### Implementation Details
 
 - Reuse the throttle pattern from `nptech/http_client.py` but add:
   - `verify=True` explicit; reject `verify=False` in review.
-  - Pre-flight self-test against `https://expired.badssl.com` at client init.
-    Behavior (tightened from Codex + Claude plan-review — previous draft was
-    internally inconsistent):
-    - Allow up to 2 retries on transient network errors.
-    - **Total budget 30 seconds** including retries.
-    - If the connection SUCCEEDS, raise `TLSVerificationDisabled` and halt —
-      somewhere along the path, verification is off (attacker CA in
-      `REQUESTS_CA_BUNDLE`, monkey-patched `verify=False`, etc.).
-    - If the connection FAILS with a cert error (as it should), pass.
-    - If 30 seconds elapse without a conclusive result (pure network
-      unreachability), raise `TLSSelfTestInconclusive` and halt. We do NOT
-      treat "cannot prove verification is on" as a warning — the self-test
-      is a security gate, not a nice-to-have.
-    - Optional: a backup endpoint can be tried (e.g., a self-signed cert
-      served by a test server); adding one doesn't relax the gate.
+  - **Hybrid local + remote TLS self-test** (Codex red-team-plan MEDIUM +
+    Claude red-team-plan MEDIUM — both flagged third-party dependency on
+    `expired.badssl.com` as a nondeterminism + DoS/MITM risk):
+    - **Primary: local known-bad-cert endpoint.** Phase 1 scaffolding
+      provisions a tiny test harness that serves a self-signed cert on
+      `localhost:<ephemeral_port>`. This is deterministic, never down,
+      never MITM-able from outside the process.
+    - **Secondary: `expired.badssl.com`** as a cross-verification signal.
+    - Behavior: BOTH endpoints must fail with a cert error. If the local
+      endpoint succeeds (verification disabled) OR the remote endpoint
+      succeeds (upstream-path MITM), halt with a distinguishing message.
+      If ONLY the remote is inconclusive within a 30 s budget (including up
+      to 2 retries), log a warning but PASS — the deterministic local
+      check is authoritative. If the local endpoint itself is inconclusive
+      (port can't bind, etc.), halt — the gate cannot run.
+    - CI / integration tests use the local endpoint only (no network
+      dependency).
   - `allow_redirects=False`; custom redirect loop validates each hop (scheme ==
     'https' AND host == 'www.charitynavigator.org').
-  - `requests.Session` with cookies cleared after every `get()`.
-  - Streamed decompression: `response.iter_content(chunk_size)`, accumulate into
-    a bytearray with a 5 MB cap; on overflow raise `ResponseSizeExceeded`.
+  - `requests.Session` used for connection pooling, but cookies reset after
+    every `get()` via `session.cookies = requests.cookies.RequestsCookieJar()`
+    (Claude red-team-plan MEDIUM — `session.cookies.clear()` is not
+    guaranteed to empty the jar under all internal states). AC6 test asserts
+    `len(session.cookies) == 0` after each GET, not just absence of the
+    `Cookie:` header.
+  - **Streamed decompression with explicit decoded-bytes cap** (Claude MED —
+    `requests` transparently decompresses gzip/deflate on `stream=True`
+    with `iter_content(decode_content=True)`):
+    ```
+    response = session.get(url, stream=True, timeout=...)
+    size = 0
+    chunks = []
+    for chunk in response.iter_content(chunk_size=8192, decode_content=True):
+        size += len(chunk)
+        if size > MAX_RESPONSE_BYTES:
+            response.close()              # terminate socket before full read
+            raise ResponseSizeExceeded(...)
+        chunks.append(chunk)
+    ```
+    AC4 asserts the response's underlying socket was closed before the full
+    10 MB of decoded bytes was accumulated into memory.
+  - **Throttle jitter** (Claude red-team-plan MED): `REQUEST_DELAY_SEC = 3.0`
+    with `REQUEST_DELAY_JITTER_SEC = 0.5` added as uniform random
+    (`random.uniform(-jitter, +jitter)`). Prevents perfectly-periodic
+    fingerprintable traffic. AC2 lower bound becomes `>= 250s` for 100
+    requests.
+  - **Retry-After handles HTTP-date AND seconds** (Claude red-team-plan MED —
+    per RFC 7231 the header can be either form). Parser accepts both;
+    date-form values parsed then converted to seconds; values greater than
+    300s are clamped/logged and counted toward the Retry-After stop
+    condition. Malicious year-9999 dates are clamped at the stop-condition
+    threshold.
+  - **Content-Type validation** (Claude red-team-plan HIGH-3): before handing
+    the response to the parser, assert `Content-Type` startswith `text/html`
+    or `application/xhtml+xml`. Mismatch → `fetch_status='server_error'` with
+    note `"unexpected content-type: {ct}"`; archive is NOT written.
   - Log control-char sanitization applied to every `notes`/`error` string.
 - `config.py` exposes:
   - `ROOT = Path(__file__).parent`
   - `RAW = ROOT / "raw" / "cn"`, `DATA = ROOT / "data"`, `LOGS = ROOT / "logs"`
   - `REQUEST_DELAY_SEC = 3.0`
+  - `REQUEST_DELAY_JITTER_SEC = 0.5`
   - `MAX_RESPONSE_BYTES = 5 * 1024 * 1024`
-  - `USER_AGENT = "Lavandula Design research crawler/1.0 ..."` (exact string
-    from spec; escaping for email in code comments ok).
+  - `USER_AGENT` — default uses an alias address
+    `"Lavandula Design research crawler/1.0 (+https://lavanduladesign.com;
+    crawler-contact@lavanduladesign.com)"` (Claude red-team-plan LOW-1 —
+    aliasable without refactor; may rotate by env var).
+  - `UA_EMAIL` — env-overridable so the alias can be swapped without a code
+    change if CN's logs ever leak.
   - `ALLOWED_REDIRECT_HOST = "www.charitynavigator.org"`
-  - `DISALLOWED_EINS = frozenset(["863371262"])` (canonical undashed form).
+  - `ALLOWED_REDIRECT_SCHEME = "https"`
+  - **`DISALLOWED_EINS`** (Claude red-team-plan MED): stored as canonical
+    undashed 9-digit strings (e.g., `"863371262"`). A normalization
+    function `canonicalize_ein(s: str) -> str` strips dashes and validates
+    `^[0-9]{9}` anchored; applied before any disallow comparison. Fixture
+    test asserts both `863371262` and `86-3371262` are rejected.
 - `schema.py` is idempotent: `CREATE TABLE IF NOT EXISTS ...`; version-bump in
   comments when fields change.
 
@@ -391,13 +506,27 @@ external state mutated.
   since the challenge appears near the top).
 - On challenge: write `{ein}.challenge.html` + populate `fetch_log.fetch_status='challenge'`;
   DO NOT update the main `{ein}.html`.
-- Atomic write:
-  - `tmp = ein + '.html.tmp'`
-  - `fd = os.open(tmp, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW, 0o600)`
-  - write bytes, fsync, close.
-  - `lstat` the final path; if it's a symlink, delete `tmp` and halt (symlink
-    planted by something external — incident).
-  - `os.replace(tmp, final)` — atomic.
+- **Atomic write (hardened per Codex HIGH-2 + Claude HIGH-4):** the naïve
+  `lstat`-then-`os.replace` sequence has a TOCTOU race where a local attacker
+  (or a stray process) can plant a symlink between the check and the rename,
+  since `renameat(2)` does not check symlinks at the destination. Mitigated
+  by isolating the final directory:
+  - Archive directory layout: `raw/cn/` (final, mode `0o700`) contains
+    ONLY regular files or nothing. A per-process temp subdirectory
+    `raw/cn/.tmp-{pid}-{uuid}/` (mode `0o700`, owned by the crawler PID)
+    holds in-flight `.html.tmp` files.
+  - Write sequence:
+    1. `fd = os.open(tmp_path, O_WRONLY|O_CREAT|O_TRUNC|O_NOFOLLOW, 0o600)`
+       in the per-PID temp subdir.
+    2. Write decoded bytes; `os.fsync(fd)`; close.
+    3. `os.lstat(final_path)` inside `raw/cn/` — the mode-0o700 parent
+       prevents unauthorized symlink plants by any other UID.
+    4. If `final_path` exists AND is a symlink, halt immediately.
+    5. `os.replace(tmp_path, final_path)` — atomic.
+    6. **`os.fsync(dir_fd)`** on `raw/cn/` (Codex red-team-plan HIGH-2 —
+       directory-entry durability across power loss).
+    7. Unlink the per-PID temp subdir on normal shutdown; leftover subdirs
+       from crashed prior runs are swept on startup (report count in log).
 - Cross-EIN redirect handling:
   - Phase 1's HTTP client returns the full redirect chain.
   - Parse the final body into the source EIN's row; set
@@ -478,6 +607,15 @@ external state mutated.
 - `extract.py` uses BeautifulSoup only; **never** resolves subresources
   (`<img>`, `<iframe>`, etc.). Enforce by reading raw HTML text and passing
   `features='lxml'` with no custom entity resolver.
+- **HTML-mode entity-safety** (Claude red-team-plan HIGH-2):
+  - Require `lxml >= 4.9.1` (documented in Phase 1 dependency pinning).
+  - Construct parser as `BeautifulSoup(html_bytes, 'lxml',
+    from_encoding='utf-8')` — no custom entity resolver injected.
+  - Add a fixture `tests/fixtures/cn/xxe-html-mode.html` containing an
+    HTML `<!DOCTYPE>` + `<!ENTITY>` pointing at `file:///dev/null` (NOT a
+    sensitive file — Claude LOW-4: avoid tripping enterprise CI security
+    scanners with `/etc/passwd` literal). Assert entity is not resolved;
+    fetch_status/parse_status correctly set.
 - Extraction pipeline:
   1. Detect "rated" vs "unrated" profile (presence of rating stars selector).
   2. Extract core fields: name, mission, address, state, revenue, expenses,
@@ -550,15 +688,60 @@ external state mutated.
 #### Objectives
 
 - `crawler.py` wires Phases 1-4 into the main loop: read sitemap_entries,
-  fetch each EIN, extract, write DB.
+  fetch each EIN (fetcher.py owns archive writes end-to-end — per Codex
+  red-team-plan MEDIUM-3 archive ownership clarification — the crawler does
+  NOT re-archive; it receives a result record from fetcher), extract, write
+  DB.
 - Checkpoint + resume semantics.
 - Single-instance `fcntl.flock` lock.
 - Disk-space preflight (50 GB) + runtime check (5 GB).
 - Stop-condition detection + halt-with-exit-code-2 behavior.
-- `SIGTERM` handler: flush checkpoint, write `HALT-provider-complaint-*.md`.
+- `SIGTERM` handler: flush checkpoint, write `HALT-provider-complaint-*.md`;
+  if HALT write itself fails (disk full), fall back to a stderr log + `_exit(2)`
+  (Claude red-team-plan MED).
 - `--limit`, `--refresh`, `--start-ein`, `--no-download` flags.
 - File-permission enforcement: DB mode 0o600, directories 0o700.
+- **Report / handoff file permissions 0o600** (Claude red-team-plan MED
+  — `coverage_report.md` contains aggregate stats that could fingerprint
+  Lavandula's prospect methodology if leaked).
 - Log rotation: `RotatingFileHandler(100 MB * 5)`.
+- **Periodic robots.txt re-fetch** during a long run (Claude red-team-plan
+  MED): every 6 hours OR every 1000 EINs, whichever comes first. If
+  `/ein/*` becomes disallowed mid-run, halt immediately with AC7b's
+  condition fired. Cost: ~12 extra requests per 72-hour run, negligible.
+- **Cumulative-runtime stop condition** wired (> 72 hours → halt, AC26b).
+- **Stale-flock policy is fail-closed** (Claude red-team-plan MED): if
+  `fcntl.flock(LOCK_EX | LOCK_NB)` fails because the lock is held, we do
+  NOT auto-takeover even if the owning PID appears dead. Always exit code
+  3 with a message directing the operator to investigate manually. Automatic
+  takeover introduces PID-collision bugs that are worse than the convenience
+  is worth.
+- **Corrupt-checkpoint retention cap** (Claude red-team-plan LOW-5): keep
+  the last 5 `checkpoint.corrupt-*.json` files; older ones are deleted on
+  startup.
+- **Checkpoint integrity** (Claude red-team-plan MED-8): the checkpoint
+  file stores fetched EIN set + next-target. A local actor with UID-level
+  access (mode 0o600 notwithstanding) could inject a fabricated checkpoint
+  that skips the disallow list. Mitigation: HMAC-SHA256 the checkpoint
+  content using a per-installation secret `.crawler.key` (mode 0o600,
+  generated with `secrets.token_bytes(32)` on first run). Verify MAC on
+  load; MAC mismatch = treat as corrupt (rename `.corrupt-*`, fresh start,
+  log WARNING).
+- **DNS IP-pin + drift alert** (Claude red-team-plan MED-12): at crawler
+  startup, resolve `www.charitynavigator.org` and record the IP set.
+  Before each request, re-resolve; if the IP set changes, log a warning
+  (not a halt — Cloudflare's pool rotates legitimately; this is signal,
+  not control). The already-enforced host/scheme redirect check operates
+  on the URL, but pinning is a cheap addition.
+- **Content-Length sanity check** (Claude red-team-plan LOW-2): if
+  `Content-Length` header is present and diverges from actual decoded
+  bytes read by more than 10×, log a warning; signal of response
+  smuggling via compromised proxy.
+- **Clock-sync check at startup** (Claude red-team-plan LOW-3): compare
+  local `time.time()` against the `Date:` header of the first response
+  from CN. If divergence greater than 5 minutes, log a warning. Bad
+  `last_fetched_at` values would poison a future incremental-refresh
+  TICK.
 
 #### Deliverables
 
@@ -1023,9 +1206,120 @@ HIGH), Gemini Pro ❌ (quota-exhausted for the second straight session)
 
 ### Red Team Security Review (MANDATORY)
 
-**Date**: pending
-**Command**: `consult --model gemini --type red-team-plan plan 0001`
-**Findings**: to be populated
+**Date**: 2026-04-17
+**Commands**:
+
+```
+consult --model codex  --type red-team-plan plan 0001   # REQUEST_CHANGES, HIGH
+consult --model claude --type red-team-plan plan 0001   # REQUEST_CHANGES, HIGH
+consult --model gemini --type red-team-plan plan 0001   # quota-exhausted (3 attempts this session)
+```
+
+**Reviewers**: Codex (5 findings — 2 HIGH, 3 MEDIUM) + Claude (21 findings
+— 0 CRITICAL, 4 HIGH, 11 MEDIUM, 7 LOW). Gemini quota-locked again.
+
+**Findings (from Codex):**
+
+#### Codex HIGH-1 — Workflow not approval-ready
+- **Issue**: plan had pending second consultation + red-team review.
+- **Mitigation**: addressed by completing this very review cycle. Procedural.
+
+#### Codex HIGH-2 — Archive write not crash-durable
+- **Issue**: `tmp + fsync(file) + os.replace` omits `fsync(parent_dir)`.
+  After power loss, the directory entry update may not be durable even
+  though the file contents are.
+- **Mitigation**: added `os.fsync(dir_fd)` on `raw/cn/` after `os.replace`.
+  AC15a added to matrix.
+
+#### Codex MEDIUM-1 — TLS self-test relies on third-party
+- **Issue**: `expired.badssl.com` is a network dependency for a security
+  gate; makes startup + tests nondeterministic.
+- **Mitigation**: redesigned as **hybrid local-primary + remote-secondary**.
+  Local known-bad-cert endpoint is authoritative; remote is cross-check.
+  CI/integration tests use local only.
+
+#### Codex MEDIUM-2 — TDD pre-implementation step missing
+- **Issue**: matrix is strong but the "generate acceptance tests before
+  implementation" commit is not scheduled.
+- **Mitigation**: added **Phase 0 (TDD Acceptance Test Scaffolding)** —
+  must be committed before Phase 1 starts. Dependencies updated accordingly.
+
+#### Codex MEDIUM-3 — Archive ownership ambiguous
+- **Issue**: `fetcher.py` archives, but Phase 5 pseudocode implies a
+  second archive step in the crawler.
+- **Mitigation**: `fetcher.py` owns archiving end-to-end; the crawler
+  receives a result record and does NOT re-archive. Phase 5 Objectives
+  updated explicitly.
+
+**Findings (from Claude):**
+
+#### Claude HIGH-1 — Dependency pinning / CVE scanning missing
+- **Mitigation**: Phase 1 mandates Poetry `poetry.lock` OR pip-tools with
+  `--generate-hashes`; version floors for `defusedxml>=0.7.1`,
+  `lxml>=4.9.1`, `requests>=2.31.0`; `pip-audit` + `bandit`/ruff S-rules
+  in CI; `.python-version` pinning Python 3.12.x.
+
+#### Claude HIGH-2 — BeautifulSoup HTML-mode entity safety
+- **Mitigation**: explicit parser construction with `lxml>=4.9.1`;
+  `tests/fixtures/cn/xxe-html-mode.html` added; new AC8b.
+
+#### Claude HIGH-3 — Content-Type not validated before parsing
+- **Mitigation**: HTTP client asserts `Content-Type` starts with
+  `text/html` or `application/xhtml+xml`; mismatch → fetch_status=
+  server_error. New AC5b.
+
+#### Claude HIGH-4 — TOCTOU race between lstat and os.replace
+- **Mitigation**: per-process temp subdir `raw/cn/.tmp-{pid}-{uuid}/`
+  (mode 0o700) isolates in-flight writes; the final directory (0o700,
+  crawler-owned) is not writable by other UIDs. Plus `os.fsync(dir_fd)`
+  after `os.replace` covers Codex HIGH-2. New AC15b.
+
+#### Claude MEDIUM — 11 items, all addressed in the plan body:
+
+- Decompression with `decode_content=True` + explicit decoded-bytes cap +
+  early socket close on overflow. AC4 updated.
+- Cookie jar reset via `session.cookies = RequestsCookieJar()`, AC6
+  asserts `len(jar) == 0`.
+- Hybrid local+remote TLS self-test (shared with Codex MED-1).
+- Periodic robots.txt re-fetch (every 6h or 1000 EINs). New AC7c.
+- Throttle jitter ±0.5s. AC2 lower bound relaxed to greater than or equal
+  to 250s.
+- Stale-flock: no auto-takeover; always exit 3 and require manual
+  intervention.
+- Disallow EIN canonicalization (`canonicalize_ein`) applied before
+  comparison. AC11 updated.
+- Checkpoint HMAC-SHA256 with per-installation secret `.crawler.key`.
+  New AC24a.
+- SIGTERM fallback: stderr log + `_exit(2)` if HALT file write fails.
+  New AC29a.
+- Retry-After HTTP-date form handled. New AC6a.
+- Report/HANDOFF file permissions 0o600. AC30 expanded.
+
+#### Claude MEDIUM (supply chain + network): DNS rebinding
+
+- **Mitigation**: resolve `www.charitynavigator.org` at startup; record IP
+  set; log drift warning on per-request re-resolve. New AC30a. Not a halt
+  condition — Cloudflare's pool rotates.
+
+#### Claude LOW — 7 items, addressed in-place:
+
+- L1: UA email alias default `crawler-contact@lavanduladesign.com`; env-
+  overridable.
+- L2: Content-Length vs actual decoded bytes sanity warning at greater
+  than 10× divergence. New AC30c.
+- L3: Clock-sync warning vs CN `Date:` header, greater than 5 min
+  divergence. New AC30b.
+- L4: XXE fixture uses `file:///dev/null`, not `/etc/passwd` (avoids
+  triggering enterprise CI security scanners).
+- L5: Corrupt-checkpoint retention cap at 5 files. New AC24b.
+- L6: `.python-version` pinning (shared with H1).
+- L7: `bandit`/ruff S-rules in CI (shared with H1).
+
+**All 26 findings (Codex 5 + Claude 21) resolved in the plan body.**
+
+**Verdict**: Both reviewers' `REQUEST_CHANGES` addressed. The matrix grew
+from 47 → 63 ACs. Phase 0 added. Plan is substantially more defensible
+against supply-chain, TOCTOU, and adversarial-content threats.
 
 ## Approval
 
