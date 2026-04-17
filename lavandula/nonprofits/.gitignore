@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+data/nonprofits.db
+data/nonprofits.db-shm
+data/nonprofits.db-wal
+data/checkpoint.json
+data/checkpoint.corrupt-*.json
+data/.crawler.key
+raw/cn/*.html
+raw/cn/*.challenge.html
+raw/cn/.tmp-*/
+logs/*.log
+logs/*.log.*
+logs/HALT-*.md
+.crawler.lock
+coverage_report.md

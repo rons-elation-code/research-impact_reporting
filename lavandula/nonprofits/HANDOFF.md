@@ -1,0 +1,161 @@
+# Nonprofit Seed List — Operational Handoff
+
+> Spec: `locard/specs/0001-nonprofit-seed-list-extraction.md`
+> Plan: `locard/plans/0001-nonprofit-seed-list-extraction.md`
+
+## What this is
+
+Lavandula Design's internal catalogue of US nonprofits, built from Charity
+Navigator's public `/ein/*` profile sitemap. One SQLite row per rated or
+sitemap-advertised nonprofit. Fields include website URL (normalized), star
+rating, overall score, revenue, expenses, program-expense ratio, NTEE
+major/code, city, state, and a locally-stored mission statement (see Usage
+Restrictions below).
+
+The seed list feeds a downstream report-harvesting project that fetches
+annual / impact report PDFs from each org's website.
+
+## Schema
+
+Canonical DDL lives in `schema.py`. Summary:
+
+- `nonprofits` — one row per profile. Primary key `ein` (9-digit string).
+- `fetch_log` — one row per HTTP attempt. Enum `fetch_status` captures
+  retry/classification. Used for the 429-rate and halt-forensics.
+- `sitemap_entries` — enumeration-time record of every EIN the sitemap
+  advertised. Join against `nonprofits` to find un-fetched EINs.
+
+### Key columns
+
+| Column | Nullability | Notes |
+|---|---|---|
+| `ein` | never | 9 digits, no dashes, validated with `canonicalize_ein`. |
+| `website_url` | may be NULL | Normalized. NULL means unusable; see `website_url_reason`. |
+| `website_url_raw` | may be NULL | Exactly as scraped. |
+| `website_url_reason` | NULL if url set | One of: `missing`, `mailto`, `tel`, `social`, `unwrap_failed`, `invalid`. |
+| `rating_stars` | NULL if unrated | 1-4 integer. |
+| `parse_status` | never | `ok` / `partial` / `blocked` / `challenge` / `unparsed`. |
+| `redirected_to_ein` | NULL if same | Populated when the source EIN 30x-redirected to another EIN. |
+| `content_sha256` | never | SHA256 of raw HTML at last fetch. Delta detection. |
+| `parse_version` | never | Incremented when the extractor changes; re-extract rows with lower values. |
+
+## How to run
+
+```bash
+# From repo root:
+python -m lavandula.nonprofits.crawler                 # full crawl
+python -m lavandula.nonprofits.crawler --limit 50      # smoke test
+python -m lavandula.nonprofits.crawler --no-download   # enumerate only
+python -m lavandula.nonprofits.crawler --refresh       # re-fetch everything
+```
+
+Exit codes: `0` clean, `1` generic error, `2` halt condition fired (see
+`logs/HALT-*.md`), `3` another process already holds the lock.
+
+## Example queries
+
+```sql
+-- Prime prospects: 4-star orgs with ≥ $5M revenue
+SELECT ein, name, website_url, total_revenue
+FROM nonprofits
+WHERE rating_stars = 4
+  AND total_revenue >= 5000000
+  AND website_url IS NOT NULL
+ORDER BY total_revenue DESC;
+
+-- Sector-targeted list (arts orgs in NY)
+SELECT ein, name, website_url
+FROM nonprofits
+WHERE ntee_major = 'A' AND state = 'NY';
+
+-- Dedup redirect pairs
+SELECT COALESCE(redirected_to_ein, ein) AS canonical_ein,
+       MAX(name) AS name,
+       MAX(website_url) AS website_url
+FROM nonprofits
+GROUP BY canonical_ein;
+
+-- 429 rate (spec Operational metric)
+SELECT
+  (SELECT COUNT(*) FROM fetch_log WHERE fetch_status='rate_limited') * 1.0
+    / (SELECT COUNT(DISTINCT url) FROM fetch_log) AS post_retry_429_rate;
+```
+
+## How to refresh
+
+A full re-crawl is operator-initiated:
+
+```bash
+python -m lavandula.nonprofits.crawler --refresh
+```
+
+This re-enumerates the sitemap and re-fetches every EIN, overwriting the
+raw archive. Delta detection is handled in-DB via `content_sha256` and
+`last_fetched_at`. We do NOT keep per-run snapshots in v1; if that becomes
+needed, file a new spec.
+
+To incrementally add newly-advertised EINs only, delete the DB's
+`sitemap_entries` table and re-run without `--refresh`. The crawler will
+re-enumerate and only fetch EINs not already in `nonprofits`.
+
+To rotate the checkpoint HMAC key (e.g., suspected leak):
+
+```bash
+rm lavandula/nonprofits/data/.crawler.key
+# Next run regenerates; existing checkpoints fail MAC verification and
+# are rotated to `checkpoint.corrupt-*.json` (retained up to 5, then
+# oldest is deleted).
+```
+
+## Contact protocol
+
+If Charity Navigator (CN) reaches out to Ron about this crawler:
+
+1. **Immediate halt.** Send SIGTERM to the crawler process; it flushes its
+   checkpoint and writes `logs/HALT-provider-complaint-*.md`.
+2. Preserve `fetch_log`, archive, and all HALT files for post-incident
+   review.
+3. Decide on retention (keep as-is, prune, or delete) based on the nature
+   of the objection.
+4. Only restart after written resolution. Default response to a request
+   to stop scraping: pivot to Charity Navigator's paid Data Feed
+   (Approach 2 in the spec).
+5. Document the incident in `lavandula/nonprofits/incidents/{date}-{subject}.md`.
+
+## Retention
+
+The raw HTML archive (`raw/cn/`) contains CN-rendered officer/director
+names and compensation numbers (we do NOT extract these into DB columns,
+but they live in the archived HTML). Posture:
+
+- Archive directory: `0o700`; files `0o600`.
+- Internal use only. NO cloud backup. NO sharing outside Ron's direct
+  admin access.
+- Once the downstream report-harvesting project has consumed the DB,
+  the raw archive becomes a deletion candidate. Document the decision
+  in this file.
+
+Retention decision: _pending_ (to be filled in post-downstream-consumption).
+
+## Usage restrictions
+
+Derived from spec § Legal / Compliance Constraints:
+
+- **`mission` field** — internal segmentation only. Never shown to any CN
+  competitor. Never included in any public Lavandula output. Never
+  exported outside the internal DB. If this posture changes, re-verify
+  source terms first.
+- **`rated`, `rating_stars`, `overall_score`, `beacons_completed`** — may
+  be used for internal segmentation. Must NOT be republished or presented
+  as Lavandula's own ratings. Any external output that references a CN
+  rating must attribute it to Charity Navigator.
+- **Raw HTML archive** — local-only. No cloud upload. No sharing outside
+  Ron's direct admin access.
+- **Officer/director names and compensation** — present in the raw HTML
+  but intentionally NOT extracted. Do not extract them in a derivative
+  project without reviewing the PII posture.
+
+## Incidents log
+
+`lavandula/nonprofits/incidents/` — populated only when an incident
+occurs. Format: `{YYYY-MM-DD}-{subject}.md`.

@@ -1,0 +1,10 @@
+User-agent: *
+Disallow: /ein/
+Disallow: /search/
+
+User-agent: Lavandula
+Disallow: /search/
+Disallow: /profile/
+
+User-agent: BadBot
+Disallow: /

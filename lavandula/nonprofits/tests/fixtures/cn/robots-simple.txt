@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /search/
+Disallow: /profile/
+Disallow: /basket/
+Disallow: /ein/86-3371262
+Disallow: /ein/863371262
+
+Sitemap: https://www.charitynavigator.org/extra-index.xml
