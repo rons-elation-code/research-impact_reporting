@@ -29,6 +29,7 @@ from . import (
     archive,
     checkpoint,
     config,
+    curated_lists,
     db_writer,
     extract,
     fetcher,
@@ -58,6 +59,11 @@ class CrawlOptions:
     start_ein: str | None
     no_download: bool
     skip_tls_selftest: bool
+    source: str
+
+
+SOURCE_CURATED = "curated-lists"
+SOURCE_SITEMAP = "sitemap"
 
 
 def parse_args(argv: list[str] | None = None) -> CrawlOptions:
@@ -72,6 +78,17 @@ def parse_args(argv: list[str] | None = None) -> CrawlOptions:
                    help="Dry run: enumerate + plan, but do not fetch profiles.")
     p.add_argument("--skip-tls-selftest", action="store_true",
                    help="Internal: used by tests that stand up their own TLS harness.")
+    p.add_argument(
+        "--source",
+        choices=(SOURCE_CURATED, SOURCE_SITEMAP),
+        default=SOURCE_CURATED,
+        help=(
+            "Seed-source selector (TICK-001). 'curated-lists' (default) "
+            "enumerates CN's Best Charities pages (~3K-7K orgs). 'sitemap' "
+            "uses the legacy full XML sitemap (~2.3M orgs, ~82 days at "
+            "3s throttle — not recommended)."
+        ),
+    )
     args = p.parse_args(argv)
     return CrawlOptions(
         limit=args.limit,
@@ -79,6 +96,7 @@ def parse_args(argv: list[str] | None = None) -> CrawlOptions:
         start_ein=args.start_ein,
         no_download=args.no_download,
         skip_tls_selftest=args.skip_tls_selftest,
+        source=args.source,
     )
 
 
@@ -124,19 +142,12 @@ def _write_halt_file(logs_dir: Path, reason: str, *, detail: str = "") -> Path:
     return path
 
 
-def _enumerate_if_empty(
+def _enumerate_sitemap(
     client: http_client.ThrottledClient,
     conn,
     policy: robots.RobotsPolicy,
 ) -> int:
-    """Populate sitemap_entries from the live sitemap if empty.
-
-    Returns the number of entries known after enumeration.
-    """
-    existing = conn.execute("SELECT COUNT(*) FROM sitemap_entries").fetchone()[0]
-    if existing:
-        return existing
-
+    """Legacy path: populate sitemap_entries from CN's XML sitemap."""
     log.info("Fetching sitemap index %s", config.SITEMAP_INDEX_URL)
     index = client.get(config.SITEMAP_INDEX_URL, content_type_required=False)
     if index.status != "ok" or index.body is None:
@@ -168,7 +179,58 @@ def _enumerate_if_empty(
                     conn, ein=ein, source_sitemap=label, lastmod=loc.lastmod,
                 )
                 inserted += 1
-    log.info("Enumerated %d EINs into sitemap_entries", inserted)
+    return inserted
+
+
+def _enumerate_curated(
+    client: http_client.ThrottledClient,
+    conn,
+    policy: robots.RobotsPolicy,
+) -> int:
+    """TICK-001 default: enumerate CN's Best Charities pages."""
+    return curated_lists.enumerate(client, conn, policy)
+
+
+def _enumerate_if_empty(
+    client: http_client.ThrottledClient,
+    conn,
+    policy: robots.RobotsPolicy,
+    *,
+    source: str,
+) -> int:
+    """Populate sitemap_entries for the selected source if empty.
+
+    "Empty" here means "no rows for this source" — a curated run that
+    encounters a DB populated only by legacy sitemap enumeration treats
+    itself as empty and enumerates the curated pages. Source partition
+    is enforced downstream in `db_writer.unfetched_sitemap_entries` so
+    this is defense-in-depth, not the sole isolation mechanism.
+    """
+    if source == SOURCE_CURATED:
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM sitemap_entries "
+            "WHERE source_sitemap LIKE 'curated:%'"
+        ).fetchone()[0]
+    else:
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM sitemap_entries "
+            "WHERE source_sitemap NOT LIKE 'curated:%'"
+        ).fetchone()[0]
+
+    if existing:
+        log.info(
+            "sitemap_entries already has %d rows for source=%s; skipping enumeration",
+            existing, source,
+        )
+        return existing
+
+    if source == SOURCE_CURATED:
+        inserted = _enumerate_curated(client, conn, policy)
+    elif source == SOURCE_SITEMAP:
+        inserted = _enumerate_sitemap(client, conn, policy)
+    else:
+        raise RuntimeError(f"unknown source: {source!r}")
+    log.info("Enumerated %d EINs into sitemap_entries (source=%s)", inserted, source)
     return inserted
 
 
@@ -236,16 +298,26 @@ def run(opts: CrawlOptions) -> int:
         _write_halt_file(logs_dir, "robots_disallow_ein")
         return EXIT_HALT
 
+    # TICK-001 Claude #5: curated-lists run requires /discover-charities/*
+    # to still be allowed. Halt if not.
+    if opts.source == SOURCE_CURATED and not policy.is_allowed(
+        curated_lists.DISCOVER_CHARITIES_PATH
+    ):
+        log.error("robots.txt disallows %s; curated-lists source is unusable",
+                  curated_lists.DISCOVER_CHARITIES_PATH)
+        _write_halt_file(logs_dir, "robots_disallow_discover")
+        return EXIT_HALT
+
     stop = stop_conditions.StopConditions(archive_root=config.RAW)
     cp = checkpoint.load()
     if not cp.started_at:
         cp.started_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
 
-    # Enumerate sitemap if empty.
+    # Enumerate seed source if the DB has no rows for the selected source.
     try:
-        _enumerate_if_empty(client, conn, policy)
+        _enumerate_if_empty(client, conn, policy, source=opts.source)
     except Exception as exc:
-        log.error("Sitemap enumeration failed: %s", sanitize_exception(exc))
+        log.error("Seed enumeration failed: %s", sanitize_exception(exc))
         _write_halt_file(logs_dir, "sitemap_enum", detail=str(exc))
         return EXIT_HALT
 
@@ -275,6 +347,7 @@ def run(opts: CrawlOptions) -> int:
         conn,
         limit=opts.limit if not opts.refresh else None,
         start_ein=opts.start_ein,
+        source=opts.source,
     ):
         if opts.limit is not None and fetched >= opts.limit:
             break

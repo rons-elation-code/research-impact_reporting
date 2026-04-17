@@ -1,8 +1,11 @@
 # lavandula/nonprofits — quick start
 
-A throttled crawler that builds a queryable SQLite database of ~48K US
-nonprofit profiles from Charity Navigator's public sitemap. See
-`HANDOFF.md` for full operational details.
+A throttled crawler that builds a queryable SQLite database of
+Charity Navigator nonprofit profiles. Default scope (TICK-001):
+~3K–7K rated orgs from CN's Best Charities index pages. A legacy
+full-sitemap mode (~2.3M orgs, ~82 days at 3s throttle) is kept
+behind `--source=sitemap` for reference use. See `HANDOFF.md` for
+full operational details.
 
 ## Install
 
@@ -26,15 +29,23 @@ python -m venv venv
 ## Run
 
 ```bash
-# Full crawl (~48h wall-clock at 3s throttle):
+# Curated-lists crawl (~3K–7K orgs; default since TICK-001):
 ./venv/bin/python -m lavandula.nonprofits.crawler
 
 # Smoke test (limit of 50 EINs):
 ./venv/bin/python -m lavandula.nonprofits.crawler --limit 50
 
-# Enumerate sitemap only, no profile fetches:
+# Enumerate only, no profile fetches:
 ./venv/bin/python -m lavandula.nonprofits.crawler --no-download
+
+# Legacy: full XML sitemap (~2.3M orgs, not recommended):
+./venv/bin/python -m lavandula.nonprofits.crawler --source sitemap
 ```
+
+`--source` selects the seed enumeration strategy: `curated-lists`
+(default) or `sitemap`. Rows for each source live in the same
+`sitemap_entries` table but are prefixed (`curated:<slug>` vs
+`Sitemap<N>.xml`) and are never crossed by the fetch scheduler.
 
 Exit codes: 0 ok · 1 error · 2 halt-condition · 3 another process running.
 On halt, inspect `logs/HALT-*.md` before restarting.

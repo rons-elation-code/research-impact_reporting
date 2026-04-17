@@ -5,12 +5,15 @@
 
 ## What this is
 
-Lavandula Design's internal catalogue of US nonprofits, built from Charity
-Navigator's public `/ein/*` profile sitemap. One SQLite row per rated or
-sitemap-advertised nonprofit. Fields include website URL (normalized), star
+Lavandula Design's internal catalogue of US nonprofits, built from
+Charity Navigator's public data. Default seed source (since TICK-001)
+is CN's Best Charities index pages (~3K–7K pre-rated orgs); a legacy
+full-sitemap mode (~2.3M orgs, ~82 days to crawl at the 3s throttle) is
+retained behind `--source=sitemap` for reference use. One SQLite row per
+enumerated nonprofit. Fields include website URL (normalized), star
 rating, overall score, revenue, expenses, program-expense ratio, NTEE
-major/code, city, state, and a locally-stored mission statement (see Usage
-Restrictions below).
+major/code, city, state, and a locally-stored mission statement (see
+Usage Restrictions below).
 
 The seed list feeds a downstream report-harvesting project that fetches
 annual / impact report PDFs from each org's website.
@@ -22,8 +25,13 @@ Canonical DDL lives in `schema.py`. Summary:
 - `nonprofits` — one row per profile. Primary key `ein` (9-digit string).
 - `fetch_log` — one row per HTTP attempt. Enum `fetch_status` captures
   retry/classification. Used for the 429-rate and halt-forensics.
-- `sitemap_entries` — enumeration-time record of every EIN the sitemap
-  advertised. Join against `nonprofits` to find un-fetched EINs.
+- `sitemap_entries` — enumeration-time record of every EIN the seed
+  source advertised. `source_sitemap` is prefixed `curated:<slug>` for
+  rows enumerated from a Best Charities category page, or
+  `Sitemap<N>.xml` for rows from the legacy XML sitemap. The fetch
+  scheduler partitions by this prefix (via `--source`) so a DB
+  populated by a prior run in one mode does not leak into a run in the
+  other. Join against `nonprofits` to find un-fetched EINs.
 
 ### Key columns
 
@@ -43,11 +51,21 @@ Canonical DDL lives in `schema.py`. Summary:
 
 ```bash
 # From repo root:
-python -m lavandula.nonprofits.crawler                 # full crawl
-python -m lavandula.nonprofits.crawler --limit 50      # smoke test
-python -m lavandula.nonprofits.crawler --no-download   # enumerate only
-python -m lavandula.nonprofits.crawler --refresh       # re-fetch everything
+python -m lavandula.nonprofits.crawler                       # curated (default)
+python -m lavandula.nonprofits.crawler --limit 50            # smoke test
+python -m lavandula.nonprofits.crawler --no-download         # enumerate only
+python -m lavandula.nonprofits.crawler --refresh             # re-fetch everything
+python -m lavandula.nonprofits.crawler --source sitemap      # legacy full sitemap
 ```
+
+`--source` selects the seed enumeration strategy:
+
+- `curated-lists` (default): scrape CN's `/discover-charities/best-charities/*`
+  category pages. Expected scale: 3K–7K rated orgs. Wall-clock at 3s
+  throttle: roughly 3–6 hours.
+- `sitemap`: legacy full XML sitemap. ~2.3M orgs across 48 child
+  sitemaps. Retained for reference; not a recommended v1 run mode
+  (~82 days wall-clock).
 
 Exit codes: `0` clean, `1` generic error, `2` halt condition fired (see
 `logs/HALT-*.md`), `3` another process already holds the lock.
@@ -89,14 +107,25 @@ A full re-crawl is operator-initiated:
 python -m lavandula.nonprofits.crawler --refresh
 ```
 
-This re-enumerates the sitemap and re-fetches every EIN, overwriting the
-raw archive. Delta detection is handled in-DB via `content_sha256` and
-`last_fetched_at`. We do NOT keep per-run snapshots in v1; if that becomes
-needed, file a new spec.
+This re-fetches every EIN already in the DB (for the active `--source`),
+overwriting the raw archive. Delta detection is handled in-DB via
+`content_sha256` and `last_fetched_at`. We do NOT keep per-run
+snapshots in v1; if that becomes needed, file a new spec.
 
-To incrementally add newly-advertised EINs only, delete the DB's
-`sitemap_entries` table and re-run without `--refresh`. The crawler will
-re-enumerate and only fetch EINs not already in `nonprofits`.
+To pick up newly-advertised EINs only:
+
+```bash
+# Remove ONLY the rows for the active source, then re-run.
+# Curated (default):
+sqlite3 lavandula/nonprofits/data/nonprofits.db \
+  "DELETE FROM sitemap_entries WHERE source_sitemap LIKE 'curated:%';"
+# Legacy sitemap:
+sqlite3 lavandula/nonprofits/data/nonprofits.db \
+  "DELETE FROM sitemap_entries WHERE source_sitemap NOT LIKE 'curated:%';"
+```
+
+The crawler will re-enumerate its source and only fetch EINs not already
+in `nonprofits`.
 
 To rotate the checkpoint HMAC key (e.g., suspected leak):
 

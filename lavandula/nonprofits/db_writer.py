@@ -150,8 +150,17 @@ def unfetched_sitemap_entries(
     *,
     limit: int | None = None,
     start_ein: str | None = None,
+    source: str | None = None,
 ):
-    """Yield (ein, source_sitemap, lastmod) for EINs not yet in nonprofits."""
+    """Yield (ein, source_sitemap, lastmod) for EINs not yet in nonprofits.
+
+    `source` (TICK-001, Codex HIGH-1): when set to 'curated-lists' the
+    SQL adds `AND s.source_sitemap LIKE 'curated:%'` so a DB previously
+    populated by legacy sitemap enumeration does not leak into a curated
+    run. When set to 'sitemap' the inverse guard applies (exclude rows
+    whose `source_sitemap` starts with 'curated:'). `None` means no
+    partitioning — legacy behavior.
+    """
     base = """
     SELECT s.ein, s.source_sitemap, s.lastmod
     FROM sitemap_entries s
@@ -159,6 +168,12 @@ def unfetched_sitemap_entries(
     WHERE n.ein IS NULL
     """
     params: dict = {}
+    if source == "curated-lists":
+        base += " AND s.source_sitemap LIKE 'curated:%'"
+    elif source == "sitemap":
+        base += " AND s.source_sitemap NOT LIKE 'curated:%'"
+    elif source is not None:
+        raise ValueError(f"unknown source={source!r}")
     if start_ein is not None:
         base += " AND s.ein >= :start_ein"
         params["start_ein"] = str(start_ein)
