@@ -1,3 +1,17 @@
+# ABANDONED — see 0002-corpus-search-engine.md + 0003-nonprofit-report-catalogue.md
+
+This spec was split on 2026-04-17 after multi-agent review returned
+3 CRITICAL + 10 HIGH findings. Most findings were pipeline-level
+(SSRF, parser isolation, budget enforcement) and belong in a
+generic shared engine (new 0002). The topic-specific parts (report
+queries, design scoring, org attribution) moved to a separate
+plugin spec (0003).
+
+The content below is preserved as-is for reference; do not
+implement against it.
+
+---
+
 # Specification: Report Search Agent
 
 ## Metadata
