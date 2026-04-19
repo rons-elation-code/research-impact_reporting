@@ -1325,6 +1325,33 @@ TICK-003 is **additive and opt-in**. Default behavior when
 `anthropic.Anthropic()` path — no behavior change for operators
 who prefer direct API billing.
 
+**Normative v1 path and backend comparison** (per Codex
+spec-review, 2026-04-19): both the Anthropic SDK backend
+(pre-TICK-003 behavior, unchanged) and the Codex CLI shim
+backend introduced by TICK-003 are supported production paths
+in v1. Operators pick via `CLASSIFIER_CLIENT` env var per run.
+They are not mutually exclusive, but they differ in three
+operational dimensions:
+
+1. **Billing**: Anthropic backend consumes per-call API credits
+   (ledgered in `budget_ledger`, capped by daily/monthly cents
+   config). Codex backend consumes ChatGPT Business subscription
+   quota (tokens-per-day, requests-per-week) managed by OpenAI
+   and surfaced only in the `codex` CLI banner.
+2. **Budget ledger semantics**: the ledger's cent-denominated
+   `check_and_reserve` / `settle` flow is authoritative only for
+   the Anthropic backend. Under Codex, the ledger still records
+   rows (for accounting continuity) but the cap branch is moot;
+   see Design Notes below.
+3. **External dependency**: the Anthropic backend requires the
+   `anthropic` Python package and a live `ANTHROPIC_API_KEY`.
+   The Codex backend requires the `codex` CLI binary on PATH
+   and an authenticated ChatGPT session on the host (one-time
+   `codex login`).
+
+Neither backend is deprecated; both remain supported for the
+foreseeable future. Choice is a per-operator cost/quota decision.
+
 **In Scope**
 
 - New module: `lavandula/reports/classifier_clients.py`
