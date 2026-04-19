@@ -357,8 +357,9 @@ def test_ac9_untrusted_document_wrapper_passed_through():
     captured_prompt = []
 
     def capture_prompt_runner(cmd, **kwargs):
-        # The prompt is the second argv element (codex -p <prompt>).
-        captured_prompt.append(cmd[-1])
+        # Prompt is piped via stdin (codex exec -), so read from
+        # kwargs["input"] rather than argv.
+        captured_prompt.append(kwargs.get("input", ""))
         return _CompletedProcess(
             returncode=0,
             stdout=json.dumps({

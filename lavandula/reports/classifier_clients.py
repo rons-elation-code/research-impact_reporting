@@ -226,10 +226,16 @@ class CodexSubscriptionClient:
     # --- subprocess -----------------------------------------------------
 
     def _invoke_codex(self, prompt: str) -> str:
-        """Shell out to `codex` with prompt on stdin, return stdout."""
+        """Shell out to `codex exec` with prompt on stdin, return stdout.
+
+        Uses `codex exec -` so the prompt is piped via stdin (avoids
+        argv size limits on long prompts). This is the non-interactive
+        subcommand per `codex --help`.
+        """
         try:
             result = self._runner(
-                [self._cli, "-p", prompt],
+                [self._cli, "exec", "-"],
+                input=prompt,
                 capture_output=True,
                 timeout=self._timeout,
                 text=True,
