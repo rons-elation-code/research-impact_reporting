@@ -986,15 +986,21 @@ captured as Post-Implementation TICK candidates, not blockers.
 
 <!-- When adding a TICK amendment, add a new entry below this line in chronological order -->
 
-### TICK-001: HTML-index one-hop descent (2026-04-19)
+### TICK-001: Relaxed PDF filter on report-anchor subpages (2026-04-19, v2)
 
-**Summary**: Extend candidate-URL discovery with a bounded, depth-1
-descent into HTML landing pages whose URL path or anchor text
-matches report patterns. Parse the HTML body, extract same-domain
-PDF links found inside, and append those PDFs to the candidate
-queue. Fixes the "landing page" gap where nonprofits route
-through `/reports/`, `/our-impact/`, `/giving/annual-fund` etc.
-rather than linking PDFs directly from the homepage.
+**Summary**: The base spec's Step 5 (one-level subpage expansion)
+correctly fetches HTML landing pages like `/our-impact/` and
+`/giving/annual-fund` via `discover.per_org_candidates()`. But
+when those subpages are parsed by `candidate_filter.extract_candidates()`,
+the same strict Step-3 filter is re-applied to the links inside —
+so a PDF link whose anchor text is mundane ("Download", "Read
+here", "2024 report.pdf") and whose URL path doesn't contain any
+of the nine PATH_KEYWORDS gets rejected. Relax this: when the
+PARENT subpage's own URL or anchor already matched a report
+pattern (which is why we chose to expand it in the first place),
+accept ANY PDF link on that subpage, subject to the existing
+platform-allowlist and cross-origin rules (AC12.2/AC12.3). Small,
+additive change. Inherits all existing security guards.
 
 **Motivation — empirical evidence from 2026-04-19 coastal run
 (100 mid-market coastal NPs, ProPublica-seeded,
@@ -1023,115 +1029,135 @@ anchor/path semantics. TICK-001 targets this pattern.
 
 **In Scope**
 
-Same-domain HTML pages surfaced by the current discovery layer as
-candidates, whose Content-Type is `text/html` and whose URL path
-OR anchor text matches the report-pattern regex.
+Subpages already chosen for expansion by the existing Step 5
+(`per_org_candidates()` → `subpages_to_walk`) whose OWN URL path
+matched any `PATH_KEYWORDS` entry OR whose referring anchor text
+matched any `ANCHOR_KEYWORDS` entry when added to the homepage
+candidate list.
+
+When such a subpage's HTML is parsed, extract PDF links with a
+relaxed filter (defined below) instead of the strict Step-3
+filter applied on the homepage.
 
 **Out of Scope**
 
-- JCCSF-style discovery gaps where the homepage links to no
-  report-ish anchor at all (verified 2026-04-19: JCCSF's homepage
-  yielded zero candidates; the known-good PDF at
+- JCCSF-style discovery gaps where the homepage yields **zero**
+  candidates to descend into at all (verified 2026-04-19: JCCSF
+  homepage fetched, no link matched `_classify_link()`, no
+  subpage expanded). The known-good PDF at
   `/wp-content/uploads/2026/01/260115_DEV_ImpactReport_Financials_UPTD_24-25_Compressed_v3mh.pdf`
-  is never reached). A follow-up TICK-002 will cover broader
-  candidate sourcing (sitemap deep-crawl, `/wp-content/uploads/`
-  enumeration, explicit link-density heuristics).
-- Multi-hop recursion beyond depth 1. Explicitly disallowed.
+  is never reached and TICK-001 does not change that. A follow-up
+  TICK-002 will cover broader candidate sourcing (sitemap
+  deep-crawl, `/wp-content/uploads/` directory enumeration,
+  explicit link-density heuristics).
+- Multi-hop expansion beyond the existing one-hop `subpage`
+  expansion. Explicitly disallowed.
 - JavaScript-rendered landing pages (no headless browser).
+- Any new schema or fetch_log enum value — TICK-001 reuses the
+  existing `kind='subpage'` and existing `fetch_status` values
+  (Codex spec-review, 2026-04-19).
 
 **Technical Implementation**
 
-Single file change: `lavandula/reports/discover.py`,
-function `per_org_candidates()`.
+Two small file changes; no schema change; no new config.
 
-Algorithm, appended after the current initial-candidate pass:
+**Change 1**: `lavandula/reports/discover.py::per_org_candidates()`
 
-1. Partition current candidates into `likely_pdf` (href ends
-   `.pdf` OR Content-Type already known to be `application/pdf`)
-   and `html_maybe_index`.
-2. For each candidate in `html_maybe_index` where
-   `REPORT_PATH_RE.search(url.path)` OR
-   `REPORT_ANCHOR_RE.search(anchor_text)` is True:
-   - Verify robots.txt allows the URL (reuse existing
-     `robots.is_allowed()`).
-   - GET the body with a hard cap of
-     `MAX_INDEX_BODY_BYTES = 1 MB` and
-     `INDEX_FETCH_TIMEOUT_SEC = 15`. Use the existing streaming
-     size-cap from `http_client.py`; on overflow set
-     `fetch_status="size_capped"`.
-   - Parse with BeautifulSoup (already a dep). Extract every
-     `<a href>` whose href ends in `.pdf` (case-insensitive) OR
-     whose path contains `/pdf/`. Skip `javascript:`, `mailto:`,
-     and fragment-only URLs.
-   - Filter extracted URLs to same `etld1()` as the seed
-     (reuse existing `url_guard.etld1()`).
-   - Deduplicate against the initial candidate list by
-     canonicalized URL.
-   - Cap at `MAX_PDFS_PER_INDEX = 20` in HTML document order.
-   - Append to the candidate queue.
-3. Log the descent as a `fetch_log` row with
-   `kind="index-descent"`, `fetch_status` one of
-   `ok | robots_blocked | size_capped | cross_origin_blocked |
-   parse_error`.
+When iterating `subpages_to_walk`, tag each subpage with a
+`parent_is_report_anchor` boolean derived from the
+parent-candidate's URL path and anchor text (the existing
+checks that `candidate_filter._path_matches()` and
+`_anchor_matches()` perform). Pass this flag into
+`extract_candidates()` for that subpage's expansion.
 
-No recursion: extracted PDFs are treated as leaf candidates only.
-A URL extracted via index-descent that subsequently returns
-`text/html` is NOT re-descended (defense against `.pdf`-named
-HTML).
+**Change 2**: `lavandula/reports/candidate_filter.py::extract_candidates()`
 
-New config values added to `lavandula/reports/config.py`:
+New optional parameter `parent_is_report_anchor: bool = False`.
+When True, `_classify_link()` is called in a relaxed mode:
 
-- `MAX_INDEX_BODY_BYTES = 1 * 1024 * 1024`
-- `INDEX_FETCH_TIMEOUT_SEC = 15`
-- `MAX_PDFS_PER_INDEX = 20`
-- `REPORT_PATH_RE = re.compile(r"/(impact|annual|report|year-in-review|financials?|giving|publications?)/", re.I)`
-- `REPORT_ANCHOR_RE = re.compile(r"\b(impact|annual|year in review|our work|reports?|publications?)\b", re.I)`
+- Platform URLs on the allowlist (`issuu.com`, `flipsnack.com`,
+  `canva.com`): unchanged behavior — always accept per AC12.2.
+- Non-platform, same-eTLD+1 PDF links (`href.endswith(".pdf")`
+  OR HEAD Content-Type is `application/pdf`): accept regardless
+  of anchor text / path keyword, bounded by the new per-subpage
+  cap.
+- Non-platform, same-eTLD+1 non-PDF links: unchanged behavior —
+  still require anchor or path keyword.
+- Non-platform, cross-eTLD+1 links: unchanged behavior — dropped
+  unless they match the platform allowlist (AC12.2/AC12.3
+  preserved exactly).
 
-New fetch `kind` literal: `"index-descent"` — added to the
-existing allowed-kinds assertion in `db_writer.record_fetch`.
+The relaxed rule ONLY fires on subpages whose parent matched a
+report anchor — homepage-level extraction is unchanged. This
+keeps the existing strict filter protecting the high-fan-out
+homepage path while allowing broader PDF acceptance on the
+small, already-selected set of report-ish landing pages.
+
+Per-subpage PDF cap: `MAX_PDFS_PER_REPORT_SUBPAGE = 20`
+(new config value). Protects against a landing page with a
+runaway number of PDFs. Existing per-org `CANDIDATE_CAP_PER_ORG
+= 30` still applies as the outer cap.
+
+**No new `kind`**: all fetches continue to use the existing
+`kind='subpage'` for the HTML parse and `kind='pdf-head'` /
+`kind='pdf-get'` for the PDFs discovered inside. No DDL change.
+
+**No new `fetch_status`**: existing `blocked_robots`,
+`cross_origin_blocked`, `size_capped`, `blocked_content_type` are
+all reused as-is. (Codex round-1 spec-review correctly flagged
+that my v1 draft had invented `robots_blocked` and
+`index-descent` values that didn't exist in the base CHECK
+constraints; v2 fixes this.)
 
 **Acceptance Criteria**
 
-AC1 — Positive path: given a seed whose initial-candidate list
-includes `/our-impact/` (text/html) with HTML body linking to
-`/uploads/impact-2024.pdf`, the crawler archives
-`impact-2024.pdf` and writes a `reports` row for it. The
-`fetch_log` contains a `kind="index-descent" fetch_status="ok"`
-row for `/our-impact/`.
+AC1 — Positive path on report-anchor subpage: given a seed whose
+homepage links to `/our-impact/` (anchor text "Our Impact"), and
+`/our-impact/` is fetched at `kind='subpage'`, and its HTML body
+links to `/uploads/impact-2024.pdf` with anchor text "Download"
+(no keyword), the crawler accepts the PDF as a candidate, fetches
+it, and writes a `reports` row. No new `fetch_log` kind; the
+existing `subpage` row for `/our-impact/` is the only entry for
+the HTML parse.
 
-AC2 — Body size cap: if an HTML index page's body exceeds
-`MAX_INDEX_BODY_BYTES`, the streaming read aborts. No partial
-body is parsed. `fetch_log` records
-`kind="index-descent" fetch_status="size_capped"`. No
-extracted-PDF candidates added.
+AC2 — Strict filter preserved on homepage: if a PDF link with
+anchor text "Download" appears on the HOMEPAGE (not inside a
+report-anchor subpage), it is still filtered out by the existing
+strict rule. TICK-001 does not relax homepage filtering.
 
-AC3 — PDF count cap: if an HTML index page contains >20 PDF
-anchors, only the first 20 (document order) are enqueued. No
-error; `fetch_log` notes `"capped_at_20"`.
+AC3 — Per-subpage PDF cap: if a report-anchor subpage links to
+>20 PDFs, only the first 20 (document order) enter the candidate
+queue. The rest are silently dropped; no error. Existing per-org
+`CANDIDATE_CAP_PER_ORG=30` still applies as an outer cap.
 
-AC4 — Cross-origin filter: PDF hrefs extracted from the HTML body
-whose `etld1()` differs from the seed are dropped. One
-`fetch_log` row is written per dropped URL with
-`kind="index-descent" fetch_status="cross_origin_blocked"`.
+AC4 — Platform allowlist preserved: a PDF URL on a report-anchor
+subpage whose host is `issuu.com`, `flipsnack.com`, or
+`canva.com` is accepted with `hosting_platform` set per
+`_platform_for()` and `attribution_confidence='platform_verified'`
+per AC12.3. TICK-001 does not alter AC12.2/AC12.3 semantics.
 
-AC5 — Robots-gated: if the HTML index URL is disallowed by the
-same robots.txt that gated the original candidate, the descent is
-skipped. `fetch_log` records
-`kind="index-descent" fetch_status="robots_blocked"`.
+AC5 — Cross-origin non-platform PDF: a PDF URL on a
+report-anchor subpage whose host has a different `etld1()` from
+the seed AND is NOT on the platform allowlist is dropped. Uses
+existing `fetch_status='cross_origin_blocked'`.
 
-AC6 — No recursion: if an "extracted PDF URL" turns out (via
-HEAD) to be `text/html`, it is dropped from the candidate queue.
-Not re-descended. `fetch_log` records
-`kind="pdf-get" fetch_status="blocked_content_type"`, same as
-any other HTML false-positive.
+AC6 — Robots-gated: if a PDF URL extracted from a report-anchor
+subpage is disallowed by the same robots.txt that gated the
+subpage, it is skipped. Uses existing
+`fetch_status='blocked_robots'`.
 
-AC7 — Additive only: no candidate produced by the pre-existing
-discovery logic is dropped or re-ordered. TICK-001 adds URLs; it
-never removes them.
+AC7 — Non-PDF links still require keyword: a non-PDF link on a
+report-anchor subpage (e.g., another nested HTML page) is NOT
+accepted unless its anchor or path matches the strict keyword
+filter. Prevents uncontrolled fan-out.
 
-AC8 — Rate limit respected: index-descent fetches consume the
-same per-host slot as any other fetch. Per-host concurrency,
-delay, and timeout settings are unchanged.
+AC8 — Homepage-link filter unchanged: the Step-3 filter applied
+by `_classify_link()` on homepage links is byte-identical to the
+pre-TICK-001 behavior.
+
+AC9 — Rate limit respected: no new fetch is introduced. The
+relaxed filter only affects which `<a>` tags inside an
+already-fetched subpage body become candidates.
 
 **Live Validation Fixtures**
 
@@ -1153,47 +1179,97 @@ NOT expected to improve (out of scope — these require TICK-002):
 
 **Traps to Avoid**
 
+- Don't extend relaxation to homepage: the homepage has high
+  fan-out; keeping the strict filter there prevents the crawler
+  from scooping up every unrelated PDF a big site hosts.
+- Don't apply relaxation to non-PDF links: only PDFs get the
+  relaxed rule. HTML links still need keyword matches. Prevents
+  recursive HTML expansion disguised as a report-subpage effect.
 - Don't treat `mailto:`, `javascript:`, or fragment-only URLs as
+  candidates (same as base spec).
+- Don't blindly trust the `.pdf` suffix — `fetch_pdf.download`
+  continues to validate PDF magic bytes and enforce the
+  decompressed-size cap. A relaxed-filter candidate still goes
+  through the same post-fetch validation pipeline.
+- Don't alter AC12.2/AC12.3: platform-allowlist hosts
+  (Issuu/Flipsnack/Canva) and `attribution_confidence` semantics
+  are byte-identical. The relaxation is purely on
+  anchor-text/path-keyword strictness, not on cross-origin or
+  attribution policy.
+- Don't skip the robots re-check: the PDF URL's path is checked
+  against the same cached robots.txt, same as non-relaxed
   candidates.
-- Don't use regex on raw HTML to find anchors — use BeautifulSoup
-  (already a dep). Prevents pulling URLs out of `<script>` or
-  comment blocks.
-- Don't let the HTML parser consume the entire body if it's
-  malformed — set a hard time budget per descent (15s) and abort
-  on parse error with `fetch_status="parse_error"`.
-- Don't double-count: if a PDF is in the initial candidate list
-  AND extracted from a descent, dedupe by canonicalized URL
-  before it hits `fetch_pdf.download()`.
-- Don't blindly trust the `.pdf` suffix — continue validating
-  PDF magic bytes (`%PDF-`) inside `fetch_pdf.download`, same as
-  today.
-- Don't skip the robots re-check just because the parent
-  candidate was already robots-allowed. The index-page URL is a
-  distinct URL and must be re-checked.
 
 **Implementation Sizing**
 
-- ~60 lines of production code in `discover.py` + 5 config
-  values.
-- ~150 lines of tests (one fixture per AC1–AC8, plus the three
-  live-validation rows from the 2026-04-19 run).
-- One new `fetch_log` kind literal (`"index-descent"`).
-- No schema change (uses existing `fetch_log` table).
+- ~15 lines of production code total:
+  `candidate_filter.extract_candidates()` gains a new keyword
+  arg; `_classify_link()` gains a short relaxed-mode branch;
+  `discover.per_org_candidates()` computes and passes the
+  `parent_is_report_anchor` flag when expanding a subpage.
+- 1 new config value: `MAX_PDFS_PER_REPORT_SUBPAGE = 20`.
+- No new `fetch_log` kind or fetch_status literal.
+- No schema change.
 - No dependency change.
+- ~100 lines of tests covering AC1–AC9 plus the three
+  live-validation rows below.
 
 Target time-to-merge: same-day.
 
+**Live Validation Fixtures**
+
+After implementation, re-run against
+`/tmp/0004-coastal-run/coastal-seed.db` with `--refresh`.
+Expected deltas vs the 2026-04-19 baseline run (36 PDFs, 16 orgs):
+
+- `ein=942722663` (Family House): ≥1 PDF from `/our-impact/`
+  expansion. Currently 0.
+- `ein=330729698` (Sage Hill): ≥1 PDF from `/giving/annual-fund`
+  expansion. Currently 0.
+- `ein=954430228` (STAR Inc): ≥1 PDF from annual-festival page.
+  Currently 0.
+
+NOT expected to improve (out of scope — these require TICK-002):
+
+- `ein=943227260` (JCCSF): still 0 PDFs. Homepage yields no
+  report-anchor candidate to expand.
+
 **Red-Team Review Focus** (to be run via `consult`)
 
-- Can an attacker induce infinite fan-out via crafted HTML with
-  thousands of PDF links? (Mitigated by
-  `MAX_PDFS_PER_INDEX=20`.)
-- Can a malicious `/reports/` page redirect into an internal-only
-  IP range? (Mitigated by existing SSRF guard in `http_client`.)
-- Can a slowloris-style HTML response tie up a worker?
-  (Mitigated by `INDEX_FETCH_TIMEOUT_SEC=15` + streaming size
-  cap.)
+- Can an attacker control a subpage's anchor text or path to
+  induce relaxation on a non-report page? (Mitigated: the flag
+  is computed from the PARENT candidate's metadata, not the
+  subpage's body. The attacker would need to own the
+  homepage-to-subpage link anchor AND the subpage hosts PDFs
+  they want us to fetch — which is exactly the reports scenario
+  we want to support.)
+- Can a malicious subpage host thousands of PDF URLs that
+  exhaust per-org bandwidth? (Mitigated by
+  `MAX_PDFS_PER_REPORT_SUBPAGE=20` plus existing
+  `CANDIDATE_CAP_PER_ORG=30`.)
 - Can a page with a same-etld1 redirect chain to a different
-  final origin bypass the cross-origin filter? (Requires
-  re-validating `etld1()` on the FINAL response URL, not the
-  initial href — verify existing redirect-policy handles this.)
+  final origin bypass the cross-origin filter? (Existing
+  redirect policy in `redirect_policy.py` validates every hop's
+  eTLD+1; TICK-001 does not change redirect handling.)
+- Can a PDF URL smuggle a non-PDF payload? (Existing
+  `fetch_pdf.download` validates PDF magic bytes; TICK-001 does
+  not change post-fetch validation.)
+
+**Notes on Base-Spec Observations from Codex spec-review**
+
+Codex's spec-review (2026-04-19) flagged three pre-existing
+base-spec ambiguities that are out of scope for TICK-001 but
+worth tracking:
+
+- Robots.txt failure semantics (404/403/timeout/DNS/TLS) — a
+  separate TICK on fetch-log cardinality and robots-failure
+  behavior should formalize these.
+- Platform-attribution provenance retention on sitemap-only
+  discovered platform URLs — AC12.3 is correct but the
+  discovery-layer docstring should match.
+- Multiple-reports-per-EIN vs "most recent per org" scope — the
+  schema permits multiple rows per EIN today and AC24 filters at
+  query time; documenting that intent explicitly is a separate
+  doc-only TICK.
+
+None of these block TICK-001.
