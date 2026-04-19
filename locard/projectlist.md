@@ -151,15 +151,15 @@ projects:
   - id: "0004"
     title: "Site-Crawl Report Catalogue"
     summary: "Crawl known nonprofit websites directly for annual/impact reports. Uses 0001's curated nonprofit list as the seed, robots.txt + sitemap + homepage-link extraction with anchor-text + URL-path + hosting-platform filters to find candidate PDFs, HEAD/fetch with throttle, and Haiku-class LLM classification of first-page text to decide whether each PDF is actually a real report. Produces the design inspiration library + prospect signal Lavandula needs."
-    status: specified
+    status: planned
     priority: high
     files:
       spec: locard/specs/0004-site-crawl-report-catalogue.md
-      plan: null
+      plan: locard/plans/0004-site-crawl-report-catalogue.md
       review: null
     dependencies: ["0001"]
     tags: [lavandula-core, reports, catalogue, crawler]
-    notes: "Replaces 0002 + 0003 after external developer proposed a better architecture. Spec approved by human 2026-04-19 after three rounds of multi-agent review (Codex + Claude + Gemini Flash). Round 1: 4 CRITICAL + 9 HIGH. Round 2: 0 CRITICAL + 6 HIGH. Round 3: 1 CRITICAL (philosophical, resolved by promoting encryption-at-rest from WARN to HALT) + 4 HIGH (all addressed). Smaller threat surface (whitelist domains, no adversarial SERPs), lower cost (no search API, ~USD 3 of Haiku per full pass), better recall (direct site crawl beats Google ranking for nonprofit-report-specific paths), reuses 0001 as first-class input."
+    notes: "Replaces 0002 + 0003. Spec approved 2026-04-19 after 3 review rounds (CRITICAL progression 4 → 0 → 1 → 0). Plan approved 2026-04-19 after 1 review round (0 CRITICAL; all HIGH addressed in 9b752b5). 8 phases, 39 ACs. Ready for builder spawn."
 ```
 
 ## Next Available Number

@@ -808,10 +808,27 @@ findings were convergent tightenings, same pattern as spec rounds):
   TICK with explicit rationale (Gemini HIGH #2).
 
 ### Red Team Security Review (MANDATORY)
-**Date**: pending
-**Command**: `consult --model gemini --type red-team-plan plan 0004`
-**Findings**: pending
-**Verdict**: pending
+**Date**: 2026-04-19
+**Commands**:
+```
+consult --model codex  --type red-team-plan plan 0004
+consult --model claude --type red-team-plan plan 0004
+consult --model gemini --type red-team-plan plan 0004
+```
+
+Red-team review was run alongside plan-review (6 parallel
+consults, artifacts at `.consult/0004-plan/`). Findings: 0
+CRITICAL; 3 HIGH (Claude: budget settlement, DNS IP-pin
+mechanism, sandbox user namespace); 4 HIGH (Gemini: PDF
+structural validity, API key handling, User-Agent on Session,
+ruff/bandit overlap); Codex RT surfaced 5 overlapping concerns
+including HEAD fallback and Linux production-only. All findings
+were addressed in commit 9b752b5; see "First Consultation" above
+for the per-finding disposition.
+
+**Verdict**: APPROVE — all findings resolved; zero CRITICAL open,
+all HIGH addressed with spec-text + AC changes. The plan is
+ready for builder spawn.
 
 ## Approval
 

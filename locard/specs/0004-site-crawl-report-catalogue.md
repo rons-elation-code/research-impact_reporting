@@ -933,10 +933,28 @@ but the surface is not zero. Key concerns mapped to their controls:
 **Key Feedback**: pending
 
 ### Red Team Security Review (MANDATORY)
-**Date**: pending
-**Command**: `consult --model gemini --type red-team-spec spec 0004`
-**Findings**: pending
-**Verdict**: pending
+**Date**: 2026-04-19
+**Commands**:
+```
+consult --model codex  --type red-team-spec spec 0004
+consult --model claude --type red-team-spec spec 0004
+consult --model gemini --type red-team-spec spec 0004
+```
+
+**Three rounds of red-team review were run against this spec**
+(artifacts at `.consult/0004/`, `.consult/0004-v2/`,
+`.consult/0004-v3/`). CRITICAL count progression: 4 → 0 → 1 → 0
+(after final fixes in commit 1bb03a2). The single round-3
+CRITICAL was a philosophical disagreement about encryption-at-
+rest enforcement level (WARN vs HALT); resolved by promoting to
+HALT. All HIGH findings across rounds were addressed in spec
+body text + ACs.
+
+**Verdict**: APPROVE — all findings resolved across three
+review rounds; zero CRITICAL, zero HIGH, zero MEDIUM open.
+Residual concerns (v2 improvements like a secrets manager,
+hosting-platform handle mapping, cumulative archive cap) are
+captured as Post-Implementation TICK candidates, not blockers.
 
 ## Approval
 
