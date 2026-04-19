@@ -47,7 +47,7 @@ def test_ac13_every_sensitive_param_redacted(param):
     from lavandula.reports.url_redact import redact_url
     out = redact_url(f"https://example.org/x?{param}=sekret&ok=v")
     assert "sekret" not in out
-    assert f"{param}=REDACTED" in out.lower()
+    assert f"{param}=REDACTED" in out
     assert "ok=v" in out
 
 
