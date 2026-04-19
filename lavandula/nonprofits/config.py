@@ -60,7 +60,9 @@ MAX_CONSECUTIVE_LONG_RETRY_AFTER = 2
 MAX_RUNTIME_HOURS = 72.0
 
 # --- Disk-space thresholds ----------------------------------------------
-PREFLIGHT_FREE_GB = 50
+# PREFLIGHT was sized for the abandoned full-sitemap path (2.3M pages).
+# Curated-lists scope (~3-7K orgs) needs an order of magnitude less.
+PREFLIGHT_FREE_GB = 8
 RUNTIME_FREE_GB = 5
 MAX_ARCHIVE_GB = 50
 
