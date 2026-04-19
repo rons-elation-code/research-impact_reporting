@@ -4,6 +4,13 @@
 locard/.update-hashes.json
 .builders/
 
+# Builder worktree scratch (created by the harness in each worktree)
+.builder-prompt.txt
+.builder-role.md
+.builder-start.sh
+.harness-config.yaml
+.venv/
+
 # Dependencies
 node_modules/
 
