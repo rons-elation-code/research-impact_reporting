@@ -1,0 +1,8 @@
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=4.9.1
+defusedxml>=0.7.1
+pypdf>=4.0
+publicsuffix2>=2.20191221
+anthropic>=0.40
+cryptography>=42
