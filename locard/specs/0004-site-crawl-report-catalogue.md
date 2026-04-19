@@ -1077,10 +1077,13 @@ When True, `_classify_link()` is called in a relaxed mode:
 
 - Platform URLs on the allowlist (`issuu.com`, `flipsnack.com`,
   `canva.com`): unchanged behavior — always accept per AC12.2.
-- Non-platform, same-eTLD+1 PDF links (`href.endswith(".pdf")`
-  OR HEAD Content-Type is `application/pdf`): accept regardless
-  of anchor text / path keyword, bounded by the new per-subpage
-  cap.
+- Non-platform, same-eTLD+1 PDF-suffix links
+  (`href.endswith(".pdf")`, case-insensitive, before query
+  string): accept regardless of anchor text / path keyword,
+  bounded by the new per-subpage cap. No extra HEAD is issued
+  during discovery — content-type validation happens in the
+  existing HEAD-then-GET fetch phase downstream (`fetch_pdf.py`),
+  which is byte-identical to pre-TICK-001 behavior.
 - Non-platform, same-eTLD+1 non-PDF links: unchanged behavior —
   still require anchor or path keyword.
 - Non-platform, cross-eTLD+1 links: unchanged behavior — dropped
@@ -1202,17 +1205,36 @@ NOT expected to improve (out of scope — these require TICK-002):
 
 **Implementation Sizing**
 
-- ~15 lines of production code total:
+- ~25 lines of production code total:
   `candidate_filter.extract_candidates()` gains a new keyword
-  arg; `_classify_link()` gains a short relaxed-mode branch;
-  `discover.per_org_candidates()` computes and passes the
-  `parent_is_report_anchor` flag when expanding a subpage.
-- 1 new config value: `MAX_PDFS_PER_REPORT_SUBPAGE = 20`.
+  arg; `_classify_link()` gains a short relaxed-mode branch
+  that accepts PDF-suffix hrefs without the anchor/path keyword
+  requirement; `discover.per_org_candidates()` computes and
+  passes the `parent_is_report_anchor` flag when expanding a
+  subpage; per-subpage PDF cap enforced in `extract_candidates`.
+- 1 new config value: `MAX_PDFS_PER_REPORT_SUBPAGE = 20` in
+  `config.py`.
 - No new `fetch_log` kind or fetch_status literal.
 - No schema change.
 - No dependency change.
+- No extra network fetches during discovery.
 - ~100 lines of tests covering AC1–AC9 plus the three
   live-validation rows below.
+
+**Behavior change — explicit acknowledgement**: TICK-001 is
+a real discovery-rule amendment, not a cosmetic fix. The
+candidate set for a report-anchor subpage can now legitimately
+include up to 20 PDF URLs where pre-TICK-001 it often included
+zero. The existing per-org `CANDIDATE_CAP_PER_ORG=30` continues
+to cap the union, and the existing per-host throttle continues
+to serialize the subsequent fetches. Expected effect: the
+2026-04-19 baseline's 16% org-level hit rate rises toward the
+percentage of orgs whose homepage surfaces at least one
+report-anchor subpage with PDFs inside (bounded above by orgs
+whose landing-page architecture matches the Family House /
+Rockefeller pattern — estimated 30–50% of the coastal-ICP
+cohort based on the qualitative inspection of the 84 zero-PDF
+orgs in the baseline run).
 
 Target time-to-merge: same-day.
 
