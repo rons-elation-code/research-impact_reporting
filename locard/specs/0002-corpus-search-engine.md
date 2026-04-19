@@ -127,27 +127,43 @@ corpus_search/
 
 ```sql
 -- One row per successfully archived artifact.
+-- Topic-agnostic: a single PDF can legitimately be relevant to
+-- multiple topics (e.g., a hospital's annual report matters to
+-- both nonprofit-reports and healthcare-marketing topic plugins).
+-- Topic association lives in topic_corpus_items, not here (fix
+-- for Codex red-team HIGH: corpus_items key conflict with multi-
+-- topic).
 CREATE TABLE IF NOT EXISTS corpus_items (
   content_sha256   TEXT PRIMARY KEY,
-  source_url       TEXT NOT NULL,          -- first URL seen for this content
-  canonical_url    TEXT,                    -- post-redirect final URL
+  source_url_redacted TEXT NOT NULL,        -- URL with sensitive query params redacted; see URL redaction policy
+  canonical_url_redacted TEXT,              -- post-redirect final URL, redacted
   content_type     TEXT NOT NULL,           -- Content-Type after magic-byte verify
   file_size_bytes  INTEGER NOT NULL,
   archived_at      TEXT NOT NULL,           -- ISO-8601 UTC
-  topic            TEXT NOT NULL,           -- plugin name, e.g. 'nonprofit-reports'
-  topic_version    INTEGER NOT NULL DEFAULT 1,
   CHECK (length(content_sha256) = 64),
   CHECK (file_size_bytes > 0)
 );
-CREATE INDEX idx_corpus_items_topic ON corpus_items(topic);
+
+-- Topic association: many-to-many so a single artifact can belong
+-- to N topics without conflicts.
+CREATE TABLE IF NOT EXISTS topic_corpus_items (
+  topic            TEXT NOT NULL,           -- plugin name, e.g. 'nonprofit-reports'
+  content_sha256   TEXT NOT NULL,
+  topic_version    INTEGER NOT NULL DEFAULT 1,
+  first_seen_at    TEXT NOT NULL,
+  PRIMARY KEY (topic, content_sha256),
+  FOREIGN KEY (content_sha256) REFERENCES corpus_items(content_sha256)
+);
+CREATE INDEX idx_topic_corpus_items_topic ON topic_corpus_items(topic);
 
 -- All URLs that ever resolved to this content (dedup crumbs).
+-- URLs are stored with redaction policy applied.
 CREATE TABLE IF NOT EXISTS corpus_item_urls (
   content_sha256   TEXT NOT NULL,
-  url              TEXT NOT NULL,
+  url_redacted     TEXT NOT NULL,           -- per URL redaction policy; see Security Considerations
   search_query_id  INTEGER,                 -- FK to search_queries_done (if search-originated)
   first_seen_at    TEXT NOT NULL,
-  PRIMARY KEY (content_sha256, url),
+  PRIMARY KEY (content_sha256, url_redacted),
   FOREIGN KEY (content_sha256) REFERENCES corpus_items(content_sha256)
 );
 
@@ -211,44 +227,115 @@ that table.
 
 ### Engine Correctness (GATING)
 
-- **AC1** — SSRF guard: integration test exercises these URL shapes
-  and asserts `fetch_status='blocked_ssrf'` or `blocked_scheme`:
-  `file:///etc/passwd`, `gopher://x`, `ftp://x`, `http://127.0.0.1`,
-  `http://10.0.0.1`, `http://169.254.169.254/latest/meta-data/`,
-  `http://[::1]/`, `http://[fe80::1]/`, `http://localhost`, and a
-  DNS-rebinding server that returns public IP on first resolve then
-  `127.0.0.1` on second. No outbound connection made to any of them.
-- **AC2** — Scheme allowlist: only `{http, https}` permitted. AC1
-  covers this in integration; a unit test pins the allowlist.
+- **AC1** — SSRF guard (RFC-class + named metadata, per Claude
+  red-team HIGH): `url_guard` resolves target hostname and rejects
+  any IP satisfying `ipaddress.ip_address(x).is_private |
+  is_loopback | is_link_local | is_multicast | is_reserved |
+  is_unspecified`. Additionally rejects an explicit named
+  cloud-metadata list: `169.254.169.254` (AWS), `168.63.129.16`
+  (Azure), `100.100.100.200` (Alibaba), `fd00:ec2::254` (AWS IPv6),
+  plus CGNAT `100.64.0.0/10`. IPv6-mapped IPv4 addresses are
+  normalized before the check. Integration test exercises each
+  class as a distinct case.
+- **AC2** — Scheme allowlist: only `{http, https}` permitted.
 - **AC3** — Redirect policy: across a redirect chain, EVERY hop is
-  re-validated against AC1/AC2 rules. Cross-host is ALLOWED (search
-  results legitimately redirect via `google.com/url?q=...`) but
-  scheme must stay HTTPS after the first hop and every target IP
-  must pass the allowlist. Max 5 hops.
+  re-resolved AND re-validated against AC1/AC2. Cross-host is
+  ALLOWED (search results legitimately redirect via
+  `google.com/url?q=...`) but scheme must stay HTTPS after the first
+  hop and every target IP must pass the allowlist. Max 5 hops.
+- **AC3.1** — IP pinning at connect time (per Codex red-team HIGH):
+  the resolved IP validated in AC1/AC3 is the IP the socket actually
+  connects to. Use an HTTP adapter that accepts a pre-resolved IP and
+  sets `Host`/SNI headers to the original hostname. Without this,
+  DNS rebinding between validation and `connect()` defeats AC1.
 - **AC4** — Content-type + magic-byte verification: response claiming
   `Content-Type: application/pdf` is only accepted for archive if
   first 1024 bytes contain `%PDF-1.`. Otherwise `blocked_content_type`.
   Mirror rules for each registered `Extractor`'s claimed MIME.
-- **AC5** — Parser sandbox: PDF extraction runs in a subprocess with
-  `RLIMIT_AS` (800 MB), `RLIMIT_CPU` (30 s wall), `RLIMIT_FSIZE`
-  (disallow any write); killed and marked `sandbox_killed` on any
-  limit violation. Integration test with a deliberately-expensive
-  crafted PDF fixture asserts the parent process stays bounded.
+- **AC4.1** — Streaming decompressed-size cap (per Claude red-team
+  CRITICAL): `Content-Encoding: gzip|deflate|br` responses are
+  decompressed as a streaming operation with a running decompressed
+  byte counter. Exceeding `config.MAX_RESPONSE_BYTES` aborts the
+  stream, closes the socket, deletes any partial temp file, and
+  records `fetch_status='size_capped'`. Integration test: a 1 KB
+  gzip bomb that decompresses to 2 GB is aborted; peak memory
+  delta < 50 MB during the test.
+- **AC5** — Parser sandbox — resource bounds: PDF extraction runs
+  in a subprocess with `RLIMIT_AS` (800 MB), `RLIMIT_CPU` (30 s
+  wall), `RLIMIT_FSIZE` (disallow any write outside `/tmp/sandbox-
+  {pid}/` scratch). Killed and marked `sandbox_killed` on any limit
+  violation. Integration test with a crafted deliberately-expensive
+  PDF fixture asserts parent process stays bounded.
+- **AC5.1** — Parser sandbox — network denial (per Claude red-team
+  CRITICAL): the sandbox child MUST be unable to perform any
+  outbound network syscall. Implementation:
+  1. **Linux**: `unshare(CLONE_NEWNET)` creates an isolated network
+     namespace with no interfaces other than loopback. Extractor
+     code inside cannot reach any external IP.
+  2. **Linux + seccomp-bpf**: additionally install a seccomp filter
+     returning `EACCES` for `socket`, `socketpair`, `connect`,
+     `sendto`, `sendmsg`, `bind`. Belt-and-suspenders with the
+     namespace; kills the syscall even if namespace setup partially
+     fails.
+  3. **macOS** (dev only): if namespace and seccomp aren't available,
+     engine hard-fails startup with exit code 4 unless
+     `CORPUS_SEARCH_ALLOW_UNSANDBOXED=1` is explicitly set AND it's
+     a test run. Production must run on Linux.
+- **AC5.2** — Parser sandbox — environment scrubbing (per Codex
+  red-team HIGH + Claude red-team CRITICAL #2 fallout): the sandbox
+  child receives an empty environment; no `CORPUS_SEARCH_*` env vars,
+  no `PATH`, no `HOME`, no provider API keys, no parent `os.environ`.
+  argv is explicitly set; no shell expansion. Integration test
+  dumps the child's `os.environ` via a fixture extractor and asserts
+  it is empty save for sandbox-provided paths.
+- **AC5.3** — Seccomp required on Linux (per Claude red-team HIGH):
+  on Linux hosts, missing `pyseccomp` (or equivalent) at startup →
+  exit code 4 with a clear message. The dependency is pinned in
+  `requirements.txt` with a hash. Not optional.
+- **AC5.4** — Sandbox output validation (per Claude red-team
+  CRITICAL — belongs to topic plugins but enforced by engine
+  contract): the engine's `sandbox.runner` validates extractor
+  output against a schema declared by the topic plugin. Out-of-bounds
+  values (strings > declared max, non-printable bytes, types
+  mismatching the schema) are rejected; plugin is given a
+  `sandbox_validation_error` signal, no DB write occurs.
 - **AC6** — Content-addressable archive: same bytes fetched via 3
   different URLs produce exactly 1 `corpus_items` row and 3
-  `corpus_item_urls` rows. Filename is `{sha256}.{ext}`. SHA256 is
-  computed over final verified bytes only.
+  `corpus_item_urls` rows.
+- **AC6.1** — Archive filename extension mapping (per Claude red-team
+  HIGH): filename is `{sha256}.{ext}` where `ext` comes from a
+  hardcoded MIME → extension mapping in `config.py` (e.g.,
+  `application/pdf → pdf`, `text/html → html`). NEVER from URL or
+  raw `Content-Type` header. Unknown MIME → archive is rejected,
+  fetch_status `blocked_content_type`.
 - **AC7** — Atomic + symlink-safe writes: pre-planted symlink at
   `raw/{sha256}.pdf` triggers halt. Mid-write crash leaves no
   partial file in the final path.
-- **AC8** — Budget enforcement: preflight budget check runs
-  BEFORE issuing each search query / each fetch that has a marginal
-  cost; halts with `exit 2` + `HALT-budget-*.md` before exceeding
-  cap. Integration test with simulated cost ledger confirms.
+- **AC8** — Budget enforcement: preflight budget check runs BEFORE
+  issuing each search query or each fetch with a marginal cost;
+  halts with `exit 2` + `HALT-budget-*.md` before exceeding cap.
+- **AC8.1** — Budget-ledger atomicity (per Claude red-team HIGH):
+  preflight check + spend insert is a single `BEGIN IMMEDIATE`
+  transaction on `budget_ledger` (`SELECT SUM(cents_spent)` +
+  `INSERT`). Multi-threaded engines that both preflight concurrently
+  cannot both see under-cap and both over-spend.
+- **AC8.2** — Per-topic cumulative archive cap (per Claude red-team
+  HIGH): each topic declares `max_topic_archive_bytes`; engine tracks
+  cumulative bytes written for that topic (via
+  `topic_corpus_items`) and halts with `HALT-disk-topic-*.md` when
+  reached.
+- **AC8.3** — Failure-rate circuit breaker (per Claude red-team
+  HIGH): if successful fetch rate over a sliding window of 50
+  attempts drops below 10%, engine halts with
+  `HALT-failure-rate-*.md`. Prevents burning the budget on a
+  query set that produces only 404s / guard-blocks.
 - **AC9** — robots.txt: per-host cache (24 h), fail-closed on fetch
-  failure, honor most-specific UA stanza (same policy as 0001).
-  Integration test with mocked robots.txt disallowing our UA proves
-  `blocked_robots` + no fetch.
+  failure, honor most-specific UA stanza.
+- **AC9.1** — robots.txt transport + guard (per Claude red-team
+  HIGH): robots.txt fetches MUST use HTTPS. The robots fetch itself
+  is subject to `url_guard` + redirect policy (AC1–AC3.1). Integration
+  test with attacker-controlled robots returning pathological rules
+  + an http→https downgrade confirms failure.
 - **AC10** — TLS verification: startup self-test against
   `expired.badssl.com` + a locally-served known-bad-cert endpoint
   (belt+suspenders, per 0001 TICK). Halts if verification is
@@ -257,14 +344,61 @@ that table.
   code 3 with clear message.
 - **AC12** — SQL parameterization: round-trip of input with
   `'; DROP TABLE corpus_items; --` round-trips byte-identical; table
-  still exists; `ruff S608` lint catches raw f-string SQL in CI.
+  still exists. `ruff S608` lint catches raw f-string SQL in CI.
 - **AC13** — Log injection sanitation: CR/LF + ANSI escapes stripped
   before any `fetch_log.notes`/`error` write.
 - **AC14** — Resume semantics: kill mid-query, resume, assert zero
-  double-fetches (content_sha256 dedup) and `search_queries_done`
-  advances past interrupted page.
+  double-fetches and `search_queries_done` advances past interrupted
+  page.
 - **AC15** — File permissions: DB mode `0o600`, archive dir `0o700`,
-  logs dir `0o700`. Enforced at creation + verified post-run.
+  logs dir `0o700`.
+- **AC16** — URL redaction policy (per Claude red-team HIGH): before
+  any URL is stored in `corpus_items`, `corpus_item_urls`, or
+  `fetch_log.target`, query-string parameters with names matching
+  a case-insensitive sensitive-key set (`token`, `key`,
+  `api_key` / `api-key`, `password`, `pass`, `secret`, `session`,
+  `auth`, `bearer`, `sig`, `signature`, `access_token` /
+  `access-token`, `id_token` / `id-token`) are replaced with
+  `REDACTED`. Test: a URL with
+  `?session=abc123&normal=ok` round-trips as
+  `?session=REDACTED&normal=ok`.
+- **AC17** — Encryption-at-rest verification (per Gemini red-team
+  HIGH): engine startup checks that `data/` and `raw/` are on a
+  filesystem marked encrypted. Check attempts, in order:
+  (a) `/proc/mounts` flag inspection for LUKS / fscrypt,
+  (b) macOS APFS `diskutil apfs list` encryption flag,
+  (c) presence of a `.encrypted-volume` operator-signed marker file
+  in each dir (escape hatch for unusual setups).
+  Failure mode: WARN at startup (not halt) in v1; promote to halt
+  in a future TICK. Operators get explicit signal.
+- **AC18** — CLI input validation (per Gemini red-team HIGH): every
+  CLI argument (`--topic`, `--budget-cents`, `--max-pages`, paths)
+  is validated at argparse boundary:
+  - `--topic`: lowercase alphanumeric + hyphen, starts with a
+    letter or digit, 1-32 chars total, anchored to string bounds
+  - numeric args: integer in declared range
+  - path args: resolved with `Path.resolve(strict=True)` and must
+    be within the declared project root
+  Invalid input → exit 2, no side effects.
+- **AC19** — Plugin trust boundary (per Claude red-team CRITICAL
+  #2): v1 declares plugins **trusted code**. Topic plugins are
+  authored by Lavandula, reviewed, and imported in-process. The
+  spec documents this explicitly in the threat model; plugins that
+  import `os.environ` or `socket` are considered "authored-in-bad-
+  faith" and not defended against at the engine boundary. A
+  subprocess plugin contract is deferred to a future TICK if
+  untrusted plugins become a real use case. This resolves the
+  "worst of both" critique from Claude by picking (a) explicitly.
+  Engine still enforces the data-plane boundary (AC5.4 validates
+  sandbox output before DB writes) regardless of plugin trust.
+- **AC20** — Enforce fetch.downloader usage (per Gemini red-team
+  HIGH): `ruff` custom rule (or grep-based lint check in `lint.sh`)
+  rejects any import of `requests`, `urllib.request`, `httpx`,
+  `aiohttp`, `socket`, `http.client` from any module under
+  `corpus_search/plugins/*` or any registered topic-plugin package
+  (e.g., `lavandula/reports/`). Plugins that need HTTP call
+  `corpus_search.fetch.downloader`. This is a complement to AC19's
+  trust declaration, not a substitute.
 
 ### Reported (not gated)
 
@@ -389,37 +523,57 @@ pipeline.
 
 ## Security Considerations
 
-- **Threat model**: inherited from the abandoned 0002's review and
-  now concentrated here. Actors: malicious PDF author, SEO-gaming
-  host, network attacker, supply-chain compromise, local attacker
-  after catalogue is built. Each vector mapped to a specific AC
-  above.
-- **SSRF hardening** (AC1–AC3): scheme allowlist, resolved-IP
-  allowlist, DNS re-pin post-redirect, cross-host + scheme
-  revalidation.
-- **Parser isolation** (AC5): subprocess + rlimits + seccomp where
-  available. No JavaScript execution. No embedded-file extraction.
-  XMP parsed via `defusedxml`.
-- **Content-type trust** (AC4): magic-byte verification before any
-  disk-land.
+- **Threat model** — explicit actors:
+  1. Malicious PDF / content authors (primary — arbitrary attacker-
+     controlled input at the extractor boundary)
+  2. SEO-gaming hosts that influence search rankings to inject
+     attacker-chosen URLs
+  3. Network attackers on outbound traffic
+  4. Supply-chain actors (pypdf / requests / transitive CVEs)
+  5. Local filesystem attackers after catalogue is built
+  6. **In scope** for v1: plugins that import things they shouldn't
+     (defended via AC20 lint + AC19 trust declaration)
+  7. **Out of scope** for v1: truly adversarial plugin authors —
+     see AC19
+- **SSRF hardening** (AC1, AC3, AC3.1): RFC-class IP rejection +
+  named cloud-metadata deny list + IP pinning at connect time.
+- **Parser isolation** (AC5, AC5.1, AC5.2): subprocess + rlimits +
+  network namespace + seccomp-bpf + empty child environment. No
+  JavaScript execution. No embedded-file extraction. XMP parsed via
+  `defusedxml`. Seccomp required on Linux (AC5.3).
+- **Content-type trust** (AC4, AC6.1): magic-byte verification +
+  hardcoded MIME→extension whitelist; attacker-controlled `ext`
+  never reaches the filesystem.
+- **Decompression bomb** (AC4.1): streaming decompressed-byte cap.
+- **Plugin trust boundary** (AC19, AC20): v1 treats plugins as
+  trusted code. Lint rule prevents accidental import of raw HTTP
+  libraries. The engine validates data crossing the sandbox-output
+  boundary (AC5.4) regardless.
 - **Supply chain**: hash-pinned lockfile, `pip-audit` in CI, no
-  pulls from git URLs or unpinned PyPI names.
-- **Secrets**: search API keys live in the env vars
+  pulls from git URLs or unpinned PyPI names. `pyseccomp` is a
+  required dep on Linux (AC5.3).
+- **Secrets**: search API keys live in env vars
   `CORPUS_SEARCH_GOOGLE_CSE_KEY` and `CORPUS_SEARCH_GOOGLE_CSE_CX`;
-  never in argv; never in DB; never in logs.
-  `.env` gitignored; startup asserts permissions `0o600` or halts.
-  Logger has a redaction regex for any `key=` / `cx=` URL substring
-  as belt-and-suspenders.
+  never in argv; never in DB; never in logs; never in the sandbox
+  child's environment (AC5.2). `.env` gitignored; startup asserts
+  permissions `0o600` or halts. Logger has a redaction regex for
+  any `key=` / `cx=` URL substring as belt-and-suspenders.
+- **URL redaction** (AC16): query-string params with credential-
+  shaped names are replaced with `REDACTED` before any DB/log
+  write.
 - **Log injection** (AC13): sanitizer strips control chars + ANSI +
   truncates to 500 chars.
+- **CLI input** (AC18): all CLI args validated at argparse boundary.
 - **PII**: the engine stores full response bytes and a small
-  configurable metadata subset. It does NOT parse content for PII —
-  that's topic-plugin responsibility. The engine contract says
-  "plugins must declare any PII fields they populate."
-- **Encryption at rest**: the engine's DB + archive directories are
-  deployed on an encrypted volume (operator responsibility). An
-  AC-level assertion is out of scope for this spec but documented
-  in HANDOFF.md.
+  metadata subset. It does NOT parse content for PII — that's
+  topic-plugin responsibility. The engine contract REQUIRES each
+  plugin to declare its PII columns so a future deletion routine
+  can sweep them.
+- **Encryption at rest** (AC17): engine startup verifies the
+  storage volumes are encrypted. v1 warns; future TICK promotes to
+  halt. Operators see explicit signal.
+- **Concurrency** (AC8.1, AC11): single-instance flock; budget
+  preflight is a single atomic transaction.
 
 ## Test Scenarios (summary)
 
