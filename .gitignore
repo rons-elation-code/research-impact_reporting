@@ -10,6 +10,7 @@ locard/.update-hashes.json
 .builder-start.sh
 .harness-config.yaml
 .venv/
+venv/
 
 # Dependencies
 node_modules/
