@@ -151,7 +151,7 @@ projects:
   - id: "0004"
     title: "Site-Crawl Report Catalogue"
     summary: "Crawl known nonprofit websites directly for annual/impact reports. Uses 0001's curated nonprofit list as the seed, robots.txt + sitemap + homepage-link extraction with anchor-text + URL-path + hosting-platform filters to find candidate PDFs, HEAD/fetch with throttle, and Haiku-class LLM classification of first-page text to decide whether each PDF is actually a real report. Produces the design inspiration library + prospect signal Lavandula needs."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0004-site-crawl-report-catalogue.md
