@@ -22,6 +22,7 @@ from .url_redact import canonicalize_url
 
 CANDIDATE_CAP_PER_ORG = config.CANDIDATE_CAP_PER_ORG
 MAX_PARSED_LINKS_PER_PAGE = config.MAX_PARSED_LINKS_PER_PAGE
+MAX_PDFS_PER_REPORT_SUBPAGE = config.MAX_PDFS_PER_REPORT_SUBPAGE
 
 
 @dataclass(frozen=True)
@@ -82,8 +83,16 @@ def _classify_link(
     referring_page_url: str,
     seed_etld1: str,
     discovered_via: str,
+    parent_is_report_anchor: bool = False,
 ) -> Candidate | None:
-    """Return a Candidate if `href` matches any filter, else None."""
+    """Return a Candidate if `href` matches any filter, else None.
+
+    TICK-001: When `parent_is_report_anchor` is True (caller has
+    determined the containing subpage itself matched report anchor/
+    path patterns), accept any same-eTLD+1 PDF-suffix link regardless
+    of anchor text or path keywords. Platform allowlist (AC12.2/
+    AC12.3) and cross-origin policy preserved exactly.
+    """
     parsed = urlsplit(href)
     host = parsed.hostname or ""
     platform = _platform_for(host)
@@ -113,7 +122,9 @@ def _classify_link(
     anchor_hit = _anchor_matches(anchor)
     path_hit = _path_matches(parsed.path)
     pdf_with_anchor = _pdf_like(href) and anchor_hit
-    if not (anchor_hit or path_hit or pdf_with_anchor):
+    # TICK-001: relaxed PDF acceptance on report-anchor subpages.
+    pdf_on_report_subpage = parent_is_report_anchor and _pdf_like(href)
+    if not (anchor_hit or path_hit or pdf_with_anchor or pdf_on_report_subpage):
         return None
 
     hosting = "own-domain" if not host or link_etld1 == seed_etld1 else None
@@ -134,27 +145,49 @@ def extract_candidates(
     seed_etld1: str,
     referring_page_url: str,
     discovered_via: str = "homepage-link",
+    parent_is_report_anchor: bool = False,
 ) -> list[Candidate]:
     """Parse `html`, iterate `<a>` tags up to MAX_PARSED_LINKS_PER_PAGE,
     return a deduped list capped at CANDIDATE_CAP_PER_ORG.
 
     The caller aggregates across homepage + subpages and should apply a
     second cap over the final union.
+
+    TICK-001: When `parent_is_report_anchor` is True, PDF-suffix links
+    inside this page are accepted without requiring anchor/path
+    keyword matches (bounded by MAX_PDFS_PER_REPORT_SUBPAGE).
+    Non-PDF links still require the strict filter; homepage and
+    non-report-anchor subpages are unchanged.
     """
     soup = BeautifulSoup(html or "", "lxml")
     candidates: list[Candidate] = []
     seen: set[str] = set()
+    relaxed_pdf_count = 0
     anchors = soup.find_all("a", href=True, limit=MAX_PARSED_LINKS_PER_PAGE)
     for a in anchors:
         href_raw = a.get("href") or ""
         href = urljoin(base_url, href_raw.strip())
         anchor_text = a.get_text(" ", strip=True) or ""
+        # TICK-001: enforce per-subpage PDF cap BEFORE _classify_link
+        # for links that would only pass via the relaxed rule.
+        effective_parent_flag = parent_is_report_anchor
+        if (
+            parent_is_report_anchor
+            and _pdf_like(href)
+            and not _anchor_matches(anchor_text)
+            and not _path_matches(urlsplit(href).path)
+            and relaxed_pdf_count >= MAX_PDFS_PER_REPORT_SUBPAGE
+        ):
+            # Cap reached — don't let this link through via relaxed rule.
+            # Disable the flag locally so the strict filter still applies.
+            effective_parent_flag = False
         c = _classify_link(
             anchor=anchor_text,
             href=href,
             referring_page_url=referring_page_url,
             seed_etld1=seed_etld1,
             discovered_via=discovered_via,
+            parent_is_report_anchor=effective_parent_flag,
         )
         if c is None:
             continue
@@ -164,6 +197,15 @@ def extract_candidates(
             continue
         seen.add(canonical)
         candidates.append(c)
+        # Track relaxed-rule admissions for the per-subpage cap.
+        if (
+            parent_is_report_anchor
+            and _pdf_like(href)
+            and not _anchor_matches(anchor_text)
+            and not _path_matches(urlsplit(href).path)
+            and c.hosting_platform == "own-domain"
+        ):
+            relaxed_pdf_count += 1
         if len(candidates) >= CANDIDATE_CAP_PER_ORG:
             break
     return candidates

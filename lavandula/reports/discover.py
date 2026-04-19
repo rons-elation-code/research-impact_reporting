@@ -27,6 +27,8 @@ from . import sitemap as _sitemap
 from .candidate_filter import (
     CANDIDATE_CAP_PER_ORG,
     Candidate,
+    _anchor_matches,
+    _path_matches,
     extract_candidates,
 )
 from .redirect_policy import etld1
@@ -115,12 +117,22 @@ def per_org_candidates(
             sub_body, sub_status = fetcher(sub.url, "subpage")
             if sub_status != "ok" or not sub_body:
                 continue
+            # TICK-001: compute parent_is_report_anchor from the
+            # subpage's OWN URL/anchor metadata. If the subpage was
+            # chosen for expansion because its own path or its
+            # referring-anchor matched a report keyword, relax the
+            # strict PDF filter for links found inside it.
+            parent_is_report_anchor = (
+                _anchor_matches(sub.anchor_text)
+                or _path_matches(sub_parsed.path or "")
+            )
             sub_candidates = extract_candidates(
                 html=sub_body.decode("utf-8", errors="replace"),
                 base_url=sub.url,
                 seed_etld1=seed_etld1,
                 referring_page_url=sub.url,
                 discovered_via="subpage-link",
+                parent_is_report_anchor=parent_is_report_anchor,
             )
             for c in sub_candidates:
                 parsed = urlsplit(c.url)

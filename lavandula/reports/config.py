@@ -51,6 +51,11 @@ MAX_PARSED_LINKS_PER_PAGE = 10_000
 # --- Candidate / discovery caps -----------------------------------------
 CANDIDATE_CAP_PER_ORG = 30
 MAX_SUBPAGES_PER_ORG = 5
+# TICK-001: When expanding a subpage whose OWN URL/anchor already
+# matched a report pattern, accept any PDF-suffix link inside it
+# (bypassing the strict anchor/path keyword filter). Capped to
+# prevent runaway fan-out on pathological landing pages.
+MAX_PDFS_PER_REPORT_SUBPAGE = 20
 
 # --- Classifier ---------------------------------------------------------
 # Pinned model ID (per spec "requires a spec amendment to rotate").
