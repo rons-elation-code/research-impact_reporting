@@ -1,3 +1,28 @@
+# ABANDONED — see 0004-site-crawl-report-catalogue.md
+
+This spec (and its companion, the other abandoned 0002 / 0003) was
+abandoned on 2026-04-19 after a developer outside the SPIDER review
+loop proposed a materially better architecture: crawl known nonprofit
+websites directly (using robots.txt + sitemap + homepage-link
+extraction with anchor-text / URL-path filtering) instead of using a
+search-engine API.
+
+That approach:
+- Drops the Google Custom Search API (no paid search budget)
+- Shrinks the threat model (seed URLs come from a trusted allowlist,
+  not adversary-gameable SERPs) — closing most of the SSRF and
+  malicious-content concerns flagged in two rounds of red-team review
+- Uses 0001's curated nonprofit list as the seed, making 0001 central
+  rather than a helper
+- Uses Haiku-class LLM calls for the judgment step (is this PDF an
+  annual/impact report?) rather than a hand-rolled design-score
+  rubric
+
+The content below is preserved as-is for reference; do not implement
+against it.
+
+---
+
 # Specification: Corpus Search Engine (Generic Pipeline)
 
 ## Metadata

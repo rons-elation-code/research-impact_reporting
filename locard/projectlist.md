@@ -123,35 +123,48 @@ projects:
     notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) added 2026-04-17 after validation revealed the full-sitemap path was both too large (2.3M vs 48K estimated) and too noisy (50% 404 rate). Project demoted from 'core product' to 'prospect-list helper' once 0002 is approved — 0002 is the actual report-catalogue product."
 
   - id: "0002"
-    title: "Corpus Search Engine (generic pipeline)"
-    summary: "Topic-agnostic search-to-catalogue pipeline: query-provider abstraction (Google/Bing/SerpAPI), SSRF-safe fetch, content-addressable archive, budget enforcement, subprocess-sandboxed extractor runner, audit tables. Consumed by topic plugins (0003 nonprofit reports, future marketing materials, etc.)."
-    status: conceived
+    title: "Corpus Search Engine (abandoned)"
+    summary: "Generic search-to-catalogue pipeline with Google Custom Search provider. Abandoned 2026-04-19 in favor of a site-crawl approach (see 0004) after external developer input + two rounds of multi-agent review showed the search-first architecture kept producing CRITICAL findings that the site-crawl approach sidesteps entirely."
+    status: abandoned
     priority: high
     files:
-      spec: locard/specs/0002-corpus-search-engine.md
+      spec: locard/specs/0002-corpus-search-engine.abandoned.md
       plan: null
       review: null
     dependencies: []
-    tags: [infrastructure, search, crawler, shared-engine]
-    notes: "Replaces the original 0002 (Report Search Agent, commit 7298179) after multi-agent review returned 3 CRITICAL + 10 HIGH findings that were primarily pipeline-level, not topic-level. Splitting pipeline from topic keeps the security hardening concentrated and reusable. Second consumer (marketing-materials catalogue) is already foreseeable."
+    tags: [infrastructure, search, crawler, shared-engine, abandoned]
+    notes: "Abandoned 2026-04-19. Superseded by 0004. Spec and review artifacts preserved at .consult/0002/, .consult/0002-v2/, .consult/0002-v3/."
 
   - id: "0003"
-    title: "Nonprofit Report Catalogue (topic slice)"
-    summary: "Topic plugin on top of 0002: report-specific query library, PDF extractor (page count, image density, text sample), classifier (is_real_report + design_score), org-attribution heuristic, and catalogue-query helpers. Produces the design inspiration library + prospect signal Lavandula actually uses."
-    status: conceived
+    title: "Nonprofit Report Catalogue — search-first (abandoned)"
+    summary: "Topic plugin on top of 0002's search-first engine. Abandoned 2026-04-19 alongside 0002; the site-crawl approach in 0004 replaces the functional goal and uses LLM-based classification instead of a hand-rolled design-score rubric."
+    status: abandoned
     priority: high
     files:
-      spec: locard/specs/0003-nonprofit-report-catalogue.md
+      spec: locard/specs/0003-nonprofit-report-catalogue.abandoned.md
       plan: null
       review: null
     dependencies: ["0002"]
-    tags: [lavandula-core, reports, catalogue, classifier]
-    notes: "Was going to be 0002 (Report Search Agent); split out once multi-agent review made it clear the pipeline security belongs in a generic engine. Depends on 0002; nothing else."
+    tags: [lavandula-core, reports, catalogue, classifier, abandoned]
+    notes: "Abandoned 2026-04-19 alongside 0002. Superseded by 0004. Review artifacts preserved at .consult/0003/, .consult/0003-v2/."
+
+  - id: "0004"
+    title: "Site-Crawl Report Catalogue"
+    summary: "Crawl known nonprofit websites directly for annual/impact reports. Uses 0001's curated nonprofit list as the seed, robots.txt + sitemap + homepage-link extraction with anchor-text + URL-path + hosting-platform filters to find candidate PDFs, HEAD/fetch with throttle, and Haiku-class LLM classification of first-page text to decide whether each PDF is actually a real report. Produces the design inspiration library + prospect signal Lavandula needs."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0004-site-crawl-report-catalogue.md
+      plan: null
+      review: null
+    dependencies: ["0001"]
+    tags: [lavandula-core, reports, catalogue, crawler]
+    notes: "Replaces 0002 + 0003 after external developer proposed a better architecture. Smaller threat surface (whitelist domains, no adversarial SERPs), lower cost (no search API, ~$3 of Haiku per full pass), better recall (direct site crawl beats Google ranking for nonprofit-report-specific paths), reuses 0001 as first-class input."
 ```
 
 ## Next Available Number
 
-**0004** - Reserve this number for your next project
+**0005** - Reserve this number for your next project
 
 ---
 
