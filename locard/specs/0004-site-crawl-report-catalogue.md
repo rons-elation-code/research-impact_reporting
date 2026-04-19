@@ -985,3 +985,215 @@ captured as Post-Implementation TICK candidates, not blockers.
 ## Amendments
 
 <!-- When adding a TICK amendment, add a new entry below this line in chronological order -->
+
+### TICK-001: HTML-index one-hop descent (2026-04-19)
+
+**Summary**: Extend candidate-URL discovery with a bounded, depth-1
+descent into HTML landing pages whose URL path or anchor text
+matches report patterns. Parse the HTML body, extract same-domain
+PDF links found inside, and append those PDFs to the candidate
+queue. Fixes the "landing page" gap where nonprofits route
+through `/reports/`, `/our-impact/`, `/giving/annual-fund` etc.
+rather than linking PDFs directly from the homepage.
+
+**Motivation — empirical evidence from 2026-04-19 coastal run
+(100 mid-market coastal NPs, ProPublica-seeded,
+WebSearch-enriched for websites):**
+
+End-to-end hit rate was 16% (16 of 100 orgs produced any archived
+PDFs; 36 PDFs total, 194 MB). Inspection of the 84 orgs that
+produced zero PDFs reveals the following recurring pattern:
+
+- Family House, ein=942722663: crawler surfaced `/our-impact/`,
+  `/our-impact/family-stories/`, `/our-impact/share-your-story/`,
+  `/our-impact/featured-videos/`, `/special-events/annual-gala/`
+  as candidates. All HEAD-returned `text/html`. All rejected with
+  `fetch_status=blocked_content_type`. No descent. 0 PDFs logged.
+- Sage Hill School, ein=330729698: same pattern at
+  `/giving/annual-fund` and `/giving/make-a-gift-online`.
+- STAR Inc, ein=954430228: same pattern at
+  `/the-23th-annual-african-american-art-festival`.
+- Rockefeller Foundation (pre-run sanity test, 2026-04-19): same
+  pattern at `/reports/` and `/news-and-insights/impact-reports/`
+  — 29 HTML candidates rejected.
+
+The report PDFs these landing pages link to are not discoverable
+today even though their existence is effectively certain from the
+anchor/path semantics. TICK-001 targets this pattern.
+
+**In Scope**
+
+Same-domain HTML pages surfaced by the current discovery layer as
+candidates, whose Content-Type is `text/html` and whose URL path
+OR anchor text matches the report-pattern regex.
+
+**Out of Scope**
+
+- JCCSF-style discovery gaps where the homepage links to no
+  report-ish anchor at all (verified 2026-04-19: JCCSF's homepage
+  yielded zero candidates; the known-good PDF at
+  `/wp-content/uploads/2026/01/260115_DEV_ImpactReport_Financials_UPTD_24-25_Compressed_v3mh.pdf`
+  is never reached). A follow-up TICK-002 will cover broader
+  candidate sourcing (sitemap deep-crawl, `/wp-content/uploads/`
+  enumeration, explicit link-density heuristics).
+- Multi-hop recursion beyond depth 1. Explicitly disallowed.
+- JavaScript-rendered landing pages (no headless browser).
+
+**Technical Implementation**
+
+Single file change: `lavandula/reports/discover.py`,
+function `per_org_candidates()`.
+
+Algorithm, appended after the current initial-candidate pass:
+
+1. Partition current candidates into `likely_pdf` (href ends
+   `.pdf` OR Content-Type already known to be `application/pdf`)
+   and `html_maybe_index`.
+2. For each candidate in `html_maybe_index` where
+   `REPORT_PATH_RE.search(url.path)` OR
+   `REPORT_ANCHOR_RE.search(anchor_text)` is True:
+   - Verify robots.txt allows the URL (reuse existing
+     `robots.is_allowed()`).
+   - GET the body with a hard cap of
+     `MAX_INDEX_BODY_BYTES = 1 MB` and
+     `INDEX_FETCH_TIMEOUT_SEC = 15`. Use the existing streaming
+     size-cap from `http_client.py`; on overflow set
+     `fetch_status="size_capped"`.
+   - Parse with BeautifulSoup (already a dep). Extract every
+     `<a href>` whose href ends in `.pdf` (case-insensitive) OR
+     whose path contains `/pdf/`. Skip `javascript:`, `mailto:`,
+     and fragment-only URLs.
+   - Filter extracted URLs to same `etld1()` as the seed
+     (reuse existing `url_guard.etld1()`).
+   - Deduplicate against the initial candidate list by
+     canonicalized URL.
+   - Cap at `MAX_PDFS_PER_INDEX = 20` in HTML document order.
+   - Append to the candidate queue.
+3. Log the descent as a `fetch_log` row with
+   `kind="index-descent"`, `fetch_status` one of
+   `ok | robots_blocked | size_capped | cross_origin_blocked |
+   parse_error`.
+
+No recursion: extracted PDFs are treated as leaf candidates only.
+A URL extracted via index-descent that subsequently returns
+`text/html` is NOT re-descended (defense against `.pdf`-named
+HTML).
+
+New config values added to `lavandula/reports/config.py`:
+
+- `MAX_INDEX_BODY_BYTES = 1 * 1024 * 1024`
+- `INDEX_FETCH_TIMEOUT_SEC = 15`
+- `MAX_PDFS_PER_INDEX = 20`
+- `REPORT_PATH_RE = re.compile(r"/(impact|annual|report|year-in-review|financials?|giving|publications?)/", re.I)`
+- `REPORT_ANCHOR_RE = re.compile(r"\b(impact|annual|year in review|our work|reports?|publications?)\b", re.I)`
+
+New fetch `kind` literal: `"index-descent"` — added to the
+existing allowed-kinds assertion in `db_writer.record_fetch`.
+
+**Acceptance Criteria**
+
+AC1 — Positive path: given a seed whose initial-candidate list
+includes `/our-impact/` (text/html) with HTML body linking to
+`/uploads/impact-2024.pdf`, the crawler archives
+`impact-2024.pdf` and writes a `reports` row for it. The
+`fetch_log` contains a `kind="index-descent" fetch_status="ok"`
+row for `/our-impact/`.
+
+AC2 — Body size cap: if an HTML index page's body exceeds
+`MAX_INDEX_BODY_BYTES`, the streaming read aborts. No partial
+body is parsed. `fetch_log` records
+`kind="index-descent" fetch_status="size_capped"`. No
+extracted-PDF candidates added.
+
+AC3 — PDF count cap: if an HTML index page contains >20 PDF
+anchors, only the first 20 (document order) are enqueued. No
+error; `fetch_log` notes `"capped_at_20"`.
+
+AC4 — Cross-origin filter: PDF hrefs extracted from the HTML body
+whose `etld1()` differs from the seed are dropped. One
+`fetch_log` row is written per dropped URL with
+`kind="index-descent" fetch_status="cross_origin_blocked"`.
+
+AC5 — Robots-gated: if the HTML index URL is disallowed by the
+same robots.txt that gated the original candidate, the descent is
+skipped. `fetch_log` records
+`kind="index-descent" fetch_status="robots_blocked"`.
+
+AC6 — No recursion: if an "extracted PDF URL" turns out (via
+HEAD) to be `text/html`, it is dropped from the candidate queue.
+Not re-descended. `fetch_log` records
+`kind="pdf-get" fetch_status="blocked_content_type"`, same as
+any other HTML false-positive.
+
+AC7 — Additive only: no candidate produced by the pre-existing
+discovery logic is dropped or re-ordered. TICK-001 adds URLs; it
+never removes them.
+
+AC8 — Rate limit respected: index-descent fetches consume the
+same per-host slot as any other fetch. Per-host concurrency,
+delay, and timeout settings are unchanged.
+
+**Live Validation Fixtures**
+
+After implementation, re-run against
+`/tmp/0004-coastal-run/coastal-seed.db` with `--refresh`.
+Expected deltas vs the 2026-04-19 baseline run:
+
+- `ein=942722663` (Family House): ≥1 PDF from `/our-impact/*`
+  pages. Currently 0.
+- `ein=330729698` (Sage Hill): ≥1 PDF from `/giving/annual-fund`.
+  Currently 0.
+- `ein=954430228` (STAR Inc): ≥1 PDF from annual-festival page.
+  Currently 0.
+
+NOT expected to improve (out of scope — these require TICK-002):
+
+- `ein=943227260` (JCCSF): still 0 PDFs. Homepage surfaces no
+  report-ish candidates to descend into.
+
+**Traps to Avoid**
+
+- Don't treat `mailto:`, `javascript:`, or fragment-only URLs as
+  candidates.
+- Don't use regex on raw HTML to find anchors — use BeautifulSoup
+  (already a dep). Prevents pulling URLs out of `<script>` or
+  comment blocks.
+- Don't let the HTML parser consume the entire body if it's
+  malformed — set a hard time budget per descent (15s) and abort
+  on parse error with `fetch_status="parse_error"`.
+- Don't double-count: if a PDF is in the initial candidate list
+  AND extracted from a descent, dedupe by canonicalized URL
+  before it hits `fetch_pdf.download()`.
+- Don't blindly trust the `.pdf` suffix — continue validating
+  PDF magic bytes (`%PDF-`) inside `fetch_pdf.download`, same as
+  today.
+- Don't skip the robots re-check just because the parent
+  candidate was already robots-allowed. The index-page URL is a
+  distinct URL and must be re-checked.
+
+**Implementation Sizing**
+
+- ~60 lines of production code in `discover.py` + 5 config
+  values.
+- ~150 lines of tests (one fixture per AC1–AC8, plus the three
+  live-validation rows from the 2026-04-19 run).
+- One new `fetch_log` kind literal (`"index-descent"`).
+- No schema change (uses existing `fetch_log` table).
+- No dependency change.
+
+Target time-to-merge: same-day.
+
+**Red-Team Review Focus** (to be run via `consult`)
+
+- Can an attacker induce infinite fan-out via crafted HTML with
+  thousands of PDF links? (Mitigated by
+  `MAX_PDFS_PER_INDEX=20`.)
+- Can a malicious `/reports/` page redirect into an internal-only
+  IP range? (Mitigated by existing SSRF guard in `http_client`.)
+- Can a slowloris-style HTML response tie up a worker?
+  (Mitigated by `INDEX_FETCH_TIMEOUT_SEC=15` + streaming size
+  cap.)
+- Can a page with a same-etld1 redirect chain to a different
+  final origin bypass the cross-origin filter? (Requires
+  re-validating `etld1()` on the FINAL response URL, not the
+  initial href — verify existing redirect-policy handles this.)
