@@ -179,8 +179,11 @@ CREATE INDEX idx_reports_platform       ON reports(hosting_platform);
 
 -- Read-only view for teammates / Claude instances / exports.
 -- Excludes raw first_page_text (could contain donor names etc.).
--- Excludes rows with 'platform_unverified' attribution from the
--- default prospect list (addresses Claude red-team CRITICAL #2).
+-- The WHERE clause enforces all three consumer-safety filters
+-- specified in AC12.3 (attribution), AC16.2 (classification NOT
+-- NULL and confidence >= 0.8), and AC23.1 (active-content
+-- exclusion). Kept in a single place to prevent drift; AC26
+-- greps the materialized DDL against each AC's claims.
 CREATE VIEW IF NOT EXISTS reports_public AS
   SELECT content_sha256, source_org_ein, hosting_platform,
          attribution_confidence,
@@ -189,7 +192,12 @@ CREATE VIEW IF NOT EXISTS reports_public AS
          report_year, report_year_source,
          pdf_has_javascript, pdf_has_launch, pdf_has_embedded
   FROM reports
-  WHERE attribution_confidence IN ('own_domain','platform_verified');
+  WHERE attribution_confidence IN ('own_domain','platform_verified')
+    AND classification IS NOT NULL
+    AND classification_confidence >= 0.8
+    AND pdf_has_javascript = 0
+    AND pdf_has_launch = 0
+    AND pdf_has_embedded = 0;
 
 -- Per-fetch audit (both success and failure).
 CREATE TABLE IF NOT EXISTS fetch_log (
@@ -231,6 +239,28 @@ CREATE TABLE IF NOT EXISTS deletion_log (
   pdf_unlinked     INTEGER NOT NULL,
   CHECK (pdf_unlinked IN (0,1))
 );
+
+-- Classifier spend ledger (per round-3 Claude HIGH).
+-- One row per classifier API call. Referenced by AC18.1; the
+-- preflight check + insert is a single BEGIN IMMEDIATE transaction
+-- on this table (SELECT SUM(cents_spent) then INSERT in the same
+-- txn). v1 crawler is single-threaded; if a future plan parallelizes,
+-- a mutex or single-writer budget-manager process is required.
+CREATE TABLE IF NOT EXISTS budget_ledger (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  at_timestamp       TEXT NOT NULL,         -- ISO-8601 UTC
+  classifier_model   TEXT NOT NULL,         -- model id used
+  sha256_classified  TEXT NOT NULL,         -- FK-like reference; not enforced FK since reports row may lag
+  input_tokens       INTEGER NOT NULL,
+  output_tokens      INTEGER NOT NULL,
+  cents_spent        INTEGER NOT NULL,      -- rounded up to nearest cent for pessimistic accounting
+  notes              TEXT,                   -- sanitized, <= 200 chars
+  CHECK (cents_spent >= 0),
+  CHECK (input_tokens >= 0),
+  CHECK (output_tokens >= 0),
+  CHECK (length(sha256_classified) = 64 OR sha256_classified = 'preflight')
+);
+CREATE INDEX idx_budget_ledger_at ON budget_ledger(at_timestamp);
 ```
 
 ### Candidate URL Discovery Rules
@@ -353,13 +383,22 @@ Return JSON: {"classification": "...", "confidence": 0.0-1.0, "reasoning": "..."
 - **AC7** — Content-type + magic-byte: response claiming PDF but
   with body not starting `%PDF-1.` → `blocked_content_type`,
   archive NOT written.
-- **AC8** — Decompressed-size cap, **all fetch kinds** (broadened
-  per Claude red-team HIGH #H4): streaming decompression stops at
-  `MAX_RESPONSE_BYTES` (default 50 MB for PDFs, 5 MB for
-  robots.txt / sitemap.xml / homepage / subpage). Caps enforced on
-  every `fetch_log.kind` value. Gzip bomb aborts with `size_capped`
-  regardless of kind. Tests: HTML gzip bomb on homepage aborted;
-  5 MB+ HTML page aborted.
+- **AC8** — Decompressed-size cap, ALL fetch kinds AND ALL
+  encodings (broadened per Claude red-team HIGH #H4 + round-3
+  Claude HIGH): streaming decompression stops at
+  `MAX_RESPONSE_BYTES` (50 MB for PDFs, 5 MB for robots.txt /
+  sitemap / homepage / subpage). Caps enforced on every
+  `fetch_log.kind`. The cap applies to EVERY supported
+  `Content-Encoding`: `gzip`, `deflate`, `br` (brotli), `zstd`,
+  and any future encoding added to `requests` / `urllib3`. To
+  guarantee coverage, the client explicitly constrains its
+  outbound `Accept-Encoding` header to `gzip, identity` ONLY —
+  we don't advertise support for brotli/zstd/deflate, so a host
+  that serves those violates the negotiated content-coding and
+  the response is rejected with `blocked_content_type`. Tests:
+  gzip bomb, brotli bomb (if any host sends one despite our
+  header), and an oversized identity-encoded response all abort
+  with `size_capped`.
 - **AC8.1** — Pre-filter parse caps (per Gemini red-team HIGH +
   round-2 Claude HIGH #3):
   - `MAX_SITEMAP_URLS_PER_ORG = 10_000` (GLOBAL per-org aggregate,
@@ -408,17 +447,32 @@ Return JSON: {"classification": "...", "confidence": 0.0-1.0, "reasoning": "..."
   with a mock resolver that flips between a public IP on first
   query and `127.0.0.1` on subsequent queries confirms the pinned
   IP is used end-to-end.
-- **AC12.2** — Cross-origin redirect policy (per Claude red-team
-  CRITICAL #1): the final fetched URL's eTLD+1 MUST match either
-  (a) the seed URL's eTLD+1 from `nonprofits.website` (via the
-  `publicsuffix2` library), or (b) an explicit hosting-platform
-  allowlist: `issuu.com`, `flipsnack.com`, `canva.com`. Redirects
-  that leave both sets are refused with
-  `fetch_status='cross_origin_blocked'`. The full redirect chain
-  is recorded in `reports.redirect_chain_json`. Tests: redirect
-  from `nonprofit.org → attacker.com/fake-report.pdf` blocked;
-  redirect from `nonprofit.org → issuu.com/.../docs/report` allowed
-  but tagged.
+- **AC12.2** — Cross-origin redirect policy: the final fetched
+  URL's eTLD+1 MUST match either (a) the seed URL's eTLD+1 from
+  `nonprofits.website` (via the `publicsuffix2` library), or
+  (b) an explicit hosting-platform allowlist: `issuu.com`,
+  `flipsnack.com`, `canva.com`. Redirects that leave both sets
+  are refused with `fetch_status='cross_origin_blocked'`. The
+  full redirect chain is recorded in
+  `reports.redirect_chain_json`. Test: `nonprofit.org →
+  attacker.com/fake-report.pdf` blocked;
+  `nonprofit.org → issuu.com/.../docs/report` allowed but tagged.
+- **AC12.2.1** — Every redirect HOP is gated, not just the final
+  URL (per round-3 Claude HIGH): every intermediate hostname in
+  the redirect chain must also be in `{seed eTLD+1, platform
+  allowlist}`. Any intermediate outside both sets results in
+  `cross_origin_blocked` even if the final target would have been
+  allowed. Rationale: an intermediate hop leaks seed-list
+  composition, timing, and Referer to third parties.
+  Additionally:
+  - `MAX_REDIRECTS = 5`. Exceeded → `fetch_status='server_error'`
+    with note `redirect_chain_too_long`.
+  - `Referer` header is stripped from every outbound request.
+  - `User-Agent` stays identifying; `Accept-Encoding` constrained
+    (see AC8).
+  Test: `nonprofit.org → attacker.com/track?u=nonprofit.org →
+  issuu.com/.../docs/x` is blocked at the attacker.com hop, NOT
+  allowed through to the issuu.com final.
 - **AC12.3** — Hosting-platform attribution policy (revised per
   round-2 Claude HIGH #2 + Codex: previous spec required an HTTP
   redirect chain from the org homepage, which is unrealistic; real
@@ -549,16 +603,26 @@ Return JSON: {"classification": "...", "confidence": 0.0-1.0, "reasoning": "..."
   orgs (present in `crawled_orgs`) are skipped unless `--refresh` is
   passed.
 - **AC21** — File permissions: DB `0o600`, archive dir `0o700`.
-- **AC21.1** — Encryption at rest (per Gemini round-2 HIGH):
-  engine startup checks that `data/` and `raw/` are on an
-  encrypted volume. Detection attempts, in order:
+- **AC21.1** — Encryption at rest — **HALT** at startup
+  (promoted from WARN per round-3 Gemini CRITICAL): engine
+  startup checks that `data/` and `raw/` are on an encrypted
+  volume. Detection attempts, in order:
   (a) `/proc/mounts` flag for LUKS / fscrypt,
   (b) macOS `diskutil apfs list` encryption flag,
-  (c) operator-signed marker file `.encrypted-volume` in each
-  directory (escape hatch).
-  Failure mode: WARN at startup in v1; promote to halt in a
-  follow-up TICK. Documented in HANDOFF.md as an operator
-  responsibility until then.
+  (c) operator-signed marker file `.encrypted-volume` at each
+  directory. Marker content is documented in HANDOFF.md:
+  a one-line attestation `"This volume is encrypted by {scheme};
+  attested by {operator} on {iso8601}"`. Operator-signed
+  attestation is a deliberate escape hatch for unusual setups
+  (e.g., AWS EBS with default encryption where `/proc/mounts`
+  doesn't expose the flag), but its presence is an explicit
+  operator assertion, not a silent pass.
+  No detection → halt with exit code 2 and
+  `HALT-encryption-not-detected.md`.
+  Rationale for promoting to HALT: `first_page_text` and
+  archived PDFs may contain donor names, contact info, program
+  beneficiaries. Plaintext-on-disk retention is not acceptable
+  for v1.
 - **AC22** — Deletion round-trip — **hard delete** (per Codex
   round-2 SR; no soft-delete semantics):
   `catalogue.delete(sha, reason)`:
@@ -603,6 +667,13 @@ Return JSON: {"classification": "...", "confidence": 0.0-1.0, "reasoning": "..."
   deterministic dedup when the same PDF is linked via trivially-
   different URLs (trailing slash, casing, query-param reorder via
   `parse_qsl(... sort=True)`).
+- **AC26** — Spec-to-DDL drift check (per round-3 Claude HIGH):
+  `tests/test_view_drift.py` greps the materialized
+  `reports_public` view definition (retrieved from
+  `sqlite_master.sql`) against the exclusion clauses named in
+  AC12.3, AC16.2, and AC23.1. A missing filter fails the test.
+  Prevents the view DDL and the ACs' claims from drifting apart
+  in future edits.
 
 ### Empirical (REPORTED, not gated; measured in Phase 7)
 
