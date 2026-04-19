@@ -11,8 +11,14 @@ REPORTS_PKG = pathlib.Path(__file__).parent.parent.parent
 
 def test_ac23_grep_forbids_raw_reports_outside_whitelist():
     """AC23 — lavandula/reports/ may not reference FROM reports
-    outside catalogue.py / db_writer.py / schema.py."""
-    whitelist = {"catalogue.py", "db_writer.py", "schema.py"}
+    outside catalogue.py / db_writer.py / schema.py.
+
+    TICK-003 adds tools/classify_null.py to the whitelist as it's
+    an admin tool that writes classification data — the very data
+    the reports_public view filters by — so must bypass the view.
+    """
+    whitelist = {"catalogue.py", "db_writer.py", "schema.py",
+                 "classify_null.py"}
     # Tests directory is excluded — they inspect the DB intentionally.
     bad: list[tuple[str, int, str]] = []
     for py in REPORTS_PKG.rglob("*.py"):

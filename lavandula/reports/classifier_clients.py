@@ -203,10 +203,18 @@ class CodexSubscriptionClient:
         timeout_sec: float = 60.0,
         cli: str = "codex",
         runner: _Runner | None = None,
+        codex_model: str | None = None,
     ) -> None:
         self._timeout = timeout_sec
         self._cli = cli
         self._runner = runner or subprocess.run
+        # Pull codex model from env var or explicit arg; None means
+        # "use codex CLI's configured default" (currently gpt-5.4).
+        self._codex_model = (
+            codex_model
+            or os.environ.get("CLASSIFIER_CODEX_MODEL")
+            or None
+        )
         self.messages = _Messages(self)
 
     # --- prompt shaping --------------------------------------------------
@@ -231,10 +239,18 @@ class CodexSubscriptionClient:
         Uses `codex exec -` so the prompt is piped via stdin (avoids
         argv size limits on long prompts). This is the non-interactive
         subcommand per `codex --help`.
+
+        If `codex_model` is set (via constructor arg or
+        CLASSIFIER_CODEX_MODEL env var), forwards it as
+        `-c model=<name>` per the codex CLI's config-override flag.
         """
+        cmd = [self._cli]
+        if self._codex_model:
+            cmd += ["-c", f"model={self._codex_model}"]
+        cmd += ["exec", "-"]
         try:
             result = self._runner(
-                [self._cli, "exec", "-"],
+                cmd,
                 input=prompt,
                 capture_output=True,
                 timeout=self._timeout,
