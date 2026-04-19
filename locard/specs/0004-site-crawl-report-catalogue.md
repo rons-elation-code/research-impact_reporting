@@ -1295,3 +1295,295 @@ worth tracking:
   doc-only TICK.
 
 None of these block TICK-001.
+
+### TICK-003: Codex OAuth subscription shim for classifier (2026-04-19)
+
+**Summary**: Replace the direct `anthropic.Anthropic()` client in
+the classification step with a thin duck-typed shim that shells
+out to the `codex` CLI (authenticated via the operator's ChatGPT
+Business subscription). `classify.py` — including the prompt,
+JSON schema, validation, and `reports_public` gating at confidence
+≥ 0.8 — is unchanged. Enables running classification on
+subscription headroom rather than direct per-call API billing,
+and stays within ChatGPT ToS by using the official CLI wrapper.
+
+**Motivation**
+
+Operator holds active Anthropic, Gemini, and Codex subscriptions;
+the Codex (ChatGPT Business) plan currently has the most unused
+quota (~95% weekly headroom observed 2026-04-19). Baseline spec
+0004 wires the classifier to `anthropic.Anthropic()`, which
+consumes per-call API credits distinct from any subscription plan.
+Running 5000+ classifications that way is cheap in absolute terms
+(~$0.30/1000) but unnecessary when subscription quota is
+available. TICK-003 makes the classifier client pluggable via
+an env var so the operator can pick the economically-optimal
+backend per run.
+
+TICK-003 is **additive and opt-in**. Default behavior when
+`CLASSIFIER_CLIENT` is unset remains the existing
+`anthropic.Anthropic()` path — no behavior change for operators
+who prefer direct API billing.
+
+**In Scope**
+
+- New module: `lavandula/reports/classifier_clients.py`
+  - `CodexSubscriptionClient`: duck-types the Anthropic SDK's
+    `.messages.create(**kwargs)` entrypoint by shelling out to
+    the `codex` CLI and re-shaping the response.
+  - `select_classifier_client()`: factory reading
+    `CLASSIFIER_CLIENT` env var; returns `CodexSubscriptionClient()`
+    when set to `"codex"`, otherwise returns `anthropic.Anthropic()`
+    (existing default).
+- `crawler.py` update: replace the bare `anthropic.Anthropic()`
+  call at line 515 with `select_classifier_client()`. No other
+  changes to the crawler orchestration.
+- Unit tests using a stubbed subprocess runner (no live `codex`
+  call in CI).
+
+**Out of Scope**
+
+- Shims for Gemini or Claude CLIs (future TICKs).
+- Local-model shims (Ollama, llama.cpp).
+- Any change to `classify.py`, its prompt, its validator, its
+  JSON schema, or the `reports_public` view semantics.
+- Budget-ledger behavior under the Codex client (see Design
+  Notes below for rationale).
+- Schema change.
+
+**Technical Implementation**
+
+Single new file `lavandula/reports/classifier_clients.py` plus
+a one-line edit in `crawler.py`.
+
+The Anthropic SDK's response object shape that `classify.py`
+consumes is specifically:
+- `resp.content`: an iterable of blocks; the classifier reads
+  blocks with `type == "tool_use"` and their `.input` dict.
+- `resp.usage.input_tokens`, `resp.usage.output_tokens`: for
+  the budget-ledger `settle` call.
+
+The shim fakes both. Sketch:
+
+```python
+class _ToolUseBlock:
+    def __init__(self, inp: dict):
+        self.type = "tool_use"
+        self.name = "record_classification"
+        self.input = inp
+
+class _Usage:
+    def __init__(self, in_tok: int, out_tok: int):
+        self.input_tokens = in_tok
+        self.output_tokens = out_tok
+
+class _Response:
+    def __init__(self, payload: dict, usage: _Usage):
+        self.content = [_ToolUseBlock(payload)]
+        self.usage = usage
+
+class _Messages:
+    def __init__(self, parent): self._parent = parent
+    def create(self, *, model, max_tokens, temperature, system,
+               messages, tools, tool_choice, **_ignored):
+        # Codex CLI doesn't do Anthropic tool-use natively.
+        # Build a plain-text prompt asking for strict JSON
+        # matching the tool's input_schema.
+        prompt = self._parent._build_prompt(
+            system=system, user=messages[-1]["content"],
+            schema=tools[0]["input_schema"])
+        raw = self._parent._invoke_codex(prompt)
+        payload = self._parent._parse_json(raw)
+        usage = self._parent._estimate_usage(prompt, raw)
+        return _Response(payload, usage)
+
+class CodexSubscriptionClient:
+    def __init__(self, *, timeout_sec=60, cli="codex"):
+        self._timeout = timeout_sec
+        self._cli = cli
+        self.messages = _Messages(self)
+    # _build_prompt, _invoke_codex (via subprocess.run with
+    # stdin piping), _parse_json, _estimate_usage all defined here.
+```
+
+Prompt-reshaping logic (`_build_prompt`):
+
+Given Anthropic-shaped kwargs, produce a single text prompt:
+
+```
+{system}
+
+{user_content}
+
+Respond with ONLY a valid JSON object matching this schema.
+Do not include prose, markdown, code fences, or explanation —
+emit just the JSON.
+
+Schema: {json.dumps(schema, indent=2)}
+```
+
+Subprocess invocation (`_invoke_codex`):
+
+- `subprocess.run([cli, "-p", prompt], capture_output=True,
+  timeout=self._timeout, text=True, check=False, env=_minimal_env())`
+- `_minimal_env()`: `{'HOME': os.environ['HOME'],
+  'PATH': os.environ['PATH']}` — intentionally does NOT forward
+  other env vars, to prevent leaking unrelated secrets to a
+  subprocess.
+- On `subprocess.TimeoutExpired` or non-zero returncode, raise a
+  `CodexShimError` that propagates up to the existing
+  `classify_first_page(raise_on_error=False)` fallback path,
+  which writes `classification=NULL` and a `classifier_error`
+  fetch_log row.
+
+JSON parsing (`_parse_json`):
+
+- Strip leading/trailing whitespace and ``` fences if present
+  (defense in depth — Codex sometimes adds fences despite the
+  prompt).
+- `json.loads()`.
+- On `JSONDecodeError`, raise `CodexShimError`; existing fallback
+  applies.
+
+Token estimation (`_estimate_usage`):
+
+Codex CLI doesn't expose per-call token counts in a
+machine-readable format. Use a crude heuristic:
+`input_tokens ≈ len(prompt) / 4` (English text, GPT tokenizer
+rule of thumb), same for output. The budget ledger will settle
+with these estimates, which is harmless because:
+
+- Codex calls are not billed against the classifier budget cap
+  (`CLASSIFIER_INPUT_CENTS_PER_MTOK` etc. are Anthropic prices).
+- The budget ledger is still written for accounting continuity
+  but its cap enforcement is conceptually moot for Codex.
+
+(See Design Notes — budget cap vs subscription quota.)
+
+Env-var factory in `select_classifier_client()`:
+
+```python
+def select_classifier_client():
+    backend = os.environ.get("CLASSIFIER_CLIENT", "").lower()
+    if backend == "codex":
+        return CodexSubscriptionClient()
+    import anthropic
+    return anthropic.Anthropic()
+```
+
+**Acceptance Criteria**
+
+AC1 — Interface duck-compat: `CodexSubscriptionClient().messages.create(**valid_kwargs)` returns an object whose `.content` contains exactly one block of type `"tool_use"` with `.input` a dict, and whose `.usage.input_tokens` / `.usage.output_tokens` are integers. `classify._parse_tool_use()` accepts the response unchanged.
+
+AC2 — Happy-path classification: given a well-formed first-page text and a mocked subprocess returning valid JSON, `classify_first_page(text, client=CodexSubscriptionClient())` returns a `ClassificationResult` with `classification` in `CLASSIFICATIONS`, `confidence` in `[0, 1]`, and non-empty `reasoning`.
+
+AC3 — Subprocess timeout: if the mocked subprocess raises `TimeoutExpired`, the shim raises `CodexShimError`; `classify_first_page(raise_on_error=False)` returns `classification=None` with `error` set.
+
+AC4 — Non-JSON output: if the mocked subprocess returns prose or empty string, `_parse_json` raises `CodexShimError`; fallback path writes `classification=None`.
+
+AC5 — Fenced-JSON tolerance: if the mocked subprocess returns `\`\`\`json\n{...}\n\`\`\``, the shim strips the fences and parses successfully. (Defense against Codex's markdown reflex.)
+
+AC6 — Schema violation: if the JSON parses but `classification` is not in `CLASSIFICATIONS` enum, the existing `classify._validate_tool_input()` raises; fallback path writes `classification=NULL`.
+
+AC7 — Env-var selection: with `CLASSIFIER_CLIENT` unset, `select_classifier_client()` returns an `anthropic.Anthropic` instance. With `CLASSIFIER_CLIENT=codex`, returns `CodexSubscriptionClient`.
+
+AC8 — Minimal env leak: subprocess `env` dict contains only `HOME` and `PATH`. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and other sensitive env vars are NOT forwarded to the `codex` subprocess. (Unit test asserts this.)
+
+AC9 — Prompt injection preservation: the `<untrusted_document>` wrapper and system-prompt framing from `classify.py` pass through unchanged — the shim concatenates them into the Codex prompt without stripping or reordering. Malicious first-page text that attempts to coerce the classifier has the same defensive posture under Codex as under Anthropic.
+
+AC10 — First-page text not logged in plaintext: any log lines the shim emits redact the first-page text (via `logging_utils.sanitize` if applicable) or reference only its hash / length.
+
+**Design Notes**
+
+*Budget ledger under Codex*: the existing budget ledger
+(`budget.py`) is designed around per-call cents against the
+Anthropic price list. Under Codex OAuth, calls are not billed
+individually — the ChatGPT Business subscription has its own
+quota model (tokens/day, requests/week) surfaced by the `codex`
+CLI banner. TICK-003 does NOT attempt to translate that quota
+into the cents-based ledger. The ledger still records
+reservation and settlement rows with estimated token counts; the
+cap-enforcement branch (`BudgetExceeded`) will simply never
+trigger under reasonable classifier volume. Operators monitoring
+subscription quota should watch the `codex` CLI banner, not the
+ledger. A future TICK may add a "quota-aware" layer if volume
+ever threatens the subscription plan.
+
+*TOS compliance*: the `codex` CLI is the official, supported
+access path for ChatGPT Business automation. Using it
+programmatically via subprocess — as the CLI's `-p` flag is
+explicitly designed for — is within the intended use envelope.
+TICK-003 does NOT screen-scrape chat.openai.com or evade any
+rate-limit mechanism.
+
+**Live Validation Fixture**
+
+After implementation:
+
+1. Set `CLASSIFIER_CLIENT=codex` and `ANTHROPIC_API_KEY` (empty
+   sentinel is fine — the shim won't touch it).
+2. Run `crawler --retry-null-classifications
+   --nonprofits-db /tmp/0004-coastal-run/coastal-seed.db
+   --data-dir /tmp/0004-coastal-run/data
+   --archive-dir /tmp/0004-coastal-run/raw
+   --skip-encryption-check --skip-tls-self-test`
+3. Inspect the 143 PDFs in the existing `reports` table. Expected:
+   - Most rows move from `classification=NULL` to a non-NULL value.
+   - LCAP / Clery / audited-financial first pages classify as
+     `not_a_report`.
+   - Narrative reports (Covenant House annual, Lighthouse annual,
+     etc.) classify as `annual` or `hybrid` with confidence ≥ 0.8.
+   - Research PDFs (Partners in Care academic articles) classify
+     as `other` or `not_a_report`.
+4. `reports_public` view should now return only high-confidence
+   classifications, suppressing the noise.
+
+**Traps to Avoid**
+
+- Don't pass the prompt via `argv`: large first-page texts can
+  exceed `ARG_MAX`. Use `subprocess.run(..., input=prompt,
+  text=True)` via stdin instead.
+- Don't forward the full environment to the subprocess: pass a
+  minimal dict to prevent unrelated secrets from leaking into
+  `codex`'s process image.
+- Don't retry inside the shim: let the existing `--retry-null-
+  classifications` flow handle transient failures at the batch
+  level. Per-call retries complicate budget accounting and risk
+  unbounded loops on model-side issues.
+- Don't log the first-page text: the untrusted-document content
+  is the thing we're most careful NOT to expose via logs.
+- Don't rely on `codex` CLI exit code alone to signal errors: it
+  can exit 0 with empty or malformed stdout. Validate the parsed
+  JSON shape, not just the return code.
+
+**Implementation Sizing**
+
+- ~120 lines of production code in `classifier_clients.py`
+  (includes prompt reshaping, JSON parsing, error paths).
+- ~1 line change in `crawler.py` (swap `anthropic.Anthropic()`
+  for `select_classifier_client()`).
+- ~100 lines of tests (10 ACs).
+- 1 new env var (`CLASSIFIER_CLIENT`, optional, default unset =
+  existing behavior).
+- No new dependency (uses stdlib `subprocess`, `json`, `os`).
+- No schema change.
+
+Target time-to-merge: same-day.
+
+**Red-Team Review Focus** (to be run via `consult`)
+
+- Can the subprocess's stdout contain attacker-controlled content
+  that bypasses the JSON validator? (Mitigated: validator
+  enforces enum membership and range, rejects anything that
+  doesn't match.)
+- Can a timing-side-channel on subprocess duration leak info?
+  (Not in scope — timing channels against a classifier are not
+  a realistic threat vector for this workload.)
+- Can the attacker-controlled first-page text cause `codex` to
+  emit cents-wrecking output volumes? (Bounded by `max_tokens=300`
+  equivalent in the prompt, and by the subscription quota which
+  is the actual hard cap.)
+- Is the `env={HOME, PATH}` restriction actually enforced by
+  `subprocess.run`? (Yes — `subprocess.run(env=...)` replaces
+  the child's env entirely with the provided dict, unlike
+  `os.environ.update()` which augments.)
