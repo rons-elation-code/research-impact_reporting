@@ -311,7 +311,8 @@ For each successfully-fetched PDF:
 1. Extract first-page text via `pypdf` in sandbox (same pattern as
    abandoned 0003, simplified).
 2. Send text (truncated to 4 KB) + a fixed prompt to Haiku-class
-   LLM with tool-use **disabled** and temperature 0:
+   LLM with tool-use **ENABLED** (fixed JSON schema, see AC16.1
+   for rationale) and temperature 0:
 
 ```
 Given the first page of a PDF, classify it as one of:
@@ -697,7 +698,11 @@ Return JSON: {"classification": "...", "confidence": 0.0-1.0, "reasoning": "..."
   package is a later TICK.
 - **LLM provider**: Anthropic Claude Haiku via the official SDK.
   Model pinned to a specific ID in config; rotation requires a
-  spec amendment. Temperature 0. Tool use disabled.
+  spec amendment. Temperature 0. Tool use ENABLED with a fixed
+  JSON schema (see AC16.1). Earlier drafts of this spec said
+  "Tool use disabled"; that was wrong in hindsight — the
+  fixed-schema tool-use output is exactly the prompt-injection
+  defense we want. Corrected 2026-04-19 during plan review.
 
 ### Compliance
 

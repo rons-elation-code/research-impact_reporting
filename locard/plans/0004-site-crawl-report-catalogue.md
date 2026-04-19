@@ -186,24 +186,70 @@ Revert the commit; additive only.
   AC23.1.
 
 #### Implementation Details
-- Reuse `lavandula.nonprofits.http_client` as a base; extend:
-  - Add `Accept-Encoding` header constraint.
-  - Add per-hop cross-origin gating in the redirect handler.
-  - Add `Referer` stripping on all outbound requests.
-- `url_guard.is_allowed(ip)` uses `ipaddress` stdlib:
-  reject `is_private | is_loopback | is_link_local | is_multicast
-  | is_reserved | is_unspecified`; plus named-IP deny set.
-  Normalize `::ffff:IPv4` before check.
-- `redirect_policy` receives the seed eTLD+1 and the
-  hosting-platform allowlist; validates every hop.
-- `url_redact` uses a regex-based scrubber with sensitive-param
-  allowlist; strips userinfo; scans fragment.
-- `schema.py` materializes DDL, including the `reports_public`
-  view with the 3-filter WHERE clause AND the new `budget_ledger`
-  table.
-- `config.py` exposes `MAX_REDIRECTS = 5`, per-kind size caps,
-  throttle, UA, allowed-redirect-hosts list, classifier model ID
-  placeholder (set in Phase 5).
+
+**HTTP client reuse contract** (per Codex plan-review KEY_ISSUE #3):
+Spec calls for importing 0001's `http_client.py` "as-is." The plan
+starts with a thin wrapper class that inherits from 0001's
+`ThrottledClient` and adds only 0004-specific behavior via method
+overrides / composition — NOT a fork. Divergence beyond that is
+flagged as a Phase 1 risk requiring explicit rationale in the
+commit message. The minimum reuse boundary: throttle, retry,
+backoff, TLS verification, cookie-clear, request/response
+logging. Extensions below live in the wrapper:
+- `Accept-Encoding: gzip, identity` default header (refuses
+  brotli/zstd negotiation).
+- `User-Agent` explicitly set as a DEFAULT header on the
+  underlying `requests.Session` (per Gemini plan-review HIGH):
+  `"Lavandula Design report crawler/1.0
+  (+https://lavanduladesign.com;
+  crawler-contact@lavanduladesign.com)"`. Immutable for the
+  session lifetime.
+- `Referer` stripped from every outbound request.
+- Per-hop redirect handler (see below).
+
+**DNS IP pinning** (per Claude + Codex HIGH — naive approaches
+silently disable hostname validation): implemented via a custom
+`requests.adapters.HTTPAdapter` subclass:
+- `init_poolmanager` is overridden to pass a resolver-callback that
+  returns the pinned IP for the host being connected to.
+- The `urllib3.util.ssl_.create_urllib3_context` on the adapter
+  is passed with `assert_hostname=original_host` and the
+  connection's `server_hostname=original_host` (so SNI and cert
+  verification both run against the ORIGINAL hostname, never the
+  IP).
+- Test: connect to a server whose cert is valid for
+  `example.org` via the pinned IP of `example.org`; assert the
+  TLS handshake validates against the hostname. Separate test:
+  pin IP of a CN-valid-for-`other.org` cert under request for
+  `example.org`; assert certificate-mismatch failure.
+
+**SSRF guard** — `url_guard.is_allowed(ip)` uses `ipaddress`
+stdlib: reject `is_private | is_loopback | is_link_local |
+is_multicast | is_reserved | is_unspecified`; plus named-IP deny
+set. Normalize `::ffff:IPv4` before check.
+
+**Redirect policy** — `redirect_policy` receives the seed eTLD+1
+and the hosting-platform allowlist; validates EVERY hop, not just
+the final URL. `MAX_REDIRECTS = 5`. Referer stripped.
+
+**URL redaction** — `url_redact` uses a regex-based scrubber with
+sensitive-param allowlist; strips userinfo; scans fragment.
+
+**Schema** — `schema.py` materializes DDL, including the
+`reports_public` view with the 3-filter WHERE clause AND the
+`budget_ledger` table.
+
+**Config** — `config.py` exposes `MAX_REDIRECTS = 5`, per-kind
+size caps, throttle, UA, allowed-redirect-hosts list, classifier
+model ID placeholder (set in Phase 5).
+
+**Lint** (per Gemini plan-review HIGH — clarifying ruff vs bandit):
+Both run in `lint.sh`, belt-and-suspenders. `ruff` with `S`
+category enabled covers most `bandit` rules faster; `bandit` stays
+as an independent cross-check with a few checks ruff doesn't yet
+implement (e.g., `B201` flask debug). Overlap is acceptable —
+either tool catching `verify=False` or shell injection is a pass;
+both failing silently is what we're defending against.
 
 #### Commit Format
 `[Spec 0004][Phase: scaffolding] feat: schema + http client + SSRF`
@@ -249,6 +295,15 @@ Revert the commit; additive only.
   attribution_confidence)`.
 - `sitemap.parse(xml_bytes)` uses `defusedxml.lxml` with
   `resolve_entities=False`.
+- **robots.txt cache** (per Codex plan-review KEY_ISSUE #5 — spec
+  compliance section requires 24h caching, previously unassigned):
+  `discover.robots_cache` is a per-process dict keyed by host
+  with TTL 24 h. Cache misses fetch through the Phase 1 client.
+  Cache hits short-circuit the fetch. Per-host cache entry also
+  stores the parsed `urllib.robotparser.RobotFileParser` /
+  `protego.Protego` instance so `can_fetch()` is O(1).
+  Persisting the cache across crawler restarts is NOT required
+  for v1 (24 h fresh fetch at startup is cheap).
 
 #### Commit
 `[Spec 0004][Phase: discovery] feat: per-org candidate URL extraction`
@@ -277,11 +332,26 @@ Revert the commit; additive only.
 - `fetch_pdf.download(url, client) -> FetchOutcome`:
   1. HEAD first; if `Content-Type != application/pdf`, skip with
      `blocked_content_type` (cheap early bail).
+     **Exception** (per Codex red-team-plan): if HEAD returns
+     405/501 (not allowed) we proceed to GET rather than
+     discarding the candidate — some hosts disable HEAD but the
+     GET response will still go through the magic-byte gate.
   2. GET with `stream=True`, `iter_content(decode_content=True,
      chunk_size=8192)`, accumulate with size counter.
   3. Check first 1024 decoded bytes for `%PDF-1.` before
      committing more memory.
   4. On full download, compute SHA-256 over final bytes.
+  5. **Structural validity pre-check** (per Gemini
+     plan-review HIGH #1): before handing bytes to Phase 4's
+     sandbox, a cheap `pypdf.PdfReader(BytesIO(bytes)).pages` /
+     `PdfReader.xref_table` sanity call in the PARENT process
+     (NOT inside the sandbox). If the call raises within 2
+     seconds, the PDF is marked `fetch_status='server_error'`
+     with note `pdf_malformed` and NOT written to archive. This
+     filters obvious corruption before the heavier-weight sandbox
+     run. Any exception other than `PdfReadError` / a clean
+     parse counts as malformed. Timeout enforced via a signal
+     alarm in the parent.
 - `archive.write(bytes, sha) -> Path`:
   1. Target path `raw/{sha}.pdf`.
   2. If target exists (AC10 dedup), return path without rewrite.
@@ -324,8 +394,14 @@ Revert the commit; additive only.
 - `sandbox.runner.extract(pdf_path, schema) -> dict`:
   1. Fork subprocess with `subprocess.Popen(..., shell=False,
      env={'LC_ALL':'C'}, argv=[python, extract_script, pdf_path])`.
-  2. **Linux**: `unshare(CLONE_NEWNET)` — no network.
-  3. **Linux**: seccomp-bpf filter denies `socket`, `socketpair`,
+  2. **Linux — user + network namespace** (per Claude plan-review
+     HIGH #3 — `CLONE_NEWNET` alone requires root / CAP_SYS_ADMIN;
+     user namespace enables unprivileged use):
+     `unshare(CLONE_NEWUSER | CLONE_NEWNET)` — creates a user
+     namespace where the child is mapped to its own uid/gid, and
+     within that, an isolated network namespace with only
+     loopback.
+  3. **Linux** — seccomp-bpf filter denies `socket`, `socketpair`,
      `connect`, `sendto`, `sendmsg`, `bind`. Missing `pyseccomp`
      at startup → halt with exit 4.
   4. `RLIMIT_AS = 800_000_000`, `RLIMIT_CPU = 30`, `RLIMIT_FSIZE = 0`
@@ -334,6 +410,21 @@ Revert the commit; additive only.
      for audit.
   6. Validate output against declared schema BEFORE return
      (per-field size caps, type checks, enum checks).
+- **Sandbox self-test at engine startup** (per Claude plan-review
+  HIGH #3): before the main crawl loop begins, exercise the
+  sandbox path with a throwaway "hello world" subprocess:
+  create + enter a netns, set seccomp, exit. Failure modes:
+  (a) `CLONE_NEWUSER` returns EPERM (`kernel.unprivileged_
+  userns_clone=0`) → halt with
+  `HALT-sandbox-userns-disabled.md` + message pointing at the
+  sysctl;
+  (b) `pyseccomp` import fails → halt with
+  `HALT-sandbox-seccomp-missing.md`;
+  (c) any other namespace setup failure → halt with
+  `HALT-sandbox-netns-unavailable.md`.
+  No "no-namespace fallback" is permitted. Document minimum
+  kernel 5.10 + `kernel.unprivileged_userns_clone=1` in
+  HANDOFF.md.
 - `pdf_extract` payload (runs inside sandbox):
   - Uses `pypdf >= 4.0` (pinned, hash-verified).
   - XMP metadata parsed with `defusedxml`.
@@ -374,15 +465,41 @@ Revert the commit; additive only.
   - Tool-use with fixed JSON schema (`classification` enum,
     `confidence` number, `reasoning` string).
   - `temperature=0`.
-- `budget.check_and_reserve(estimated_cents) -> bool`:
-  Single `BEGIN IMMEDIATE` txn on `budget_ledger`:
-  - `SELECT SUM(cents_spent)` (current total)
-  - Compare to `config.CLASSIFIER_BUDGET_CENTS`
-  - If under → `INSERT` with `sha='preflight'`, return True
-  - If over → return False (caller halts with
-    `HALT-classifier-budget.md`)
+- **Budget preflight reserve + post-call settlement** (per Claude
+  plan-review HIGH #1 + Codex plan-review KEY_ISSUE #2 — preflight
+  alone lets variance bypass the cap):
+  - `budget.check_and_reserve(estimated_cents) -> reservation_id`:
+    Single `BEGIN IMMEDIATE` txn on `budget_ledger`:
+    1. `SELECT SUM(cents_spent)` (current total, INCLUDES
+       outstanding reservations).
+    2. Compare to `config.CLASSIFIER_BUDGET_CENTS`.
+    3. If over → raise `BudgetExceeded` (caller halts with
+       `HALT-classifier-budget.md`).
+    4. If under → `INSERT` a row with `sha='preflight'`,
+       `cents_spent=estimated_cents`, return the row's `id`.
+  - After the classifier API call returns, `budget.settle(
+    reservation_id, actual_input_tokens, actual_output_tokens,
+    sha256_classified)` runs in a SECOND `BEGIN IMMEDIATE` txn:
+    1. Compute `actual_cents = ceil(input * input_price +
+       output * output_price)`.
+    2. `UPDATE budget_ledger SET cents_spent=actual_cents,
+       sha256_classified=?, input_tokens=?, output_tokens=?,
+       notes='settled' WHERE id=? AND sha256_classified='preflight'`.
+    3. If `actual_cents > estimated_cents * 1.2` (beyond the 20%
+       safety margin), log a WARN with delta; cumulative
+       over-safety-margin events trigger the failure circuit
+       breaker.
+  - If the API call RAISES or is cancelled, `budget.release(
+    reservation_id)` `DELETE`s the preflight row (classifier
+    never happened, no cost incurred).
+  - All three operations are separate atomic transactions; a
+    crash between reserve and settle leaves a recoverable
+    preflight row that `budget.reconcile_stale_reservations()`
+    (called at startup) either settles from `fetch_log` evidence
+    or releases.
 - On classifier error or non-JSON response: row written with
-  `classification=NULL`, `fetch_status='classifier_error'`.
+  `classification=NULL`, `fetch_status='classifier_error'`;
+  reservation released (no spend recorded).
 - Nightly retry command `crawler.py --retry-null-classifications`.
 
 #### Commit
@@ -408,8 +525,15 @@ Revert the commit; additive only.
 - `reports_public` usage enforcement.
 
 #### Deliverables
-- `lavandula/reports/{crawler.py, catalogue.py, report.py,
-  HANDOFF.md, README.md}`
+- `lavandula/reports/{crawler.py, catalogue.py, db_writer.py,
+  report.py, HANDOFF.md, README.md}`
+- `db_writer.py` (per Codex plan-review KEY_ISSUE #2 — was missing
+  from earlier phase ownership despite being referenced in Phase 6
+  pseudocode): owns every SQL write path into `reports`,
+  `fetch_log`, `crawled_orgs`, `deletion_log`, and `budget_ledger`.
+  All functions use `?` parameter binding exclusively. Public-view
+  enforcement (AC23) is a grep rule — any `FROM reports` outside
+  `db_writer.py` / `catalogue.py` / `schema.py` fails CI.
 - Tests for AC12.4, AC19, AC20, AC21, AC21.1, AC22, AC22.1,
   AC23, AC24, AC26.
 
@@ -474,16 +598,33 @@ Revert the commit; additive only.
 - GO or ROLLBACK decision.
 
 #### Scope note
-Phase 7 gates ONLY on 50-org validation; commissioning the full
-crawl across the thousands of orgs in 0001's seed list is
-Post-Implementation follow-on, not part of this phase's
-acceptance.
+Phase 7 gates ONLY on "50-org run completes without unexpected
+halts." Empirical metrics (per-org recall, classifier precision,
+spend-vs-cap) are REPORTED in `validation_run_report.md` but are
+NOT Phase-7 gating — the spec itself labels these as
+"REPORTED, not gated" (Codex plan-review KEY_ISSUE #4 caught
+the plan over-gating). Commissioning the full crawl across the
+thousands of orgs in 0001's seed list is a Post-Implementation
+follow-on.
 
-#### Acceptance (AC33-equivalent)
-- 50-org run completes without unexpected halts.
-- Spot-check recall ≥ 70% on the 10 sampled orgs.
-- Classifier precision ≥ 85% on the 100-PDF labelled set.
-- Total classifier spend within cap.
+#### Acceptance (Phase 7 gate)
+- 50-org run completes without unexpected halts (a deliberate
+  stop from AC21.1 encryption, AC19 flock collision, etc. is
+  NOT unexpected — it means the gate caught what it was
+  supposed to).
+- No CRITICAL test failures across the whole suite.
+- `validation_run_report.md` is produced with the empirical
+  numbers for Ron + an AI reviewer to eyeball.
+
+#### Post-Implementation validation targets (informational only)
+- Per-org recall target: ≥ 70% on manually-reviewed sample
+  (from developer's empirical estimate).
+- Classifier precision target: ≥ 85% on 100-PDF labelled set.
+- Classifier spend within cap.
+
+These targets inform a GO/NO-GO decision for the Post-
+Implementation full-crawl task; missing them doesn't fail Phase 7
+itself.
 
 ---
 
@@ -597,11 +738,18 @@ Phase 7 (live validation) -- gate
 ## Post-Implementation Tasks
 
 - Commission full-corpus crawl across all seed-list orgs after
-  Phase 7 GO.
-- Log-review script to audit unusual `blocked_*` status spikes
-  (Gemini round-2 recommendation).
+  Phase 7 GO (empirical recall + precision must be at-or-above
+  the targets; otherwise iterate prompts/keywords in a TICK).
+- Log-review script to audit unusual `blocked_*` status spikes.
 - Follow-up TICK to hoist shared HTTP primitives to a `common/`
   package once the second topic consumer stabilizes.
+- Secrets-management upgrade (per Gemini plan-review HIGH #2):
+  v1 stores `ANTHROPIC_API_KEY` as an env var; a future TICK can
+  add a secrets-manager integration (AWS KMS / Vault / `pass`)
+  with just-in-time retrieval. Deferred because v1 is a
+  single-operator tool on a trusted host; the env-var posture is
+  adequate once `.env` is mode `0o600` and not in the sandbox
+  child's environment.
 
 ## Cross-Phase Rollback Strategy
 
@@ -613,9 +761,51 @@ phases from a later phase's PR. Commits stay attributable.
 ## Consultation Log
 
 ### First Consultation (After Initial Plan)
-**Date**: pending
+**Date**: 2026-04-19
 **Models Consulted**: Codex, Claude, Gemini Flash
-**Key Feedback**: pending
+**Verdicts**:
+- Codex plan-review: `REQUEST_CHANGES`
+- Codex red-team-plan: `REQUEST_CHANGES`
+- Claude plan-review: `COMMENT`
+- Claude red-team-plan: `REQUEST_CHANGES` (0 CRITICAL, 3 HIGH)
+- Gemini plan-review: `APPROVE`
+- Gemini red-team-plan: `REQUEST_CHANGES` (4 HIGH)
+
+**All findings addressed in this commit** (no new review round —
+findings were convergent tightenings, same pattern as spec rounds):
+
+- Spec/plan tool-use conflict: spec updated to say tool-use is
+  ENABLED with fixed JSON schema (AC16.1's position, which was
+  correct).
+- Budget ledger: preflight reserve + post-call settlement +
+  crash-recoverable reconciliation path (Claude HIGH #1, Codex
+  KEY_ISSUE #2).
+- DNS IP pinning: specified custom `HTTPAdapter` with
+  `assert_hostname` + `server_hostname` to prevent the naive-impl
+  silent hostname-validation bypass (Claude HIGH #2, Codex
+  KEY_ISSUE #3).
+- Sandbox: `CLONE_NEWUSER | CLONE_NEWNET` with startup self-test;
+  no-namespace fallback explicitly forbidden; min kernel +
+  sysctl documented (Claude HIGH #3).
+- `db_writer.py` added to Phase 6 deliverables (Codex KEY_ISSUE
+  #2).
+- Phase 7 scope pulled back: gate is "no unexpected halts";
+  empirical thresholds moved to Post-Implementation
+  informational targets (Codex KEY_ISSUE #4).
+- robots.txt 24h cache assigned to Phase 2 deliverables (Codex
+  KEY_ISSUE #5).
+- HTTP client reuse contract specified as "thin wrapper
+  inheriting from 0001's ThrottledClient" (Codex KEY_ISSUE #3).
+- HEAD-only gate relaxed to allow GET fallback on 405/501
+  (Codex red-team).
+- PDF structural validity pre-check added before sandbox
+  (Gemini HIGH #1).
+- User-Agent explicitly set on `requests.Session` as default
+  header, immutable for session lifetime (Gemini HIGH #3).
+- Ruff S-rules vs bandit overlap clarified as belt-and-suspenders
+  (Gemini HIGH #4).
+- API key just-in-time retrieval deferred to a Post-Implementation
+  TICK with explicit rationale (Gemini HIGH #2).
 
 ### Red Team Security Review (MANDATORY)
 **Date**: pending
