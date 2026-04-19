@@ -511,8 +511,8 @@ def run(argv: list[str] | None = None) -> int:
 
             client = ReportsHTTPClient()
             try:
-                import anthropic
-                anthropic_client = anthropic.Anthropic()
+                from .classifier_clients import select_classifier_client
+                anthropic_client = select_classifier_client()
             except Exception:
                 anthropic_client = None
 
