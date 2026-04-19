@@ -105,7 +105,7 @@ def _apply_seccomp() -> None:
     for name in ("socket", "socketpair", "connect", "sendto", "sendmsg", "bind"):
         try:
             f.add_rule(seccomp.ERRNO(1), name)
-        except Exception:
+        except Exception:  # noqa: BLE001,S110 — arch-specific syscall absence is acceptable; others still load
             # Some arches may lack a syscall name; fail-closed style: log, skip.
             pass
     f.load()
@@ -238,7 +238,9 @@ def run_untrusted_python(
     """
     if _allow_unsandboxed():
         # Test-only path: bypass sandbox entirely.
-        proc = subprocess.run(
+        # S603 OK: sys.executable is trusted; code param is the untrusted input,
+        # but this branch is test-only (LAVANDULA_REPORTS_ALLOW_UNSANDBOXED=1).
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, "-c", code],
             env={"LC_ALL": "C"},
             capture_output=True,
@@ -262,7 +264,10 @@ def run_untrusted_python(
         resource.setrlimit(resource.RLIMIT_CPU, (cpu_sec, cpu_sec))
 
     try:
-        proc = subprocess.run(
+        # S603 OK: sys.executable is trusted; `code` is the untrusted payload
+        # the whole point of this function is to run. The sandbox stack
+        # (userns + netns + seccomp + rlimits) is the confinement.
+        proc = subprocess.run(  # noqa: S603
             [sys.executable, "-c", code],
             env={"LC_ALL": "C"},
             preexec_fn=_preexec,

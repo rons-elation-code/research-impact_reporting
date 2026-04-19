@@ -333,7 +333,7 @@ def process_org(
                 meta.get("/CreationDate") if isinstance(meta, dict)
                 else getattr(meta, "creation_date_raw", None)
             )
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001,S110  # nosec B110 — malformed metadata tolerated; first-page text may still be available
             pass
 
         classification = None
@@ -391,7 +391,7 @@ def process_org(
                 if reservation_id is not None:
                     try:
                         budget.release(conn, reservation_id=reservation_id)
-                    except Exception:  # noqa: BLE001
+                    except Exception:  # noqa: BLE001,S110  # nosec B110 — best-effort rollback; outer raise is the signal
                         pass
                 raise
 

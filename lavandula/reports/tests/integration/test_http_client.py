@@ -17,7 +17,7 @@ def test_ac11_tls_selftest_runs():
     except TLSMisconfigured:
         # Expected — either local bad-cert setup or detection fires.
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001,S110 — test tolerates either local-selftest raise or remote-inconclusive
         # As long as something is raised, not silent-pass, acceptable.
         pass
 

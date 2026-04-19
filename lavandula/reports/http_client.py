@@ -113,7 +113,9 @@ class ReportsHTTPClient:
         now = self._monotonic()
         last = self._throttle_at.get(host)
         if last is not None:
-            jitter = random.uniform(
+            # S311 / B311 OK: jitter is used only to distribute throttle timing
+            # across concurrent clients, not for any security-sensitive purpose.
+            jitter = random.uniform(  # noqa: S311  # nosec B311
                 -config.REQUEST_DELAY_JITTER_SEC,
                 config.REQUEST_DELAY_JITTER_SEC,
             )

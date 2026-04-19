@@ -15,7 +15,7 @@ import pytest
         "169.254.169.254",   # AWS metadata
         "168.63.129.16",     # Azure metadata
         "100.100.100.200",   # Alibaba metadata
-        "0.0.0.0",
+        "0.0.0.0",  # noqa: S104  # nosec B104 — test fixture; asserts unspecified addr is rejected
     ],
 )
 def test_ac12_ipv4_ssrf_blocks(ip):

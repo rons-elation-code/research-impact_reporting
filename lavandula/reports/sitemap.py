@@ -81,7 +81,7 @@ def parse_sitemap_index_recursive(
         # nested-index children silently (do not recurse).
         try:
             root = fromstring(body)
-        except Exception:
+        except Exception:  # noqa: BLE001,S112  # nosec B112 — malformed child sitemap ignored; aggregate parse continues
             continue
         tag = root.tag
         if tag in (f"{_SITEMAP_NS}sitemapindex", "sitemapindex"):
