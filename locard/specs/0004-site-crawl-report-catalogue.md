@@ -1856,3 +1856,247 @@ Target time-to-merge: same-day.
 - Can the expanded keywords scoop up non-report PDFs in volume?
   (Mitigated by classifier's `not_a_report` filter downstream —
   which we've now verified works.)
+
+### TICK-004: Sitemap-first discovery (2026-04-20)
+
+**Summary**: Wire `sitemap.py` into `discover.per_org_candidates()`
+as a co-equal discovery path alongside homepage-link extraction.
+The sitemap parser module has existed since Phase 2 but was never
+called from the crawl flow — a real spec-to-code gap exposed by
+the JCCSF case (Cloudflare-gated homepage + open sitemap).
+Candidate URLs found in `sitemap.xml` merge into the same
+candidate pool the homepage produces; dedup and caps apply to
+the union.
+
+**Motivation**
+
+The 2026-04-19 100-org coastal run left JCCSF (ein=943227260)
+with zero PDFs despite a publicly-reachable impact report at
+`/wp-content/uploads/2026/01/...ImpactReport...pdf`. Investigation
+on 2026-04-20 showed:
+
+- `jccsf.org` homepage fetch returns HTTP 200 but body is a
+  Cloudflare WAF challenge page (1.1 KB, zero `<a>` tags).
+- `jccsf.org/sitemap.xml` fetch with the same user-agent returns
+  HTTP 200 with valid XML (sitemap-index listing child sitemaps).
+- The known-good impact report URL is directly fetchable with
+  our UA (3.5 MB, 22-page PDF, 200 OK, `content-type:
+  application/pdf`).
+
+The general pattern this exposes: any site whose homepage is
+either (a) WAF-challenge-gated for non-browser UAs, (b) JS-only
+rendered (thin HTML shell), or (c) lacks report-anchor links
+for textual-filter reasons — while its sitemap is still public
+(as is typical; sitemaps exist for search-engine crawlers, not
+human visitors). TICK-004 fixes this class of miss by using the
+machine-readable inventory the site owner explicitly publishes
+for crawlers.
+
+**In Scope**
+
+- `discover.py::per_org_candidates()`: add sitemap fetch + parse
+  phase running between the robots check and homepage fetch.
+  URLs from the sitemap are filtered through a relaxed version of
+  the Step-3 candidate filter (URL-path keyword or `.pdf` suffix —
+  anchor text doesn't exist in sitemaps), then merged into the
+  candidate list.
+- Honor existing config caps: `MAX_SITEMAPS_PER_ORG=5` (already in
+  config), `MAX_SITEMAP_URLS_PER_ORG` (already in config),
+  `MAX_SITEMAP_DEPTH=1` (already in config).
+- Discover sitemap URL via: (1) `robots.txt` `Sitemap:` directive
+  if present, (2) fallback to `<seed_host>/sitemap.xml` at root.
+- Graceful fallback: 404 / forbidden / malformed sitemap does NOT
+  halt the org's crawl — fall through to homepage-only behavior.
+- Sitemap-derived candidates get `discovered_via='sitemap'` and
+  `attribution_confidence='own_domain'` for same-eTLD+1 URLs.
+  Platform URLs (issuu.com etc) from sitemap-only discovery get
+  `attribution_confidence='platform_unverified'` per existing
+  AC12.3.
+
+**Out of Scope**
+
+- No JS rendering / headless browser (still deliberately avoided).
+- No sitemap deep-recursion (depth cap stays at 1).
+- No UA rotation / impersonation (our UA stays the same;
+  sitemap access is protocol-native, not a bypass).
+- No change to `classify.py`, `fetch_pdf.py`, `archive.py`,
+  `schema.py`.
+
+**Technical Implementation**
+
+File: `lavandula/reports/discover.py`
+
+New function `_discover_sitemap_urls()`:
+
+```python
+def _discover_sitemap_urls(
+    *,
+    seed_url: str,
+    seed_etld1: str,
+    fetcher: Fetcher,
+    robots_text: str,
+) -> list[str]:
+    """Discover URLs via robots.txt Sitemap: directive or
+    /sitemap.xml fallback. Returns [] on any failure — never
+    raises. Honors existing MAX_SITEMAPS_PER_ORG + MAX_SITEMAP_
+    URLS_PER_ORG caps from config via sitemap.parse_*."""
+    # 1. Try robots-derived sitemap URLs (Sitemap: <url> lines).
+    # 2. Fall back to /sitemap.xml.
+    # 3. Call sitemap.parse_sitemap_index_recursive with a fetcher
+    #    that wraps our existing fetcher with kind='sitemap'.
+    # 4. Return URL list or [] on total failure.
+```
+
+`per_org_candidates()` modification:
+
+```python
+# after robots check, BEFORE homepage fetch
+sitemap_urls = _discover_sitemap_urls(
+    seed_url=home_base, seed_etld1=seed_etld1,
+    fetcher=fetcher, robots_text=robots_text,
+)
+for url in sitemap_urls:
+    parsed = urlsplit(url)
+    # Robots gate on the path
+    if etld1(parsed.hostname or "") == seed_etld1:
+        if not _allowed(parsed.path or "/"):
+            continue
+    # Filter: PDF suffix or path-keyword match
+    # (anchor text doesn't exist — use URL-only classification)
+    c = _classify_sitemap_url(
+        url=url, seed_etld1=seed_etld1,
+        referring_page_url=home_base,
+    )
+    if c is None:
+        continue
+    if _remember(c):
+        return candidates
+
+# then continue with existing homepage/subpage flow
+```
+
+New helper `_classify_sitemap_url()` in `candidate_filter.py`:
+
+```python
+def _classify_sitemap_url(
+    *, url: str, seed_etld1: str, referring_page_url: str,
+) -> Candidate | None:
+    """Sitemap-only classification: no anchor text available.
+    Accepts on PDF suffix OR path-keyword match.
+    Cross-origin same-CMS rule (TICK-002) still applies."""
+    # Reuse _classify_link with anchor="" and a phantom
+    # parent_is_report_anchor=False (sitemap isn't a "parent").
+    # PATH_KEYWORDS / .pdf suffix are the only accept signals.
+```
+
+Fetcher wiring: the existing `fetcher(url, kind)` callback in
+`discover.per_org_candidates` already supports `kind='sitemap'`
+(per the spec's `_KIND_TO_CAP` map in http_client.py). The
+`parse_sitemap_index_recursive` function takes a
+`fetcher(url) -> bytes|None` callable, so we wrap:
+
+```python
+def _sitemap_fetcher(url: str) -> bytes | None:
+    body, status = fetcher(url, "sitemap")
+    if status != "ok" or not body:
+        return None
+    return body
+```
+
+**Acceptance Criteria**
+
+AC1 — Sitemap fetch + parse: given a seed with a reachable
+`/sitemap.xml`, the crawler fetches it and extracts URLs per the
+existing `parse_sitemap_index_recursive` contract. Sitemap URLs
+that match `.pdf` suffix OR `PATH_KEYWORDS` enter the candidate
+list with `discovered_via='sitemap'` and
+`attribution_confidence='own_domain'`.
+
+AC2 — Robots-directive sitemap: if `robots.txt` contains a
+`Sitemap: <url>` line, that URL is tried BEFORE the `/sitemap.xml`
+fallback. If both exist, only the robots-referenced one is used
+(authoritative per spec).
+
+AC3 — Fallback on /sitemap.xml: when robots has no `Sitemap:`
+directive, the crawler tries `/sitemap.xml` at the seed host.
+
+AC4 — 404 is not fatal: if the sitemap returns 404, forbidden,
+or network_error, the org's crawl continues with homepage-only
+behavior (no exception, no halt).
+
+AC5 — Malformed XML is not fatal: if sitemap body isn't parseable
+XML, the org's crawl continues with homepage-only behavior.
+
+AC6 — Cap honored: sitemap parsing honors
+`MAX_SITEMAPS_PER_ORG=5` (existing config) and
+`MAX_SITEMAP_URLS_PER_ORG` (existing config). A sitemap-index
+with 20 children fetches at most 5. URL yield per org is capped.
+
+AC7 — Robots gating applies to sitemap URLs: a URL listed in
+sitemap.xml whose path is `Disallow`ed by robots.txt is dropped,
+same as homepage-derived candidates.
+
+AC8 — Union with homepage: sitemap-derived and homepage-derived
+candidates are merged. Dedup is on canonical URL (existing
+`canonicalize_url`). Per-org `CANDIDATE_CAP_PER_ORG=30` still
+caps the final count.
+
+AC9 — JCCSF regression-preventing test fixture: an integration
+test simulates the JCCSF pattern (WAF-blocked homepage returning
+1 KB challenge page, working sitemap.xml listing the impact
+report URL). Result: the impact report URL is in the candidate
+list; the homepage contributes zero; end-to-end the PDF gets
+archived.
+
+AC10 — Non-regression: all 178 pre-TICK-004 tests still pass.
+
+**Live Validation**
+
+After implementation, re-run against the same coastal 100-org
+seed with `--refresh`. Expected: JCCSF moves from 0 → some PDFs.
+Other WAF-gated or JS-rendered orgs likely also gain coverage.
+Pre-TICK-004 PDF total was 259; post-TICK-004 likely lands in
+the 280-340 range depending on how many other orgs had the same
+latent gap.
+
+**Traps to Avoid**
+
+- Sitemap fetches are `kind='sitemap'` — they use the sitemap
+  size cap (not homepage cap). Don't reuse the homepage cap.
+- `parse_sitemap_index_recursive` returns raw URL strings, not
+  fully-qualified candidates. Caller must filter.
+- Robots `Sitemap:` directive can point to a different host
+  (though rare). Same-eTLD+1 check should still apply on the
+  resulting URLs.
+- Some sitemaps are HUGE (CMS-generated per-post sitemaps).
+  `MAX_SITEMAP_URLS_PER_ORG` must be respected to prevent
+  candidate-pool blowouts.
+- Sitemap URLs don't have anchor text. `_classify_link`'s
+  anchor-match branch doesn't fire. Don't regress the homepage
+  path by accidentally setting `anchor=""` behavior changes.
+
+**Implementation Sizing**
+
+- ~40 lines in `discover.py` (`_discover_sitemap_urls()` + wire-in).
+- ~20 lines in `candidate_filter.py` (sitemap-URL classifier helper).
+- ~3 lines in `robots.py` if we need to parse `Sitemap:` directives
+  (check if already supported).
+- ~120 lines of tests (AC1-AC10).
+- No schema change.
+- No config change (all caps already in config.py).
+
+Target time-to-merge: same-day.
+
+**Red-Team Review Focus**
+
+- Can an adversarial sitemap contain thousands of URLs to DoS our
+  candidate pool? (Mitigated by existing `MAX_SITEMAP_URLS_PER_ORG`
+  cap.)
+- Can sitemap URLs smuggle cross-origin PDF references that
+  bypass our SSRF guard? (Mitigated by existing redirect_policy
+  + url_guard during fetch — TICK-004 only adds URLs to the
+  candidate pool; fetch still goes through full validation.)
+- Can a sitemap point to private IPs / internal services?
+  (Mitigated by existing SSRF guard in http_client.)
+- Can parsing malformed XML cause DoS via billion-laughs? (Mitigated
+  by existing `defusedxml` or equivalent in sitemap.py — verify.)
