@@ -1543,13 +1543,16 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
     existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
     if "last_page_scanned" not in existing:
         conn.execute("ALTER TABLE runs ADD COLUMN last_page_scanned TEXT DEFAULT NULL")
+    if "exit_reason" not in existing:
+        conn.execute("ALTER TABLE runs ADD COLUMN exit_reason TEXT DEFAULT NULL")
     existing2 = {row[1] for row in conn.execute("PRAGMA table_info(nonprofits_seed)")}
     if "notes" not in existing2:
         conn.execute("ALTER TABLE nonprofits_seed ADD COLUMN notes TEXT DEFAULT NULL")
     conn.commit()
 ```
 
-Both migrations are additive (new nullable columns) — safe on existing DBs.
+Three additive migrations (new nullable columns) — safe on existing DBs.
+`exit_reason` values: `'target_met'` | `'exhausted'` | `'rate_limited'` | `'infra_error'`.
 
 ---
 
@@ -1575,11 +1578,15 @@ Parse `--states` / `--ntee-majors` as `s.upper().split(",")`. Validate:
 
 ### Step 3 — Filter mismatch guard (AC7)
 
-Before starting enumeration, check the most recent completed run in `runs` that
-used the same `--db`. Compare `filters_json` fields `states` and `ntee_majors`:
+**Filter identity includes all four filter dimensions**: `states`, `ntee_majors`,
+`rev_min`, `rev_max`. Revenue bounds are part of the filter set — changing them
+against the same DB is a different run that must use a fresh DB.
+
+Check ALL previous runs for this DB (not just completed ones — an interrupted
+run with different filters is still a mismatch):
 
 ```python
-def _check_filter_consistency(conn, states, ntee_majors) -> None:
+def _check_filter_consistency(conn, states, ntee_majors, rev_min, rev_max) -> None:
     row = conn.execute(
         "SELECT filters_json FROM runs ORDER BY started_at DESC LIMIT 1"
     ).fetchone()
@@ -1587,41 +1594,62 @@ def _check_filter_consistency(conn, states, ntee_majors) -> None:
         return  # first run, no conflict
     prev = json.loads(row[0])
     if sorted(prev.get("states", [])) != sorted(states):
-        sys.exit(2)  # with clear error message
+        sys.exit(2)  # "Filter mismatch: --states changed; use a different --db"
     if sorted(prev.get("ntee_majors", [])) != sorted(ntee_majors):
-        sys.exit(2)  # with clear error message
+        sys.exit(2)  # "Filter mismatch: --ntee-majors changed; use a different --db"
+    if prev.get("rev_min") != rev_min or prev.get("rev_max") != rev_max:
+        sys.exit(2)  # "Filter mismatch: revenue bounds changed; use a different --db"
 ```
 
 ---
 
 ### Step 4 — Cursor/checkpoint
 
-Replace the `pages_scanned` int with a cursor dict `{"{state}:{ntee}": page}`:
+Replace the `pages_scanned` int with a cursor dict `{"{state}:{ntee}": page}`.
 
-- Load cursor from `runs.last_page_scanned` of the current run row (JSON, default `{}`).
-- After each successful page fetch+DB commit, update `runs.last_page_scanned = json.dumps(cursor)`.
-- On startup (resume), query the most recent run for this filter set; if `finished_at IS NULL`, reuse its `run_id` and restore cursor.
-- Cursor key: `f"{state}:{ntee_major}"`. Value: last successfully committed page number.
+**Run lifecycle**:
+- On startup, look for the most recent run row where `finished_at IS NULL` AND
+  whose `filters_json` matches the current filter set. If found: resume (reuse
+  `run_id`, restore cursor). If not: start a new run.
+- The filter consistency check (Step 3) runs BEFORE this lookup, so any
+  mismatch exits before we get here.
 
-Resume semantics: cursor advances BEFORE returning from the inner loop iteration.
-If the process crashes between fetch and commit, cursor stays at the previous page
-(refetch on resume is idempotent — EIN PRIMARY KEY dedup keeps DB consistent).
+**Cursor semantics**:
+- Cursor key: `f"{state}:{ntee_major}"`. Value: last successfully committed page.
+- Cursor advances AFTER a successful page fetch + DB commit (not before).
+  Crash between fetch and commit leaves cursor at previous page; that page is
+  refetched on resume (idempotent — EIN PRIMARY KEY dedup keeps DB consistent).
+- **Skipped pages** (JSON parse error, oversized response): cursor does NOT
+  advance. On resume the page is retried. This is safe because the skip was
+  not a successful commit; retrying is better than silently losing a page.
+- After each successful commit: `UPDATE runs SET last_page_scanned=? WHERE run_id=?`
+  with `json.dumps(cursor)`.
+
+**429 terminal behavior**: when retries exhausted on a 429, before `sys.exit(0)`:
+- `UPDATE runs SET finished_at=?, found_count=? WHERE run_id=?` with
+  `exit_reason='rate_limited'` stored in a new `exit_reason TEXT` column
+  (add to migration in Step 1). This way a resume attempt sees `finished_at IS NOT NULL`
+  and starts a fresh run row rather than treating it as resumable.
 
 ---
 
 ### Step 5 — HTTP layer with retry (AC8)
 
-Replace the bare `http_get_json` with a `_fetch_with_retry(url, *, consecutive_fail_counter)` function:
+Replace the bare `http_get_json` with a `_fetch_with_retry(url, *, consecutive_fail_counter)` function.
 
-| HTTP status | Retry delays | After retries |
+**Note**: "error table" in AC8 refers to the behavioral table in the spec — it is NOT a database table; all state lives in `runs.last_page_scanned` and `runs.exit_reason`.
+
+| HTTP status | Retry delays | After retries exhausted |
 |---|---|---|
-| 429 | 1s, 5s, 30s (3 attempts) | `commit + exit 0` |
-| 5xx / network / timeout | 2s, 10s (2 attempts) | skip `(state, ntee)` for this run; log; continue |
-| JSON parse error | — (no retry) | skip this page, log byte length (never body) |
-| Any error | increments `consecutive_fail_counter` | if ≥ 5 → `exit 1` |
+| 429 | 1s, 5s, 30s (3 attempts) | set `exit_reason='rate_limited'`, set `finished_at`, `sys.exit(0)` |
+| 5xx / network / timeout | 2s, 10s (2 attempts) | skip `(state, ntee)` for this run; log; continue next pair |
+| JSON parse error | — (no retry) | skip this page; log byte length (never body); cursor does NOT advance |
+| Oversized response (>1 MB) | — (no retry) | skip this page; WARNING log; cursor does NOT advance |
+| Any error | increments `consecutive_fail_counter` | if ≥ 5 → `exit_reason='infra_error'`, `sys.exit(1)` |
 | 2xx | resets `consecutive_fail_counter` to 0 | process normally |
 
-Response body > 1 MB (1_048_576 bytes): reject with WARNING log, skip page.
+`consecutive_fail_counter` is a mutable object passed by reference so the caller
+accumulates failures across multiple `(state, ntee)` pairs.
 
 ---
 
