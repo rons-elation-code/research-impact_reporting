@@ -2059,3 +2059,106 @@ Verify `requests` is importable in the nonprofits venv before writing code.
 - `python -m lavandula.nonprofits.tools.resolve_websites --help` prints all 4 flags
 - `--dry-run` on a seeded DB prints chosen URLs without modifying any rows
 - Running on the 100-org coastal `seeds.db` fills `website_url` for all resolvable rows
+
+---
+
+## TICK-008: Capture IRS fields from ProPublica per-org endpoint
+
+**Spec reference**: TICK-008 section in `locard/specs/0001-nonprofit-seed-list-extraction.md`
+**File to modify**: `lavandula/nonprofits/tools/seed_enumerate.py`
+**Tests to add**: `lavandula/nonprofits/tests/unit/test_seed_enumerate_008.py`
+
+### Step 1 — Add `OrgDetail` dataclass and normalization helpers
+
+At module level in `seed_enumerate.py`, after existing imports:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class OrgDetail:
+    revenue: int | None
+    ntee_code: str | None
+    subsection_code: int | None
+    activity_codes: str | None
+    classification_codes: str | None
+    foundation_code: int | None
+    ruling_date: str | None
+    accounting_period: int | None
+
+def _to_int(val) -> int | None:
+    if val is None or val == "":
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+def _to_str(val) -> str | None:
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
+```
+
+### Step 2 — Add 6 migrations to `_apply_migrations`
+
+Append idempotent ALTER TABLE statements — one per new column. Use the same
+`try/except OperationalError` pattern as existing migrations (SQLite raises
+`OperationalError: duplicate column name` when column already exists).
+
+All 6 columns already shown in spec SQL. Order matches `OrgDetail` field order.
+
+### Step 3 — Update `_fetch_org_revenue` return type
+
+Replace the current `(revenue, ntee_code)` tuple return with `OrgDetail`.
+
+Extraction pattern (verbatim from spec):
+```python
+org = d.get("organization") or {}
+detail = OrgDetail(
+    revenue=int(filings[0]["totrevenue"]) if filings else None,
+    ntee_code=_to_str(org.get("ntee_code")),
+    subsection_code=_to_int(org.get("subsection_code")),
+    activity_codes=_to_str(org.get("activity_codes")),
+    classification_codes=_to_str(org.get("classification_codes")),
+    foundation_code=_to_int(org.get("foundation_code")),
+    ruling_date=_to_str(org.get("ruling_date")),
+    accounting_period=_to_int(org.get("accounting_period")),
+)
+return detail
+```
+
+On HTTP error / network exception: continue returning `None` (existing behavior).
+
+### Step 4 — Update `enumerate_new_orgs` INSERT
+
+In the `enumerate_new_orgs` function, extend the `INSERT OR IGNORE` statement
+to include the 6 new columns. The caller already guards `if detail is None:
+continue`, so no extra null-check needed.
+
+Insert the 6 fields from `detail.*` using `?` placeholders — no interpolation.
+
+### Step 5 — Write unit tests in `test_seed_enumerate_008.py`
+
+Six focused tests, one per AC. Do NOT modify `test_seed_enumerate_005.py`.
+
+| Test | AC | What it checks |
+|------|----|----------------|
+| `test_new_columns_exist` | AC1 | `ensure_db()` on fresh DB → all 6 columns present in `PRAGMA table_info` |
+| `test_migrations_idempotent` | AC2 | `_apply_migrations` called twice → no `OperationalError` |
+| `test_accounting_period_stored` | AC3 | Mock ProPublica returns `accounting_period=6` → row in DB has `accounting_period=6` |
+| `test_none_return_no_crash` | AC4 | `_fetch_org_revenue` patched to return `None` → row not inserted, no exception |
+| `test_malformed_fields` | AC6 | Mock returns `subsection_code=""`, `activity_codes=None`, `foundation_code="bad"` → stored as NULL |
+| `test_existing_tests_unchanged` | AC5 | Import and run a canary from `test_seed_enumerate_005.py` via subprocess, or simply confirm no shared state is mutated |
+
+> AC5 is verified by running the TICK-005 test suite unchanged — no new test needed.
+> The `test_existing_tests_unchanged` test may be omitted if pytest naturally runs both suites.
+
+### Acceptance checklist
+
+- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_008.py` — 5 tests pass
+- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_005.py` — 20 tests still pass (no regressions)
+- [ ] `python -m lavandula.nonprofits.tools.seed_enumerate --help` — no import errors
+- [ ] Fresh DB after `ensure_db()` has all 6 new columns
+- [ ] `mypy lavandula/nonprofits/tools/seed_enumerate.py` clean (or pre-existing errors only)
