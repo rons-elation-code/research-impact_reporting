@@ -1536,7 +1536,7 @@ Findings addressed in this updated amendment:
 
 ### Step 1 — Schema migrations (startup, idempotent)
 
-Add `_apply_migrations(conn)` called at the top of `ensure_db()`:
+Add `_apply_migrations(conn)` called AFTER the `executescript(SCHEMA_SQL)` call in `ensure_db()` — the base tables must exist before `PRAGMA table_info` can inspect them:
 
 ```python
 def _apply_migrations(conn: sqlite3.Connection) -> None:
@@ -1641,7 +1641,7 @@ Replace the bare `http_get_json` with a `_fetch_with_retry(url, *, consecutive_f
 
 | HTTP status | Retry delays | After retries exhausted |
 |---|---|---|
-| 429 | 1s, 5s, 30s (3 attempts) | set `exit_reason='rate_limited'`, set `finished_at`, `sys.exit(0)` |
+| 429 | 1s, 5s, 30s (3 attempts); check `Retry-After` header and use it if > planned delay | set `exit_reason='rate_limited'`, set `finished_at`, `sys.exit(0)` |
 | 5xx / network / timeout | 2s, 10s (2 attempts) | skip `(state, ntee)` for this run; log; continue next pair |
 | JSON parse error | — (no retry) | skip this page; log byte length (never body); cursor does NOT advance |
 | Oversized response (>1 MB) | — (no retry) | skip this page; WARNING log; cursor does NOT advance |
@@ -1659,6 +1659,13 @@ Before any DB insert:
 - `ein`: must match `re.fullmatch(r'\d{9}', ein)` → skip row if not
 - `name`, `city`: truncate to 200 chars before write
 - `ntee_code`: take first 6 chars max (ProPublica returns at most 6)
+- `notes`: truncate to 500 chars before write (prevents DB bloat from error strings)
+- ALL SQL writes MUST use parameterized queries (`conn.execute("...", (val1, val2, ...))`).
+  String formatting or f-strings in SQL are prohibited — even for "safe" values.
+
+**Mutable counter for consecutive failures** (Step 5): implement as a dict
+`fail_counter = {"count": 0}` so mutations persist across function calls.
+Python integers are immutable; passing `int` by reference does not work.
 
 ---
 
