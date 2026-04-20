@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS nonprofits_seed (
   discovered_at           TEXT,
   run_id                  TEXT
 );
+CREATE VIEW IF NOT EXISTS nonprofits AS
+  SELECT ein, website_url FROM nonprofits_seed;
 CREATE TABLE IF NOT EXISTS runs (
   run_id           TEXT PRIMARY KEY,
   started_at       TEXT,
