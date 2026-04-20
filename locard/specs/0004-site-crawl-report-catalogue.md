@@ -1614,3 +1614,243 @@ Target time-to-merge: same-day.
   `subprocess.run`? (Yes — `subprocess.run(env=...)` replaces
   the child's env entirely with the provided dict, unlike
   `os.environ.update()` which augments.)
+
+### TICK-002: Discovery-layer improvements bundle (2026-04-20)
+
+**Summary**: Five small, compounding fixes to the discovery layer,
+identified from the 2026-04-19 100-org coastal run. Each fix
+addresses a concrete miss observed in the fetch_log of that run.
+Together they should lift hit rate an estimated 15-30% on
+mid-market nonprofit sites. All additive; no schema change; no
+new external dependencies.
+
+**Motivation**
+
+From fetch_log inspection of the 84 zero-PDF orgs in the baseline
+run (post-TICK-001), five recurring patterns explain most misses:
+
+1. **CMS-subdomain gap**: Sage Hill School's `/giving/annual-fund`
+   linked 32 PDFs, all on `sagehillschool.myschoolapp.com`.
+   Cross-origin filter dropped them because `etld1()` differs
+   from `sagehillschool.org`. This pattern repeats across school/
+   nonprofit SaaS platforms (myschoolapp.com, finalsite.com,
+   blackbaud.com). The subdomain label ("sagehillschool") is a
+   strong brand-match signal.
+
+2. **Network-transient regressions**: Covenant House lost 4 PDFs
+   between the baseline run and the post-TICK-001 re-run because
+   `/financials/` subpage got a single `network_error` on the
+   second run (vs `ok` on the first). No retry logic.
+
+3. **Subpage cap too tight**: `MAX_SUBPAGES_PER_ORG=5` truncates
+   report-anchor subpage expansion in document order. Some orgs
+   have >5 report-anchor links on the homepage (publications +
+   annual + impact + financials + transparency + year-in-review).
+   We silently miss anything past position 5.
+
+4. **Localized duplicate paths**: Family House's homepage surfaced
+   both `/our-impact/` and `/tl/our-impact/` (Tagalog i18n slug)
+   as candidates. Both eat a subpage slot, both serve identical
+   content. Other sites use `/es/`, `/fr/`, `/zh/`, etc.
+
+5. **PATH_KEYWORDS missing common patterns**: Partners in Care
+   found 13 PDFs accidentally via `/wp-content/uploads/2022/05/`
+   — but many orgs put reports under `/resources/`, `/media/`,
+   `/news-and-insights/`, `/our-work/`, `/about/publications/`.
+   Current keyword set misses these.
+
+**In Scope**
+
+Five narrow fixes in `config.py`, `candidate_filter.py`,
+`discover.py`, `http_client.py`. No changes to schema,
+classifier, fetch pipeline, or sandbox.
+
+**Out of Scope**
+
+- Vision-classification pass (future spec).
+- Sitemap deep-crawl (out-of-scope; PubPubs / enterprise sites).
+- Headless-browser rendering for JS-only sites.
+- Expanding the platform allowlist itself (CMS subdomain rule
+  is host-scoped by seed-label, not a blanket host-allowlist).
+
+**Technical Implementation**
+
+**Fix 1 — CMS-subdomain (same seed-label, different eTLD+1)**
+
+File: `candidate_filter.py::_classify_link()`. When evaluating a
+non-platform, cross-eTLD+1 link, check if its first subdomain
+label matches the seed's first non-www label. If so, accept with
+`hosting_platform='own-cms'` (new hosting_platform enum value)
+and `attribution_confidence='platform_verified'`.
+
+- Seed `www.sagehillschool.org` → seed_label=`sagehillschool`
+- Link host `sagehillschool.myschoolapp.com` → first_label=`sagehillschool`
+- Match → accept
+
+Edge cases:
+- Skip when seed_label is 3 chars or fewer (too generic: `www`, `usa`, `abc`)
+- Skip when seed_label is in a blocklist of common generic labels
+  (`www`, `web`, `m`, `en`, `www2`)
+- Does NOT apply to homepage link enumeration — only to PDF link
+  extraction inside expanded subpages (consistent with TICK-001's
+  relaxation scope)
+
+DDL change required: `reports.hosting_platform` CHECK needs
+`'own-cms'` added. **Correction: this IS a schema change.** Spec
+line 158's CHECK constraint: `CHECK (hosting_platform IS NULL
+OR hosting_platform IN ...)`. Add `'own-cms'` via
+`ALTER TABLE` migration in `schema.py`. Minor but must be
+acknowledged.
+
+**Fix 2 — Network-transient retries**
+
+File: `http_client.py`. In `ReportsHTTPClient.get()`, wrap the
+core request in a retry loop for `fetch_status` in
+{`network_error`, `server_error`}. Max 2 retries with exponential
+backoff (2s, 8s). Applies to `kind` in {`homepage`, `subpage`,
+`sitemap`} only — NOT PDF fetches (they're content-addressable
+and idempotent failures there are fine; letting them retry
+doubles classifier cost).
+
+**Fix 3 — MAX_SUBPAGES_PER_ORG 5 → 10**
+
+File: `config.py`. Single number bump. Risk: 2× per-org
+homepage-fan-out cost. Mitigated by existing per-host 3s throttle
+(makes the marginal cost predictable).
+
+**Fix 4 — i18n path dedup**
+
+File: `candidate_filter.py::extract_candidates()`. Maintain a
+`LOCALE_PREFIXES` frozenset:
+
+```python
+LOCALE_PREFIXES = frozenset({
+    "en", "es", "fr", "de", "pt", "it", "nl", "zh", "ja",
+    "ko", "vi", "tl", "ar", "ru", "hi", "pl", "cs", "sv",
+})
+```
+
+When deduplicating by canonical URL, also strip a leading
+`/<locale>/` segment if the next segment matches a seen canonical
+URL. E.g., `/tl/our-impact/` and `/our-impact/` → second occurrence
+dropped.
+
+**Fix 5 — Expand PATH_KEYWORDS + ANCHOR_KEYWORDS**
+
+File: `config.py`. Add to `PATH_KEYWORDS`:
+
+```
+"/resources", "/media", "/news-and-insights", "/our-work",
+"/about/publications", "/press", "/library", "/downloads",
+"/year-in-review"
+```
+
+Add to `ANCHOR_KEYWORDS`:
+
+```
+"our work", "what we do", "yearbook", "story report",
+"community report", "stakeholder report"
+```
+
+**Acceptance Criteria**
+
+AC1 — CMS-subdomain: given a seed `www.sagehillschool.org` whose
+report-anchor subpage links a PDF at
+`sagehillschool.myschoolapp.com/reports/2024.pdf`, the PDF is
+accepted with `hosting_platform='own-cms'` and
+`attribution_confidence='platform_verified'`.
+
+AC2 — CMS-subdomain negative: a link to
+`randomhost.myschoolapp.com/reports/2024.pdf` (first label does
+NOT match seed) is still dropped.
+
+AC3 — CMS-subdomain guards: when seed_label is 3 chars or fewer,
+or in the blocklist, the rule does NOT fire (prevents over-broad
+matching).
+
+AC4 — Retry on homepage network_error: if the first homepage
+fetch returns `network_error`, a second attempt is made after
+a ~2s delay. If the second succeeds, processing continues.
+`fetch_log` records one row per attempt.
+
+AC5 — Retry ceiling: after 2 retries (3 total attempts), if still
+`network_error`, the crawl moves on — no further retries for that
+URL in this run.
+
+AC6 — PDF fetches DO NOT retry: `kind='pdf-get'` or
+`kind='pdf-head'` fetch attempts are made exactly once. Retry
+is homepage/subpage/sitemap only.
+
+AC7 — Subpage cap is 10: given an org with 12 report-anchor
+candidates on its homepage, exactly 10 are expanded.
+
+AC8 — i18n dedup: if a homepage lists both `/our-impact/` and
+`/tl/our-impact/`, only one is expanded.
+
+AC9 — Expanded keywords: a PDF linked with anchor text "our work"
+on a page with path `/resources/` matches the new keyword set
+and is surfaced.
+
+AC10 — No regressions: all 165 pre-TICK-002 tests still pass.
+
+**Live Validation Fixtures**
+
+Re-run against `/tmp/0004-coastal-run/coastal-seed.db` with
+`--refresh`. Expected deltas vs post-TICK-001 (143 PDFs / 27 orgs):
+
+- `ein=330729698` (Sage Hill): 0 → several PDFs via
+  `sagehillschool.myschoolapp.com` (Fix 1).
+- `ein=133391210` (Covenant House): recovers its 4 PDFs that
+  regressed due to transient network_error (Fix 2).
+- Several orgs that hit the 5-subpage cap likely gain PDFs
+  (Fix 3).
+
+NOT expected to improve (out of scope — future TICKs):
+
+- `ein=942722663` (Family House): `/our-impact/` literally has
+  no PDF links. Only vision pass or broader discovery helps.
+- `ein=943227260` (JCCSF): homepage surfaces no report-anchor
+  candidate. Requires sitemap deep-crawl.
+
+**Traps to Avoid**
+
+- CMS-subdomain rule must still enforce HTTPS, SSRF guards,
+  and content-type validation. The relaxation is only on the
+  cross-origin filter, not on transport security.
+- Retry backoff must be delay-from-completion, not
+  delay-from-start — a 30s slow response followed by a 2s wait,
+  not an overlapping 2s timer.
+- i18n dedup must preserve the non-localized canonical URL
+  (`/our-impact/`) when both are present, not the localized one.
+- Expanded keywords must not break the existing AC1 / homepage-
+  scope filter — they only expand the candidate set, never
+  shrink it.
+
+**Implementation Sizing**
+
+- ~80 lines of production code across 4 files.
+- ~100 lines of tests (one per AC plus integration tests).
+- 1 schema migration (add `'own-cms'` to hosting_platform CHECK).
+- 1 config constant change (MAX_SUBPAGES_PER_ORG).
+- 2 config list extensions (keywords, locale prefixes).
+- 2 config additions (retry params, CMS label blocklist).
+
+Target time-to-merge: same-day.
+
+**Red-Team Review Focus**
+
+- Can an attacker register `sagehillschool.evilcdn.net` and
+  poison the seed's subpages with malicious PDFs? (Mitigated:
+  subdomain must match seed's first label, AND PDF fetch still
+  goes through magic-byte + size-cap + sandbox validation.)
+- Can the i18n-dedup rule drop a genuinely-distinct page that
+  happens to share a suffix with a locale prefix? (Test case:
+  `/en/about/` vs `/about/` — the rule drops the localized
+  variant, which preserves the primary. Edge case: sites where
+  `/en/` is actually a section, not a locale — accepted false-
+  negative risk, low probability given the curated locale list.)
+- Can the retry loop amplify a slow-host attack? (Mitigated by
+  max 2 retries + per-host throttle.)
+- Can the expanded keywords scoop up non-report PDFs in volume?
+  (Mitigated by classifier's `not_a_report` filter downstream —
+  which we've now verified works.)
