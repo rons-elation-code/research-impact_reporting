@@ -1818,13 +1818,16 @@ BLOCKLIST_HOSTS = frozenset({
 - ALL `.gov` and `.mil` TLDs blocked (AC12): `host.endswith(".gov") or host.endswith(".mil")`
 
 `_validate_url(url: str) -> str | None`:
-Returns canonical `scheme://host` (no port, path, query, fragment) or `None` if invalid. Rules (AC11):
+Returns canonical `scheme://host` (no port, path, query, fragment) or `None` if invalid. Rules (AC11 + red-team HIGH):
 - Parse with `urlsplit()`
 - Scheme must be `http` or `https`
 - `urlsplit().hostname` (lowercase, port-stripped) must contain at least one `.`
 - `urlsplit().hostname` must not contain `xn--` anywhere (punycode rejection)
 - `urlsplit().hostname` must not contain any non-ASCII characters (reject raw Unicode)
 - `urlsplit().username` must be None (no userinfo)
+- **IP address rejection (SSRF mitigation)**: try `ipaddress.ip_address(hostname)`; if it
+  succeeds (v4 or v6), reject — nonprofits' official sites are always domain names, never
+  raw IPs. This blocks `127.0.0.1`, `169.254.169.254`, `::1`, etc.
 - Ports are stripped — result is always `f"{scheme}://{hostname}"` (hostname from
   `urlsplit().hostname`, which strips port and lowercases automatically)
 - Result never includes path, query, or fragment
@@ -1852,6 +1855,14 @@ def _brave_search(query: str, *, key: str) -> dict:
 
 Query template: `f'"{name}" {city} nonprofit official website'`
 (city may be NULL; if so: `f'"{name}" nonprofit official website'`)
+
+**Quote sanitization (red-team MEDIUM)**: strip double-quote characters from `name`
+and `city` before interpolating into the query string. A name like `The "Help" Foundation`
+would otherwise break the quoting logic and potentially manipulate the search intent:
+```python
+safe_name = (name or "").replace('"', '')
+safe_city = (city or "").replace('"', '') if city else None
+```
 
 Response body cap (AC13): truncate `website_candidates_json` to 8,192 bytes
 (`json.dumps(response)[:8192]`) before DB write.
@@ -1918,9 +1929,17 @@ def resolve_batch(conn, *, key, limit, min_sleep, dry_run, log):
             chosen = _pick_primary(results)
             notes = None if chosen else "no-non-blocklist-result"
 
-        # Truncation may produce invalid JSON — this column is audit-only;
-        # no code path reads it programmatically. Document this explicitly.
-        candidates_json = json.dumps(response)[:8192] if response else None
+        # Truncate at the data-structure level (keep first 3 results) so the
+        # stored value remains valid JSON. Raw string truncation produces
+        # malformed JSON that breaks audit tooling (red-team MEDIUM fix).
+        if response:
+            audit_data = dict(response)
+            if "web" in audit_data and "results" in (audit_data.get("web") or {}):
+                audit_data["web"] = dict(audit_data["web"])
+                audit_data["web"]["results"] = audit_data["web"]["results"][:3]
+            candidates_json = json.dumps(audit_data)
+        else:
+            candidates_json = None
 
         log.info("org ein=%s name=%s url=%s", ein, name[:40], chosen)
 
@@ -1968,6 +1987,8 @@ All mocked via dependency injection (pass `key` and a mock `requests.get`):
 18. **test_limit_flag** — `--limit 2` processes at most 2 rows from a 5-row DB
 19. **test_cli_invalid_qps** — `--qps 0` and `--qps -1` each raise `SystemExit(2)`
 20. **test_cli_invalid_limit** — `--limit -1` raises `SystemExit(2)`
+21. **test_url_validation_ip_rejected** — `http://127.0.0.1/path` and `http://169.254.169.254` both return `None` from `_validate_url`
+22. **test_query_quote_sanitization** — name containing `"` characters produces a query without bare double quotes inside the outer quotes
 
 ---
 
@@ -2033,7 +2054,7 @@ Verify `requests` is importable in the nonprofits venv before writing code.
 
 ### Definition of done
 
-- All 20 unit tests pass with `pytest lavandula/nonprofits/tests/unit/test_resolve_websites_006.py`
+- All 22 unit tests pass with `pytest lavandula/nonprofits/tests/unit/test_resolve_websites_006.py`
 - `pytest -m live` smoke test passes against real Brave API
 - `python -m lavandula.nonprofits.tools.resolve_websites --help` prints all 4 flags
 - `--dry-run` on a seeded DB prints chosen URLs without modifying any rows
