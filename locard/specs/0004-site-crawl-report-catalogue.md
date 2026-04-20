@@ -2012,43 +2012,95 @@ that match `.pdf` suffix OR `PATH_KEYWORDS` enter the candidate
 list with `discovered_via='sitemap'` and
 `attribution_confidence='own_domain'`.
 
-AC2 — Robots-directive sitemap: if `robots.txt` contains a
-`Sitemap: <url>` line, that URL is tried BEFORE the `/sitemap.xml`
-fallback. If both exist, only the robots-referenced one is used
-(authoritative per spec).
+AC2 — Multi-directive support (revised per Codex review):
+ALL `Sitemap: <url>` lines in `robots.txt` are attempted.
+Failures of individual directives do not halt the others. The
+`/sitemap.xml` fallback fires ONLY when `robots.txt` contains
+zero `Sitemap:` directives (not when one succeeds and another
+fails — those are independent partial successes).
 
 AC3 — Fallback on /sitemap.xml: when robots has no `Sitemap:`
-directive, the crawler tries `/sitemap.xml` at the seed host.
+directive at all, the crawler tries `<seed_host>/sitemap.xml`.
+If this path is itself `Disallow`ed by robots.txt (rare but
+valid per RFC 9309), the fetch is skipped and crawl proceeds
+with homepage-only behavior.
 
-AC4 — 404 is not fatal: if the sitemap returns 404, forbidden,
-or network_error, the org's crawl continues with homepage-only
-behavior (no exception, no halt).
+AC4 — 404 / robots-disallowed / network-error is not fatal: any
+of these on a sitemap URL cause that one sitemap to be skipped.
+Other sitemaps (if any) still attempted. Homepage phase always
+runs regardless of sitemap outcome.
 
-AC5 — Malformed XML is not fatal: if sitemap body isn't parseable
-XML, the org's crawl continues with homepage-only behavior.
+AC5 — Malformed XML is not fatal: if a sitemap body isn't
+parseable XML, that sitemap is skipped. Partial parse of a
+sitemap-index (some children parse, others fail) yields the
+successful child results; failures are logged and skipped.
 
-AC6 — Cap honored: sitemap parsing honors
-`MAX_SITEMAPS_PER_ORG=5` (existing config) and
-`MAX_SITEMAP_URLS_PER_ORG` (existing config). A sitemap-index
-with 20 children fetches at most 5. URL yield per org is capped.
+AC6 — Cap honored: `MAX_SITEMAPS_PER_ORG=5` and
+`MAX_SITEMAP_URLS_PER_ORG` apply across the UNION of all robots-
+declared sitemaps + fallback `/sitemap.xml` (not per directive).
 
-AC7 — Robots gating applies to sitemap URLs: a URL listed in
-sitemap.xml whose path is `Disallow`ed by robots.txt is dropped,
-same as homepage-derived candidates.
+AC7 — Robots gating applies to sitemap-derived URLs: a URL
+listed in a sitemap whose path is `Disallow`ed is dropped.
+Robots gating runs AFTER canonicalization so tracking-param
+variants can't evade it.
 
-AC8 — Union with homepage: sitemap-derived and homepage-derived
-candidates are merged. Dedup is on canonical URL (existing
-`canonicalize_url`). Per-org `CANDIDATE_CAP_PER_ORG=30` still
-caps the final count.
+AC8 — Processing order: every sitemap URL flows through
+(1) `canonicalize_url` → (2) robots gate → (3) cross-origin
+decision table (AC10) → (4) anti-noise rejection (AC9) →
+(5) accept/reject classifier. Dedup against the in-progress
+candidate list happens after step 1.
 
-AC9 — JCCSF regression-preventing test fixture: an integration
-test simulates the JCCSF pattern (WAF-blocked homepage returning
-1 KB challenge page, working sitemap.xml listing the impact
-report URL). Result: the impact report URL is in the candidate
-list; the homepage contributes zero; end-to-end the PDF gets
-archived.
+AC9 — Anti-noise rejection (new per Codex review): URLs matching
+these patterns are dropped from sitemap-derived candidates
+BEFORE keyword/PDF filtering: image suffixes (`.jpg|jpeg|png|
+gif|webp|svg|ico`), feed paths (`/feed/`, `/feed.xml`, `/rss`,
+`/atom.xml`), CMS-archive patterns (`/category/`, `/tag/`,
+`/author/`, `/page/[0-9]+`, `/[0-9]{4}/[0-9]{2}/?$` year-month
+archives). Prevents WordPress-style news blogs from flooding
+the candidate pool with thousands of posts.
 
-AC10 — Non-regression: all 178 pre-TICK-004 tests still pass.
+AC10 — Cross-origin decision table (new per Codex review):
+
+| Sitemap URL host | Decision |
+|---|---|
+| Same host as seed | Accept (subject to keyword/PDF filter) |
+| Different subdomain, same eTLD+1 | Accept, `hosting_platform='own-domain'` |
+| Different host, same first label as seed | Accept, `hosting_platform='own-cms'`, `attribution='platform_verified'` (TICK-002 rule) |
+| Host in platform allowlist (issuu/flipsnack/canva) | Accept, `attribution='platform_unverified'` (AC12.3 — sitemap is not a homepage anchor, so unverified) |
+| Any other host | Drop |
+
+AC11 — XML parser hardening (new per Codex review): sitemap
+parsing uses `defusedxml` or equivalent hardened library.
+Hostile XML fixtures (billion-laughs, external entity refs,
+deeply-nested elements) must not crash, hang, or consume
+>100 MB memory during parsing.
+
+AC12 — Union + dedup: sitemap and homepage candidates merge into
+one pool. Dedup on canonical URL. When the same URL appears in
+both sources, the homepage version wins for anchor-text
+provenance (it has anchor text; sitemap version doesn't).
+`CANDIDATE_CAP_PER_ORG=30` caps the final union.
+
+AC13 — Non-short-circuit control flow: sitemap URL iteration
+does NOT return early on first remembered candidate. The
+`_remember()` helper returns True when the per-org cap is hit;
+sitemap iteration breaks out of sitemap processing AND subsequent
+homepage/subpage processing is short-circuited at that point
+(cap is global to the org, not per-source). Explicitly tested.
+
+AC14 — JCCSF deterministic fixture: integration test simulates
+the observed JCCSF pattern — homepage returns 1 KB of Cloudflare
+challenge HTML with zero `<a>` tags, `sitemap.xml` returns a
+valid sitemap-index whose child sitemap lists the impact-report
+PDF URL. Pass/fail: (a) the PDF URL appears in
+`per_org_candidates()` output, (b) no exception, (c) homepage
+phase runs but contributes zero. **Live validation pass/fail:
+JCCSF (ein 943227260) yields ≥1 archived PDF after TICK-004
+ships, vs 0 on the 2026-04-20 TICK-001+002+003 run.** Total-
+count speculation removed per Codex; deterministic JCCSF outcome
+is the bar.
+
+AC15 — Non-regression: all 178 pre-TICK-004 tests still pass.
 
 **Live Validation**
 
