@@ -1239,3 +1239,255 @@ invalidated the original scope assumptions:
 (updates forthcoming under Amendments).
 
 ---
+
+### TICK-005: Productionize ProPublica seed enumerator (2026-04-20)
+
+**Summary**: Replace the ad-hoc `seed_enumerate.py` prototype with
+a CLI-driven, tested, checkpointed seed-enumeration tool suitable
+for volume production runs (1,000+ orgs across arbitrary
+state/NTEE/revenue filters). Lives at
+`lavandula/nonprofits/tools/seed_enumerate.py`. Continues to use
+the ProPublica Nonprofit Explorer API
+(`projects.propublica.org/nonprofits/api/v2`) as the data source.
+
+**Motivation**
+
+The prototype used for the 2026-04-19 100-org coastal validation
+has hardcoded constants (`COASTAL_STATES`, `NTEE_MAJORS`,
+`REV_MIN/MAX`), no CLI flags, and no resume-from-crash state.
+For a 1,000-org Texas/Oklahoma lead-generation run (and for
+future geographic expansions), operators need to specify the
+filter at the command line without editing source. Rate-limit
+recovery must not lose progress.
+
+**In Scope**
+
+- CLI flags: `--states`, `--ntee-majors`, `--revenue-min`,
+  `--revenue-max`, `--target`, `--db`.
+- Defaults preserve the current prototype's behavior (coastal
+  states, NTEE A/B/E/P, $1M–$30M, target 100, standard db path).
+- Checkpointing: on any ProPublica HTTP error or interruption,
+  partial progress is committed; next run resumes.
+- Unit tests for filter logic (mocked API responses).
+- Live smoke test: 5-org run against real ProPublica API,
+  asserts non-zero results, skips if offline.
+
+**Out of Scope**
+
+- Changing the data source (still ProPublica; IRS 990 XML is
+  future work in Spec 0005 if ever).
+- Website-resolution step — that's TICK-006.
+- Multi-source deduplication across different enumeration runs
+  beyond the existing EIN PRIMARY KEY.
+
+**Technical Implementation**
+
+`lavandula/nonprofits/tools/seed_enumerate.py` (modify in place):
+
+```
+argparse.ArgumentParser()
+  --states STATES       Comma-separated state codes, e.g. TX,OK,LA
+                        (default: CA,NY,MA,WA,OR,CT,NJ,MD,RI)
+  --ntee-majors CODES   Comma-separated NTEE major letters,
+                        e.g. A,B,E,P (default: A,B,E,P)
+  --revenue-min BYTES   Minimum totrevenue from most recent 990
+                        (default: 1_000_000)
+  --revenue-max BYTES   Maximum totrevenue (default: 30_000_000)
+  --target N            Stop after N new orgs added
+                        (default: 100)
+  --db PATH             seeds.db path
+                        (default: lavandula/nonprofits/data/seeds.db)
+```
+
+Checkpoint mechanism: `runs` table (already exists) gets a
+`last_page_scanned` JSON column added (alter-table migration),
+updated after every successful page fetch. On restart, resume
+from the last checkpointed state per-(state, ntee_major) tuple.
+
+**Acceptance Criteria**
+
+AC1 — CLI accepts all 6 flags; invalid values raise `SystemExit(2)` via argparse.
+
+AC2 — Default values (no flags) produce identical behavior to the 2026-04-19 prototype run.
+
+AC3 — `--states TX,OK` queries ProPublica with `state[id]=TX` then `state[id]=OK`; results from both merge into the same `seeds.db`.
+
+AC4 — `--ntee-majors P,E` filters ProPublica results to NTEE codes starting with P or E.
+
+AC5 — Revenue filter applied AFTER per-org ProPublica lookup (the search endpoint doesn't filter by revenue; per-org endpoint returns the most recent filing's `totrevenue`).
+
+AC6 — EIN dedup preserved: re-running against an existing `seeds.db` adds only NEW EINs.
+
+AC7 — Checkpointing: simulated interrupt (SIGINT or killed subprocess) mid-page leaves `seeds.db` consistent; `runs.last_page_scanned` is advanced only on successful page writes; next invocation resumes cleanly.
+
+AC8 — Rate-limit recovery: simulated 429 response from ProPublica → retry with backoff (1s, 5s, 30s); after 3 retries, commit partial progress and exit 0 (not a failure from the operator's perspective).
+
+AC9 — Live smoke test: `--target 5 --states MA` fetches 5 MA orgs (or whatever's available); test skips if ProPublica is unreachable.
+
+AC10 — Unit tests cover filter logic with mocked ProPublica JSON responses (no network).
+
+**Implementation Sizing**
+
+~80 LoC of changes to the existing prototype + ~150 LoC tests.
+No schema migration (runs.last_page_scanned is a JSON string; goes in a new column via ALTER TABLE).
+
+### TICK-006: Brave-based website resolver (2026-04-20)
+
+**Summary**: Build `lavandula/nonprofits/tools/resolve_websites.py`
+which fills the `website_url` column of `seeds.db` rows by
+issuing Brave Search API queries for each EIN whose `website_url
+IS NULL`. Replaces the in-session WebSearch approach used for the
+100-org coastal exercise, which didn't scale beyond interactive
+use. Brave API key is read from SSM Parameter Store via
+`lavandula.common.secrets.get_brave_api_key()` (already built
+and tested).
+
+**Motivation**
+
+The 100-org coastal run required manual WebSearch via the
+Claude Code interactive session — not reproducible, not
+resumable, not tested, not suitable for a 1,000-org TX/OK run.
+Brave Search API provides a clean programmatic alternative with
+a free tier (2,000 queries/month), supports standard JSON
+responses, and allows the same domain-blocklist filtering we
+applied interactively.
+
+**In Scope**
+
+- `resolve_websites.py` as a standalone CLI tool.
+- Reads rows from `seeds.db` with `website_url IS NULL`.
+- For each: issues one Brave query of the form
+  `"{name}" {city} nonprofit official website`.
+- Applies blocklist to top results (linkedin.com, facebook.com,
+  twitter.com, x.com, instagram.com, youtube.com, guidestar.org,
+  propublica.org, charitynavigator.org, idealist.org, causeiq.com,
+  dnb.com, yelp.com, rocketreach.co, wikipedia.org, candid.org,
+  give.org, benevity.org, mapquest.com, chamberofcommerce.com,
+  *.gov unless it's clearly the org's own domain).
+- Picks the first non-blocklisted result's scheme+host as the
+  website_url; writes back to `seeds.db`.
+- Stores the full Brave response JSON in `website_candidates_json`
+  for later audit.
+- Rate-limited to 1 QPS (Brave's free-tier limit).
+- Per-row commit: resumable after crash without re-paying queries.
+- Unit tests with mocked Brave client.
+- Live smoke test: 3 real orgs, asserts non-empty + non-blocklist
+  results.
+
+**Out of Scope**
+
+- URL verification (HEAD check that the domain resolves / serves
+  200). Left to the 0004 crawler's seed-URL-validation step
+  (AC12.4), which already exists.
+- Multi-source fallback (Google CSE, DuckDuckGo HTML) — single
+  provider v1.
+- Heuristic URL-guessing (`<slug>.org` patterns) — out of scope.
+
+**Technical Implementation**
+
+`lavandula/nonprofits/tools/resolve_websites.py`:
+
+```
+argparse.ArgumentParser()
+  --db PATH             seeds.db path
+  --limit N             Stop after N lookups (default: no limit)
+  --qps FLOAT           Queries per second (default: 1.0)
+  --dry-run             Run queries, don't write to DB
+```
+
+Brave API request:
+
+```python
+import requests
+from lavandula.common.secrets import get_brave_api_key
+
+def _brave_search(query: str, *, key: str) -> dict:
+    r = requests.get(
+        "https://api.search.brave.com/res/v1/web/search",
+        headers={"X-Subscription-Token": key, "Accept": "application/json"},
+        params={"q": query, "count": 10, "safesearch": "moderate"},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()
+```
+
+Top-result filter:
+
+```python
+BLOCKLIST_HOSTS = frozenset({
+    "linkedin.com", "facebook.com", "twitter.com", "x.com",
+    "instagram.com", "youtube.com", "youtu.be", "tiktok.com",
+    "guidestar.org", "propublica.org", "charitynavigator.org",
+    "idealist.org", "causeiq.com", "dnb.com", "yelp.com",
+    "rocketreach.co", "candid.org", "give.org", "benevity.org",
+    "mapquest.com", "chamberofcommerce.com", "zoominfo.com",
+    "crunchbase.com", "bloomberg.com", "reddit.com",
+})
+
+def _is_blocklisted(host: str) -> bool:
+    host = (host or "").lower()
+    for bad in BLOCKLIST_HOSTS:
+        if host == bad or host.endswith("." + bad):
+            return True
+    # Wikipedia is blocklist but via suffix match covers all locales.
+    if host.endswith("wikipedia.org"):
+        return True
+    return False
+
+def _pick_primary(results: list[dict]) -> str | None:
+    for r in results or []:
+        url = r.get("url", "")
+        host = urlsplit(url).hostname or ""
+        if _is_blocklisted(host):
+            continue
+        # Return scheme + host root, not a deep path.
+        return f"{urlsplit(url).scheme}://{host}"
+    return None
+```
+
+**Acceptance Criteria**
+
+AC1 — Given a seeds.db row with `website_url IS NULL`, the tool issues exactly one Brave query, applies the blocklist, writes the picked domain to `website_url`, and stores the raw response in `website_candidates_json`.
+
+AC2 — Rows with non-NULL `website_url` are skipped by default (idempotent re-runs).
+
+AC3 — Blocklist filter drops linkedin/facebook/guidestar/etc. If ALL top-10 results are blocklisted, `website_url` remains NULL and a `notes` field records "no-non-blocklist-result".
+
+AC4 — Rate limit: QPS cap is enforced by sleep-between-calls; default 1 QPS matches Brave's free-tier limit.
+
+AC5 — Per-row commit: DB `COMMIT` after each successful row write; kill -9 between writes leaves consistent state.
+
+AC6 — Brave API errors (429, 500, network): one retry with 30s backoff; second failure leaves the row NULL and logs the error (continues to next row, does not halt the batch).
+
+AC7 — API key retrieval: `get_brave_api_key()` is called ONCE at startup; cached per-process. A `SecretUnavailable` exception at startup aborts cleanly with exit code 2.
+
+AC8 — Blocklist is case-insensitive; subdomain matches ("blog.wikipedia.org") are rejected.
+
+AC9 — Unit tests use a mocked Brave client (dependency injection). Cover: blocklist filter, retry, QPS sleep, idempotent skip.
+
+AC10 — Live smoke test: 3 orgs with known websites (e.g., ilrc.org, selfhelpelderly.org, newroads.org). Assert all 3 resolve to domains matching the expected answers — not a specific URL but the right primary domain.
+
+**Implementation Sizing**
+
+~150 LoC of new code + ~180 LoC tests.
+No schema change (uses existing `seeds.db` columns).
+Adds `requests` to the nonprofits venv if not already there.
+
+**Red-Team Review Focus**
+
+- Can a malicious Brave result inject a cross-site redirect or
+  javascript: URL into `website_url`? (Mitigated: scheme must be
+  http/https; the downstream 0004 crawler's `validate_seed_url`
+  runs its own SSRF + scheme check before fetching.)
+- Can a poisoned query result cause us to pick an attacker-owned
+  domain? (Partial mitigation: blocklist + downstream
+  seed-URL-validation + classifier filter on resulting PDFs.
+  Not a hard mitigation; a hostile SEO actor could rank on a
+  small org's name. Residual risk: accept as low for v1;
+  volume production can add cross-check against CN or Candid
+  if needed.)
+- Can the API key leak via error messages or log lines?
+  (Mitigated: `get_brave_api_key()` returns the raw string; the
+  tool never logs it; Brave client passes via header not URL
+  param.)
