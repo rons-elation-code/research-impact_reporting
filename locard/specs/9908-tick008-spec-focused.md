@@ -135,7 +135,8 @@ ProPublica record includes it (unit test: mock returns `accounting_period=6`,
 assert stored value is `6`).
 
 AC4 — When `_fetch_org_revenue` returns `None` (API failure), `enumerate_new_orgs`
-stores NULL for all new columns without raising an exception.
+skips the row entirely without crashing — preserving the existing `if rev is None:
+continue` behavior. (The row is NOT inserted.)
 
 AC5 — Existing TICK-005 unit tests all still pass unchanged.
 

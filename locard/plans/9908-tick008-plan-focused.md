@@ -41,9 +41,23 @@ def _to_str(val) -> str | None:
 
 ### Step 2 — Add 6 migrations to `_apply_migrations`
 
-Append idempotent ALTER TABLE statements — one per new column. Use the same
-`try/except OperationalError` pattern as existing migrations (SQLite raises
-`OperationalError: duplicate column name` when column already exists).
+Append idempotent migrations for each new column. Follow the **existing PRAGMA
+pattern** — check `PRAGMA table_info(nonprofits_seed)` and only run ALTER TABLE
+if the column is absent. Do NOT use `try/except OperationalError` (too broad):
+
+```python
+existing = {row[1] for row in conn.execute("PRAGMA table_info(nonprofits_seed)")}
+for col, typedef in [
+    ("subsection_code", "INTEGER DEFAULT NULL"),
+    ("activity_codes",  "TEXT DEFAULT NULL"),
+    ("classification_codes", "TEXT DEFAULT NULL"),
+    ("foundation_code", "INTEGER DEFAULT NULL"),
+    ("ruling_date",     "TEXT DEFAULT NULL"),
+    ("accounting_period", "INTEGER DEFAULT NULL"),
+]:
+    if col not in existing:
+        conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
+```
 
 ```sql
 ALTER TABLE nonprofits_seed ADD COLUMN subsection_code INTEGER DEFAULT NULL;
@@ -78,11 +92,26 @@ return detail
 On HTTP error / network exception: continue returning `None` (existing behavior).
 
 **Breaking change note**: Any existing code that unpacks `_fetch_org_revenue` as a
-tuple (e.g. `rev, ntee = _fetch_org_revenue(...)`) will break. Search for all
-callers and update them. In `enumerate_new_orgs`, the revenue-skip check changes
-from `if rev is None: continue` to `if detail is None: continue` (note: `None`
-return now means API failure; a zero-revenue org returns `OrgDetail(revenue=None, ...)`,
-which should NOT be skipped — verify existing filter logic).
+tuple (e.g. `rev, full_ntee = _fetch_org_revenue(...)`) will break. Update
+`enumerate_new_orgs` call site and revenue-filter line:
+
+```python
+# Before:
+rev, full_ntee = _fetch_org_revenue(ein, fail_counter=fail_counter)
+if rev is None or rev < rev_min or rev > rev_max:
+    continue
+
+# After:
+detail = _fetch_org_revenue(ein, fail_counter=fail_counter)
+if detail is None or detail.revenue is None \
+        or detail.revenue < rev_min or detail.revenue > rev_max:
+    continue
+```
+
+`detail is None` = API failure → skip (preserves existing behavior).
+`detail.revenue is None` = no filings → skip (same as old `rev is None`).
+`detail.revenue == 0` → `_to_int` stores `0`; filtered by `< rev_min` (default 1M).
+Also update: `ntee_code` line uses `detail.ntee_code` instead of `full_ntee`.
 
 ### Step 4 — Update `enumerate_new_orgs` INSERT
 
@@ -110,7 +139,7 @@ Six focused tests. Do NOT modify `test_seed_enumerate_005.py`.
 | `test_migrations_idempotent` | AC2 | `_apply_migrations` called twice → no `OperationalError` |
 | `test_fetch_org_revenue_returns_orgdetail` | AC3 | Mock ProPublica JSON → `_fetch_org_revenue` returns `OrgDetail` with correct field values (including `accounting_period=6`) |
 | `test_accounting_period_stored` | AC3 | Full enumeration path: mock ProPublica → row in DB has `accounting_period=6` |
-| `test_none_return_no_crash` | AC4 | `_fetch_org_revenue` patched to return `None` → `enumerate_new_orgs` does not insert row, no exception |
+| `test_none_return_no_crash` | AC4 | `_fetch_org_revenue` patched to return `None` → `enumerate_new_orgs` skips row (no INSERT), no exception |
 | `test_malformed_fields` | AC6 | Mock returns `subsection_code=""`, `activity_codes=None`, `foundation_code="bad"` → all stored as NULL |
 
 AC5 verified by running the full TICK-005 test suite unchanged (no new test needed).
