@@ -130,7 +130,6 @@ def per_org_candidates(
     for idx_url in sitemap_index_urls:
         sitemap_urls.extend(_parse_sitemap_any(idx_url))
 
-    cap_reached = False
     for s_url in sitemap_urls:
         canonical = canonicalize_url(s_url)
         parsed = urlsplit(canonical)
@@ -145,13 +144,16 @@ def per_org_candidates(
         )
         if c is None:
             continue
-        if _remember(c):
-            cap_reached = True
-            break
+        # `_remember` is idempotent: if the cap is hit, subsequent
+        # calls return True but do NOT mutate the candidates list.
+        # We don't early-return here — homepage phase ALWAYS runs
+        # (per AC12: "homepage version wins for anchor-text provenance
+        # when same URL in both sources"). If the cap is hit, further
+        # additions are no-ops; homepage still gets to contribute
+        # anchor-text metadata to any already-seen URLs via dedup.
+        _remember(c)
 
     # --- homepage -----
-    if cap_reached:
-        return candidates
     if not _allowed("/"):
         _log.info("discover: robots disallows / for %s", home_base)
         return candidates  # AC4: still return any sitemap-derived candidates.
