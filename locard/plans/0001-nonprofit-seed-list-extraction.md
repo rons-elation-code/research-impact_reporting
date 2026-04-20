@@ -2113,11 +2113,13 @@ All 6 columns already shown in spec SQL. Order matches `OrgDetail` field order.
 
 Replace the current `(revenue, ntee_code)` tuple return with `OrgDetail`.
 
-Extraction pattern (verbatim from spec):
+Use `_to_int` for revenue extraction (consistent with other integer fields):
+
 ```python
 org = d.get("organization") or {}
+filings = d.get("filings_with_data") or []
 detail = OrgDetail(
-    revenue=int(filings[0]["totrevenue"]) if filings else None,
+    revenue=_to_int(filings[0]["totrevenue"]) if filings else None,
     ntee_code=_to_str(org.get("ntee_code")),
     subsection_code=_to_int(org.get("subsection_code")),
     activity_codes=_to_str(org.get("activity_codes")),
@@ -2131,34 +2133,47 @@ return detail
 
 On HTTP error / network exception: continue returning `None` (existing behavior).
 
+**Breaking change note**: Any existing code that unpacks `_fetch_org_revenue` as a
+tuple (e.g. `rev, ntee = _fetch_org_revenue(...)`) will break. Search for all
+callers and update them. In `enumerate_new_orgs`, the revenue-skip check changes
+from `if rev is None: continue` to `if detail is None: continue` — verify the
+existing filter logic handles `OrgDetail(revenue=None, ...)` correctly.
+
 ### Step 4 — Update `enumerate_new_orgs` INSERT
 
-In the `enumerate_new_orgs` function, extend the `INSERT OR IGNORE` statement
-to include the 6 new columns. The caller already guards `if detail is None:
-continue`, so no extra null-check needed.
+Extend the `INSERT OR IGNORE` to include all 6 new columns. Column order must
+match the schema definition exactly:
 
-Insert the 6 fields from `detail.*` using `?` placeholders — no interpolation.
+```sql
+INSERT OR IGNORE INTO nonprofits_seed
+  (ein, name, city, state, ntee_code, revenue,
+   subsection_code, activity_codes, classification_codes,
+   foundation_code, ruling_date, accounting_period)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+```
+
+Bind values from `detail.*` using positional `?` placeholders — no string
+interpolation.
 
 ### Step 5 — Write unit tests in `test_seed_enumerate_008.py`
 
-Six focused tests, one per AC. Do NOT modify `test_seed_enumerate_005.py`.
+Six focused tests. Do NOT modify `test_seed_enumerate_005.py`.
 
 | Test | AC | What it checks |
 |------|----|----------------|
 | `test_new_columns_exist` | AC1 | `ensure_db()` on fresh DB → all 6 columns present in `PRAGMA table_info` |
 | `test_migrations_idempotent` | AC2 | `_apply_migrations` called twice → no `OperationalError` |
-| `test_accounting_period_stored` | AC3 | Mock ProPublica returns `accounting_period=6` → row in DB has `accounting_period=6` |
-| `test_none_return_no_crash` | AC4 | `_fetch_org_revenue` patched to return `None` → row not inserted, no exception |
+| `test_fetch_org_revenue_returns_orgdetail` | AC3 | Mock ProPublica JSON → `_fetch_org_revenue` returns `OrgDetail` with correct field values |
+| `test_accounting_period_stored` | AC3 | Full enumeration path: mock → row in DB has `accounting_period=6` |
+| `test_none_return_no_crash` | AC4 | `_fetch_org_revenue` patched to return `None` → no row inserted, no exception |
 | `test_malformed_fields` | AC6 | Mock returns `subsection_code=""`, `activity_codes=None`, `foundation_code="bad"` → stored as NULL |
-| `test_existing_tests_unchanged` | AC5 | Import and run a canary from `test_seed_enumerate_005.py` via subprocess, or simply confirm no shared state is mutated |
 
-> AC5 is verified by running the TICK-005 test suite unchanged — no new test needed.
-> The `test_existing_tests_unchanged` test may be omitted if pytest naturally runs both suites.
+AC5 verified by running TICK-005 suite unchanged — no additional test needed.
 
 ### Acceptance checklist
 
-- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_008.py` — 5 tests pass
-- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_005.py` — 20 tests still pass (no regressions)
+- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_008.py` — 6 tests pass
+- [ ] `pytest lavandula/nonprofits/tests/unit/test_seed_enumerate_005.py` — 20 tests still pass
 - [ ] `python -m lavandula.nonprofits.tools.seed_enumerate --help` — no import errors
-- [ ] Fresh DB after `ensure_db()` has all 6 new columns
-- [ ] `mypy lavandula/nonprofits/tools/seed_enumerate.py` clean (or pre-existing errors only)
+- [ ] Fresh DB after `ensure_db()` has all 6 new columns in `PRAGMA table_info`
+- [ ] No tuple-unpacking callers of `_fetch_org_revenue` remain in the codebase
