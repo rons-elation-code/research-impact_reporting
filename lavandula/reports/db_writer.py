@@ -12,12 +12,80 @@ import json
 import sqlite3
 from typing import Any
 
+_ATTRIBUTION_RANK = {
+    "platform_unverified": 0,
+    "platform_verified": 1,
+    "own_domain": 2,
+}
+
 
 def _now_iso() -> str:
     return (
         datetime.datetime.now(datetime.timezone.utc)
         .replace(microsecond=0)
         .isoformat()
+    )
+
+
+def _attribution_rank(value: str | None) -> int:
+    return _ATTRIBUTION_RANK.get(value or "", -1)
+
+
+def _prefer_new_source(existing_attr: str | None, new_attr: str) -> bool:
+    return _attribution_rank(new_attr) > _attribution_rank(existing_attr)
+
+
+def _pick_missing(existing: Any, new: Any) -> Any:
+    if existing in (None, ""):
+        return new
+    return existing
+
+
+def _pick_classification(
+    *,
+    existing_classification: str | None,
+    existing_confidence: float | None,
+    existing_model: str,
+    existing_version: int,
+    existing_classified_at: str | None,
+    new_classification: str | None,
+    new_confidence: float | None,
+    new_model: str,
+    new_version: int,
+    new_classified_at: str | None,
+) -> tuple[str | None, float | None, str, int, str | None]:
+    if new_classification is None:
+        return (
+            existing_classification,
+            existing_confidence,
+            existing_model,
+            existing_version,
+            existing_classified_at,
+        )
+    if existing_classification is None:
+        return (
+            new_classification,
+            new_confidence,
+            new_model,
+            new_version,
+            new_classified_at,
+        )
+    existing_score = existing_confidence if existing_confidence is not None else -1.0
+    new_score = new_confidence if new_confidence is not None else -1.0
+    if new_score > existing_score:
+        return (
+            new_classification,
+            new_confidence,
+            new_model,
+            new_version,
+            new_classified_at,
+        )
+    return (
+        existing_classification,
+        existing_confidence,
+        existing_model,
+        existing_version,
+        existing_classified_at,
     )
 
 
@@ -102,7 +170,7 @@ def upsert_report(
     report_year_source: str | None,
     extractor_version: int,
 ) -> None:
-    """Insert a fully-shaped row into reports. Idempotent on sha."""
+    """Insert or improve a fully-shaped row into reports keyed by sha."""
     chain_json = (
         json.dumps(redirect_chain_redacted, ensure_ascii=False)[:2048]
         if redirect_chain_redacted
@@ -110,30 +178,109 @@ def upsert_report(
     )
     classified_at = _now_iso() if classification is not None else None
     archived_at = _now_iso()
+    existing = conn.execute(
+        "SELECT * FROM reports WHERE content_sha256 = ?",
+        (content_sha256,),
+    ).fetchone()
+    if existing is None:
+        conn.execute(
+            """
+            INSERT INTO reports (
+              content_sha256, source_url_redacted, referring_page_url_redacted,
+              redirect_chain_json, source_org_ein, discovered_via,
+              hosting_platform, attribution_confidence, archived_at,
+              content_type, file_size_bytes, page_count,
+              first_page_text, pdf_creator, pdf_producer, pdf_creation_date,
+              pdf_has_javascript, pdf_has_launch, pdf_has_embedded,
+              pdf_has_uri_actions, classification, classification_confidence,
+              classifier_model, classifier_version, classified_at,
+              report_year, report_year_source, extractor_version
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                content_sha256, source_url_redacted, referring_page_url_redacted,
+                chain_json, source_org_ein, discovered_via,
+                hosting_platform, attribution_confidence, archived_at,
+                content_type, file_size_bytes, page_count,
+                first_page_text, pdf_creator, pdf_producer, pdf_creation_date,
+                pdf_has_javascript, pdf_has_launch, pdf_has_embedded,
+                pdf_has_uri_actions, classification, classification_confidence,
+                classifier_model, classifier_version, classified_at,
+                report_year, report_year_source, extractor_version,
+            ),
+        )
+        return
+
+    use_new_source = _prefer_new_source(existing["attribution_confidence"], attribution_confidence)
+    merged_classification = _pick_classification(
+        existing_classification=existing["classification"],
+        existing_confidence=existing["classification_confidence"],
+        existing_model=existing["classifier_model"],
+        existing_version=existing["classifier_version"],
+        existing_classified_at=existing["classified_at"],
+        new_classification=classification,
+        new_confidence=classification_confidence,
+        new_model=classifier_model,
+        new_version=classifier_version,
+        new_classified_at=classified_at,
+    )
     conn.execute(
         """
-        INSERT OR IGNORE INTO reports (
-          content_sha256, source_url_redacted, referring_page_url_redacted,
-          redirect_chain_json, source_org_ein, discovered_via,
-          hosting_platform, attribution_confidence, archived_at,
-          content_type, file_size_bytes, page_count,
-          first_page_text, pdf_creator, pdf_producer, pdf_creation_date,
-          pdf_has_javascript, pdf_has_launch, pdf_has_embedded,
-          pdf_has_uri_actions, classification, classification_confidence,
-          classifier_model, classifier_version, classified_at,
-          report_year, report_year_source, extractor_version
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        UPDATE reports
+           SET source_url_redacted = ?,
+               referring_page_url_redacted = ?,
+               redirect_chain_json = ?,
+               source_org_ein = ?,
+               discovered_via = ?,
+               hosting_platform = ?,
+               attribution_confidence = ?,
+               file_size_bytes = ?,
+               page_count = ?,
+               first_page_text = ?,
+               pdf_creator = ?,
+               pdf_producer = ?,
+               pdf_creation_date = ?,
+               pdf_has_javascript = ?,
+               pdf_has_launch = ?,
+               pdf_has_embedded = ?,
+               pdf_has_uri_actions = ?,
+               classification = ?,
+               classification_confidence = ?,
+               classifier_model = ?,
+               classifier_version = ?,
+               classified_at = ?,
+               report_year = ?,
+               report_year_source = ?,
+               extractor_version = ?
+         WHERE content_sha256 = ?
         """,
         (
-            content_sha256, source_url_redacted, referring_page_url_redacted,
-            chain_json, source_org_ein, discovered_via,
-            hosting_platform, attribution_confidence, archived_at,
-            content_type, file_size_bytes, page_count,
-            first_page_text, pdf_creator, pdf_producer, pdf_creation_date,
-            pdf_has_javascript, pdf_has_launch, pdf_has_embedded,
-            pdf_has_uri_actions, classification, classification_confidence,
-            classifier_model, classifier_version, classified_at,
-            report_year, report_year_source, extractor_version,
+            source_url_redacted if use_new_source else existing["source_url_redacted"],
+            referring_page_url_redacted if use_new_source else existing["referring_page_url_redacted"],
+            chain_json if use_new_source else existing["redirect_chain_json"],
+            source_org_ein if use_new_source else existing["source_org_ein"],
+            discovered_via if use_new_source else existing["discovered_via"],
+            hosting_platform if use_new_source else existing["hosting_platform"],
+            attribution_confidence if use_new_source else existing["attribution_confidence"],
+            max(existing["file_size_bytes"], file_size_bytes),
+            _pick_missing(existing["page_count"], page_count),
+            _pick_missing(existing["first_page_text"], first_page_text),
+            _pick_missing(existing["pdf_creator"], pdf_creator),
+            _pick_missing(existing["pdf_producer"], pdf_producer),
+            _pick_missing(existing["pdf_creation_date"], pdf_creation_date),
+            1 if existing["pdf_has_javascript"] or pdf_has_javascript else 0,
+            1 if existing["pdf_has_launch"] or pdf_has_launch else 0,
+            1 if existing["pdf_has_embedded"] or pdf_has_embedded else 0,
+            1 if existing["pdf_has_uri_actions"] or pdf_has_uri_actions else 0,
+            merged_classification[0],
+            merged_classification[1],
+            merged_classification[2],
+            merged_classification[3],
+            merged_classification[4],
+            _pick_missing(existing["report_year"], report_year),
+            _pick_missing(existing["report_year_source"], report_year_source),
+            max(existing["extractor_version"], extractor_version),
+            content_sha256,
         ),
     )
 
