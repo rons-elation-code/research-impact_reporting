@@ -307,8 +307,8 @@ def select_classifier_client(
 ) -> Any:
     """Return the classifier client selected by `CLASSIFIER_CLIENT` env var.
 
-    - Unset / empty / "anthropic": `anthropic.Anthropic()` (default).
-    - "codex": `CodexSubscriptionClient()`.
+    - Unset / empty / "codex": `CodexSubscriptionClient()` (default).
+    - "anthropic": `anthropic.Anthropic()`.
     - Anything else: ValueError.
 
     Parameters
@@ -317,16 +317,15 @@ def select_classifier_client(
         Optional override for testing. Defaults to `os.environ`.
     """
     env = env if env is not None else dict(os.environ)
-    backend = (env.get("CLASSIFIER_CLIENT") or "").strip().lower()
-    if backend in ("", "anthropic"):
-        import anthropic  # imported lazily so Codex-only operators
-        # don't need the anthropic package installed.
-        return anthropic.Anthropic()
+    backend = (env.get("CLASSIFIER_CLIENT") or "codex").strip().lower()
     if backend == "codex":
         return CodexSubscriptionClient()
+    if backend == "anthropic":
+        import anthropic
+        return anthropic.Anthropic()
     raise ValueError(
         f"unknown CLASSIFIER_CLIENT={backend!r}; "
-        "expected '' | 'anthropic' | 'codex'"
+        "expected 'codex' | 'anthropic'"
     )
 
 

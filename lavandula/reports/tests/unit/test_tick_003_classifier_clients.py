@@ -269,17 +269,14 @@ def test_ac6_invalid_confidence_range_caught():
 # --- AC7: env-var selection -------------------------------------------
 
 
-def test_ac7_env_unset_returns_anthropic(monkeypatch):
-    from lavandula.reports import classifier_clients
+def test_ac7_env_unset_returns_codex():
+    from lavandula.reports.classifier_clients import (
+        CodexSubscriptionClient,
+        select_classifier_client,
+    )
 
-    # Stub out anthropic import so test works even without the package.
-    import sys
-    fake_anthropic = type("FakeModule", (), {})()
-    fake_anthropic.Anthropic = lambda: "anthropic_instance"
-    monkeypatch.setitem(sys.modules, "anthropic", fake_anthropic)
-
-    client = classifier_clients.select_classifier_client(env={})
-    assert client == "anthropic_instance"
+    client = select_classifier_client(env={})
+    assert isinstance(client, CodexSubscriptionClient)
 
 
 def test_ac7_env_codex_returns_shim():
