@@ -120,7 +120,7 @@ projects:
       review: locard/reviews/0001-nonprofit-seed-list-extraction.md
     dependencies: []
     tags: [crawler, data-acquisition, nonprofit, lavandula-sales]
-    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) added 2026-04-17. TICK-005 (productionize seed enumerator CLI) plan approved 2026-04-20 — builder spawned. TICK-006 (Brave website resolver) plan pending."
+    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) added 2026-04-17. TICK-005 + TICK-006 merged 2026-04-20. TICK-008 (IRS fields from ProPublica) spec+plan approved 2026-04-20 — spawning builder."
 
   - id: "0002"
     title: "Corpus Search Engine (abandoned)"
