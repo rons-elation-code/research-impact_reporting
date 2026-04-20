@@ -261,12 +261,30 @@ def process_org(
         log.warning("robots fetch failed for %s: %s", ein, exc)
 
     def _fetcher(url: str, kind: str) -> tuple[bytes, str]:
-        r = client.get(url, kind=kind, seed_etld1=seed_etld1)
-        db_writer.record_fetch(
-            conn, ein=ein, url_redacted=r.final_url_redacted or redact_url(url),
-            kind=kind, fetch_status=r.status, status_code=r.http_status,
-            elapsed_ms=r.elapsed_ms, notes=sanitize(r.note),
-        )
+        # TICK-002 Fix 2: retry on network_error/server_error for
+        # homepage/subpage/sitemap fetches only. PDF fetches remain
+        # single-shot.
+        import time as _time
+        r = None
+        for attempt in range(config.RETRY_MAX_ATTEMPTS):
+            r = client.get(url, kind=kind, seed_etld1=seed_etld1)
+            db_writer.record_fetch(
+                conn, ein=ein,
+                url_redacted=r.final_url_redacted or redact_url(url),
+                kind=kind, fetch_status=r.status, status_code=r.http_status,
+                elapsed_ms=r.elapsed_ms, notes=sanitize(r.note),
+            )
+            retryable = (
+                kind in config.RETRY_KINDS
+                and r.status in config.RETRY_STATUSES
+            )
+            if not retryable:
+                break
+            if attempt < config.RETRY_MAX_ATTEMPTS - 1:
+                # Backoff from completion of this attempt. Last
+                # attempt skips the sleep (falls through to loop end).
+                backoff_idx = min(attempt, len(config.RETRY_BACKOFF_SEC) - 1)
+                _time.sleep(config.RETRY_BACKOFF_SEC[backoff_idx])
         return (r.body or b""), r.status
 
     candidates = per_org_candidates(

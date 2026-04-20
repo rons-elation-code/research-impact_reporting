@@ -44,7 +44,8 @@ def test_ac5_subpage_expansion_adds_pdfs():
 def test_ac5_subpage_depth_cap():
     """More than MAX_SUBPAGES_PER_ORG subpage links from homepage → extra skipped."""
     from lavandula.reports.discover import per_org_candidates, MAX_SUBPAGES_PER_ORG
-    assert MAX_SUBPAGES_PER_ORG == 5
+    # TICK-002 Fix 3: raised from 5 → 10.
+    assert MAX_SUBPAGES_PER_ORG == 10
 
     subpages_visited = []
     homepage_links = "".join(

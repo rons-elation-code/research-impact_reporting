@@ -50,7 +50,9 @@ MAX_PARSED_LINKS_PER_PAGE = 10_000
 
 # --- Candidate / discovery caps -----------------------------------------
 CANDIDATE_CAP_PER_ORG = 30
-MAX_SUBPAGES_PER_ORG = 5
+# TICK-002 Fix 3: raised from 5 → 10 based on 2026-04-19 run
+# showing orgs with >5 report-anchor candidates truncated.
+MAX_SUBPAGES_PER_ORG = 10
 # TICK-001: When expanding a subpage whose OWN URL/anchor already
 # matched a report pattern, accept any PDF-suffix link inside it
 # (bypassing the strict anchor/path keyword filter). Capped to
@@ -94,6 +96,13 @@ ANCHOR_KEYWORDS = frozenset({
     "our impact",
     "annual",
     "impact",
+    # TICK-002 Fix 5
+    "our work",
+    "what we do",
+    "yearbook",
+    "story report",
+    "community report",
+    "stakeholder report",
 })
 
 PATH_KEYWORDS = frozenset({
@@ -107,7 +116,45 @@ PATH_KEYWORDS = frozenset({
     "/our-impact",
     "/reports",
     "/publications",
+    # TICK-002 Fix 5: expanded for nonprofit URL patterns seen in
+    # the 2026-04-19 run but missed by the original keyword set.
+    "/resources",
+    "/media",
+    "/news-and-insights",
+    "/our-work",
+    "/about/publications",
+    "/press",
+    "/library",
+    "/downloads",
+    "/year-in-review",
 })
+
+# TICK-002 Fix 4: locale prefixes used for i18n path dedup. When
+# a URL's first segment is one of these AND the rest of the path
+# matches a non-localized canonical we've already seen, the
+# localized variant is dropped as a dup.
+LOCALE_PREFIXES = frozenset({
+    "en", "es", "fr", "de", "pt", "it", "nl", "zh", "ja",
+    "ko", "vi", "tl", "ar", "ru", "hi", "pl", "cs", "sv",
+})
+
+# TICK-002 Fix 1: when accepting cross-origin PDFs whose first
+# subdomain label matches the seed's, refuse when the seed's
+# label is too generic (would over-match anything hosted under
+# the same CMS vendor).
+CMS_LABEL_MIN_CHARS = 4
+CMS_LABEL_BLOCKLIST = frozenset({
+    "www", "web", "m", "www2", "en", "app", "api",
+    "cdn", "static", "media", "mail", "smtp",
+})
+
+# TICK-002 Fix 2: network-transient retry policy for
+# homepage/subpage/sitemap fetches only (PDF fetches stay
+# single-shot).
+RETRY_STATUSES = frozenset({"network_error", "server_error"})
+RETRY_KINDS = frozenset({"homepage", "subpage", "sitemap"})
+RETRY_MAX_ATTEMPTS = 3  # 1 initial + 2 retries
+RETRY_BACKOFF_SEC = (2.0, 8.0)
 
 # Named cloud-metadata deny list (IPv4 + IPv6 extras on top of RFC classes).
 CLOUD_METADATA_DENY = frozenset({

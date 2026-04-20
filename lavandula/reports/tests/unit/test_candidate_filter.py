@@ -29,9 +29,12 @@ def test_ac2_anchor_and_path_filter():
         referring_page_url="https://example.org/",
     )
     paths = sorted({c.url.split("example.org", 1)[1] for c in candidates})
+    # TICK-002 Fix 5 added /press to PATH_KEYWORDS, so /press now
+    # matches.
     assert paths == [
         "/about/impact/",
         "/annual-report",
+        "/press",
         "/reports/2024.pdf",
         "/year-in-review-2024.pdf",
     ]

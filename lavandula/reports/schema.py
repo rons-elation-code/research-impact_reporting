@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS reports (
   CHECK (content_type = 'application/pdf'),
   CHECK (discovered_via IN ('sitemap','homepage-link','subpage-link','hosting-platform')),
   CHECK (hosting_platform IS NULL OR hosting_platform IN
-         ('issuu','flipsnack','canva','own-domain')),
+         ('issuu','flipsnack','canva','own-domain','own-cms')),
   CHECK (classification IS NULL OR classification IN
          ('annual','impact','hybrid','other','not_a_report')),
   CHECK (classification_confidence IS NULL OR

@@ -25,6 +25,50 @@ MAX_PARSED_LINKS_PER_PAGE = config.MAX_PARSED_LINKS_PER_PAGE
 MAX_PDFS_PER_REPORT_SUBPAGE = config.MAX_PDFS_PER_REPORT_SUBPAGE
 
 
+def _seed_brand_label(seed_etld1: str) -> str:
+    """Return the seed's first 'meaningful' label.
+
+    Example: seed_etld1='sagehillschool.org' → 'sagehillschool'.
+             seed_etld1='example.co.uk' → 'example'.
+    """
+    return (seed_etld1 or "").split(".", 1)[0].lower()
+
+
+def _host_first_label(host: str) -> str:
+    """Return the host's first label, skipping common prefixes.
+
+    Example: 'sagehillschool.myschoolapp.com' → 'sagehillschool'.
+             'www.sagehillschool.myschoolapp.com' → 'sagehillschool'.
+    """
+    if not host:
+        return ""
+    parts = host.lower().split(".")
+    # Skip leading 'www' if present.
+    while parts and parts[0] in ("www", "www2"):
+        parts = parts[1:]
+    return parts[0] if parts else ""
+
+
+def _is_cms_subdomain_match(host: str, seed_etld1: str) -> bool:
+    """TICK-002 Fix 1: cross-origin host whose first subdomain label
+    matches the seed's brand label (e.g.,
+    sagehillschool.myschoolapp.com for seed sagehillschool.org).
+
+    Rejects when the seed label is too short or in the generic-label
+    blocklist, to prevent over-broad matching (e.g., seed 'www.abc.org'
+    would otherwise match 'abc.anyhost.com').
+    """
+    seed_label = _seed_brand_label(seed_etld1)
+    if len(seed_label) < config.CMS_LABEL_MIN_CHARS:
+        return False
+    if seed_label in config.CMS_LABEL_BLOCKLIST:
+        return False
+    host_label = _host_first_label(host)
+    if len(host_label) < config.CMS_LABEL_MIN_CHARS:
+        return False
+    return host_label == seed_label
+
+
 @dataclass(frozen=True)
 class Candidate:
     url: str
@@ -115,8 +159,20 @@ def _classify_link(
 
     # Non-platform link: must be on-domain AND match anchor/path filter.
     link_etld1 = etld1(host) if host else seed_etld1
-    if host and link_etld1 != seed_etld1:
-        # Cross-origin non-platform link: out of scope.
+    is_cross_origin = bool(host and link_etld1 != seed_etld1)
+
+    # TICK-002 Fix 1: cross-origin PDFs whose first subdomain label
+    # matches the seed's brand label (CMS pattern) are accepted.
+    # Only fires when parent is a report-anchor subpage AND the link
+    # is a PDF — consistent with TICK-001's scoping.
+    is_cms_match = (
+        is_cross_origin
+        and parent_is_report_anchor
+        and _pdf_like(href)
+        and _is_cms_subdomain_match(host, seed_etld1)
+    )
+
+    if is_cross_origin and not is_cms_match:
         return None
 
     anchor_hit = _anchor_matches(anchor)
@@ -126,6 +182,19 @@ def _classify_link(
     pdf_on_report_subpage = parent_is_report_anchor and _pdf_like(href)
     if not (anchor_hit or path_hit or pdf_with_anchor or pdf_on_report_subpage):
         return None
+
+    if is_cms_match:
+        # TICK-002: CMS-subdomain PDF, treated as verified-platform
+        # equivalent since the subdomain label matches the seed's
+        # brand identity.
+        return Candidate(
+            url=href,
+            anchor_text=anchor or "",
+            referring_page_url=referring_page_url,
+            discovered_via=discovered_via,
+            hosting_platform="own-cms",
+            attribution_confidence="platform_verified",
+        )
 
     hosting = "own-domain" if not host or link_etld1 == seed_etld1 else None
     return Candidate(
@@ -162,6 +231,10 @@ def extract_candidates(
     soup = BeautifulSoup(html or "", "lxml")
     candidates: list[Candidate] = []
     seen: set[str] = set()
+    # TICK-002 Fix 4: i18n-dedup seen-set records paths WITH
+    # leading-locale-prefix stripped. If /our-impact/ is seen first,
+    # later /tl/our-impact/ hits the same dedup key and is dropped.
+    seen_delocalized: set[str] = set()
     relaxed_pdf_count = 0
     anchors = soup.find_all("a", href=True, limit=MAX_PARSED_LINKS_PER_PAGE)
     for a in anchors:
@@ -191,11 +264,26 @@ def extract_candidates(
         )
         if c is None:
             continue
-        # Dedup on canonical form.
         canonical = canonicalize_url(c.url)
         if canonical in seen:
             continue
+        # TICK-002 Fix 4: i18n dedup — key by de-localized canonical
+        # so /our-impact/ and /tl/our-impact/ collapse regardless of
+        # encounter order. First occurrence (in document order) wins.
+        parsed_for_dedup = urlsplit(canonical)
+        path_parts = (parsed_for_dedup.path or "").strip("/").split("/")
+        if path_parts and path_parts[0].lower() in config.LOCALE_PREFIXES:
+            delocalized_path = "/" + "/".join(path_parts[1:])
+            delocalized_key = (
+                f"{parsed_for_dedup.scheme}://{parsed_for_dedup.netloc}"
+                f"{delocalized_path}"
+            )
+        else:
+            delocalized_key = canonical
+        if delocalized_key in seen_delocalized:
+            continue
         seen.add(canonical)
+        seen_delocalized.add(delocalized_key)
         candidates.append(c)
         # Track relaxed-rule admissions for the per-subpage cap.
         if (
