@@ -1818,13 +1818,16 @@ BLOCKLIST_HOSTS = frozenset({
 - ALL `.gov` and `.mil` TLDs blocked (AC12): `host.endswith(".gov") or host.endswith(".mil")`
 
 `_validate_url(url: str) -> str | None`:
-Returns canonical `scheme://host` or `None` if invalid. Rules (AC11):
+Returns canonical `scheme://host` (no port, path, query, fragment) or `None` if invalid. Rules (AC11):
 - Parse with `urlsplit()`
 - Scheme must be `http` or `https`
-- Host must contain at least one `.`
-- Host must not contain `xn--` (punycode rejection)
+- `urlsplit().hostname` (lowercase, port-stripped) must contain at least one `.`
+- `urlsplit().hostname` must not contain `xn--` anywhere (punycode rejection)
+- `urlsplit().hostname` must not contain any non-ASCII characters (reject raw Unicode)
 - `urlsplit().username` must be None (no userinfo)
-- Result: `f"{scheme}://{host}"` — no path, query, or fragment
+- Ports are stripped — result is always `f"{scheme}://{hostname}"` (hostname from
+  `urlsplit().hostname`, which strips port and lowercases automatically)
+- Result never includes path, query, or fragment
 
 `_pick_primary(results: list[dict]) -> str | None`:
 - Iterate Brave web results
@@ -1858,22 +1861,33 @@ Response body cap (AC13): truncate `website_candidates_json` to 8,192 bytes
 ### Step 4 — Retry logic (AC6)
 
 One retry with 30s backoff. On both failures: leave `website_url` NULL,
-set `notes = "brave_error:{status_code_or_exception_type}"`, commit, continue.
+set `notes = f"brave_error:{status_code_or_exception_type}"`, commit, continue.
+
+`_search_with_retry` takes `brave_search_fn` as an injectable parameter (default
+`_brave_search`) so unit tests can pass a mock without monkeypatching:
 
 ```python
-def _search_with_retry(query, *, key, log):
+def _search_with_retry(query, *, key, log, brave_search_fn=_brave_search):
+    last_note = "brave_error:unknown"
     for attempt in (1, 2):
         try:
-            return _brave_search(query, key=key)
+            return brave_search_fn(query, key=key), None
         except requests.HTTPError as exc:
-            log.warning("brave_error status=%d attempt=%d", exc.response.status_code, attempt)
+            code = exc.response.status_code if exc.response is not None else "?"
+            last_note = f"brave_error:{code}"
+            log.warning("brave_error status=%s attempt=%d", code, attempt)
             if attempt == 1:
                 time.sleep(30)
         except Exception as exc:
+            last_note = f"brave_error:{type(exc).__name__}"
             log.warning("brave_error type=%s attempt=%d", type(exc).__name__, attempt)
             if attempt == 1:
                 time.sleep(30)
-    return None  # both attempts failed
+    return None, last_note  # both attempts failed; note carries specific error
+```
+
+Return value is `(response_or_None, error_note_or_None)` — the note is used
+verbatim as the `notes` column value on failure.
 ```
 
 ---
@@ -1893,22 +1907,26 @@ def resolve_batch(conn, *, key, limit, min_sleep, dry_run, log):
                 else f'"{name}" nonprofit official website'
 
         t0 = time.monotonic()
-        response = _search_with_retry(query, key=key, log=log)
+        response, error_note = _search_with_retry(query, key=key, log=log)
         elapsed = time.monotonic() - t0
 
         if response is None:
-            notes = "brave_error"
+            notes = error_note  # e.g. "brave_error:429"
             chosen = None
         else:
             results = (response.get("web") or {}).get("results") or []
             chosen = _pick_primary(results)
             notes = None if chosen else "no-non-blocklist-result"
 
+        # Truncation may produce invalid JSON — this column is audit-only;
+        # no code path reads it programmatically. Document this explicitly.
         candidates_json = json.dumps(response)[:8192] if response else None
 
         log.info("org ein=%s name=%s url=%s", ein, name[:40], chosen)
 
-        if not dry_run:
+        if dry_run:
+            print(f"DRY-RUN ein={ein} url={chosen}")  # stdout for operator inspection
+        else:
             conn.execute(
                 "UPDATE nonprofits_seed SET website_url=?, website_candidates_json=?, notes=?"
                 " WHERE ein=?",
@@ -1948,6 +1966,8 @@ All mocked via dependency injection (pass `key` and a mock `requests.get`):
 16. **test_api_key_startup_failure** — `SecretUnavailable` at startup → `sys.exit(1)` before any DB access
 17. **test_response_body_cap** — `website_candidates_json` never exceeds 8,192 bytes
 18. **test_limit_flag** — `--limit 2` processes at most 2 rows from a 5-row DB
+19. **test_cli_invalid_qps** — `--qps 0` and `--qps -1` each raise `SystemExit(2)`
+20. **test_cli_invalid_limit** — `--limit -1` raises `SystemExit(2)`
 
 ---
 
@@ -2013,7 +2033,7 @@ Verify `requests` is importable in the nonprofits venv before writing code.
 
 ### Definition of done
 
-- All 18 unit tests pass with `pytest lavandula/nonprofits/tests/unit/test_resolve_websites_006.py`
+- All 20 unit tests pass with `pytest lavandula/nonprofits/tests/unit/test_resolve_websites_006.py`
 - `pytest -m live` smoke test passes against real Brave API
 - `python -m lavandula.nonprofits.tools.resolve_websites --help` prints all 4 flags
 - `--dry-run` on a seeded DB prints chosen URLs without modifying any rows
