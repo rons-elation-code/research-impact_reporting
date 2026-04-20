@@ -1689,7 +1689,7 @@ All six are additive nullable columns — safe on existing DBs.
 **Implementation**
 
 `_fetch_org_revenue` currently returns `(revenue, ntee_code)`. Change
-return type to a named dataclass or dict:
+return type to a named dataclass:
 
 ```python
 @dataclass
@@ -1704,38 +1704,75 @@ class OrgDetail:
     accounting_period: int | None
 ```
 
-Extract from the ProPublica response:
+**Failure contract**: `_fetch_org_revenue` returns `None` (not `OrgDetail`) only
+when the ProPublica HTTP call itself fails (non-2xx or network error). The caller
+in `enumerate_new_orgs` already handles `None` by skipping the row. When the API
+call succeeds but individual fields are missing/malformed, the function returns an
+`OrgDetail` with those fields set to `None`.
+
+**Field normalization rules** (applied inside `_fetch_org_revenue`):
+
 ```python
+def _to_int(val) -> int | None:
+    """Return int or None; treats None, '', non-numeric as None."""
+    if val is None or val == "":
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+def _to_str(val) -> str | None:
+    """Return stripped string or None for blank/None."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
+
 org = d.get("organization") or {}
 detail = OrgDetail(
     revenue=int(filings[0]["totrevenue"]) if filings else None,
-    ntee_code=(org.get("ntee_code") or None),
-    subsection_code=org.get("subsection_code"),
-    activity_codes=org.get("activity_codes"),
-    classification_codes=org.get("classification_codes"),
-    foundation_code=org.get("foundation_code"),
-    ruling_date=org.get("ruling_date"),
-    accounting_period=org.get("accounting_period"),
+    ntee_code=_to_str(org.get("ntee_code")),
+    subsection_code=_to_int(org.get("subsection_code")),
+    activity_codes=_to_str(org.get("activity_codes")),
+    classification_codes=_to_str(org.get("classification_codes")),
+    foundation_code=_to_int(org.get("foundation_code")),
+    ruling_date=_to_str(org.get("ruling_date")),  # stored verbatim, not validated
+    accounting_period=_to_int(org.get("accounting_period")),
 )
 ```
 
-Truncate string fields to 50 chars before DB insert.
+No string truncation — columns are unbounded `TEXT`; store values as-is.
+
+**Insert semantics**: `enumerate_new_orgs` uses `INSERT OR IGNORE`. Existing EIN
+rows are not updated — the new columns stay NULL for rows inserted before TICK-008.
+Back-filling is explicitly out of scope.
+
+**Security**: All DB writes use parameterized SQL (`?` placeholders). Externally
+sourced strings are stored as data only — never interpolated into SQL or emitted
+to logs unescaped.
 
 **Acceptance Criteria**
 
 AC1 — Six new columns exist in `nonprofits_seed` after `ensure_db()` on a fresh DB.
 
 AC2 — Migrations are idempotent: calling `_apply_migrations` twice raises no error.
+(Test: call `_apply_migrations` on a DB that already has all six columns; no
+`OperationalError`.)
 
 AC3 — After enumeration, rows have non-NULL `accounting_period` for orgs whose
 ProPublica record includes it (unit test: mock returns `accounting_period=6`,
 assert stored value is `6`).
 
-AC4 — `_fetch_org_revenue` returning None still works (missing fields stay NULL,
-no crash).
+AC4 — When `_fetch_org_revenue` returns `None` (API failure), `enumerate_new_orgs`
+stores NULL for all new columns without raising an exception.
 
 AC5 — Existing TICK-005 unit tests all still pass unchanged.
 
+AC6 — Malformed/blank upstream values are handled safely: unit test with mock
+returning `subsection_code=""`, `activity_codes=None`, `foundation_code="bad"`
+asserts those fields stored as NULL with no crash or exception.
+
 **Implementation Sizing**
 
-~30 LoC prod changes + ~20 LoC new/updated tests. No new dependencies.
+~35 LoC prod changes + ~25 LoC new/updated tests. No new dependencies.
