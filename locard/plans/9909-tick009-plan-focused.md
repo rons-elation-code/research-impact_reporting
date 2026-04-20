@@ -85,8 +85,9 @@ left the validation block.
 Remove the process-global alarm approach entirely.
 
 Use one of these contained approaches:
-- preferred: run structure validation in a short-lived subprocess with an
-  explicit wall-clock timeout,
+- preferred: run structure validation in an isolated subprocess with an
+  explicit wall-clock timeout, ideally via a small persistent process pool
+  so we keep isolation without paying one process-spawn per PDF,
 - acceptable: use a worker thread or executor with timeout only if the
   parser work is fully isolated and the timeout cannot interrupt unrelated
   code paths.
@@ -175,6 +176,10 @@ For each Brave result, compute a confidence score from:
 - penalty for generic donation/profile/gift-plan subdomains,
 - penalty for deep-path-only matches on large institutional hosts,
 - bonus for same-brand hostname match.
+
+Store the scoring weights in configuration rather than hardcoding them in
+resolver logic so they can be tuned during measured batch rollouts without
+rewriting the matching function.
 
 #### 3.3 Persist resolver metadata
 
@@ -266,6 +271,9 @@ Add `report_sources` table:
 - one row per `(content_sha256, source_org_ein, source_url_redacted, discovered_via)`
 - keep `reports` as canonical PDF blob/metadata row
 - maintain best attribution on `reports` while preserving alternate discoveries
+- if curated/public views read attribution from `reports`, ensure the best
+  available attribution metadata is synchronized back onto the canonical row
+  whenever `report_sources` is updated
 
 #### Option B — acceptable short-term
 
@@ -331,7 +339,7 @@ These can be emitted in the existing report generator or a new batch-quality rep
 - Store `resolver_*` fields on write.
 
 ### `lavandula/reports/config.py`
-- Add resolver thresholds and optional denylist constants if not kept local to resolver.
+- Add resolver thresholds, denylist constants, and scoring weights if not kept local to resolver.
 
 ## Test plan
 
@@ -423,4 +431,3 @@ Use small commits in this order:
 3. `[Spec 0001][Phase: resolver] fix: block directory domains and score candidates`
 4. `[Spec 0004][Phase: schema] fix: tighten curated corpus gating`
 5. `[Spec 0004][Phase: storage] feat: improve duplicate provenance handling`
-
