@@ -84,13 +84,14 @@ left the validation block.
 
 Remove the process-global alarm approach entirely.
 
-Use one of these contained approaches:
-- preferred: run structure validation in an isolated subprocess with an
+Use subprocess isolation as a hard requirement:
+- mandatory: run structure validation in an isolated subprocess with an
   explicit wall-clock timeout, ideally via a small persistent process pool
-  so we keep isolation without paying one process-spawn per PDF,
-- acceptable: use a worker thread or executor with timeout only if the
-  parser work is fully isolated and the timeout cannot interrupt unrelated
-  code paths.
+  so we keep isolation without paying one process-spawn per PDF.
+
+Worker-thread timeout is explicitly out of bounds for this TICK because a
+malicious PDF can trigger parser-level hangs or infinite loops that threads
+cannot safely terminate.
 
 ### Implementation notes
 
@@ -99,6 +100,8 @@ Use one of these contained approaches:
   - malformed/timeout PDF -> `(False, reason)`
 - Keep the pre-sandbox structural check lightweight.
 - Do not allow validation timeout to abort the org crawl.
+- Cap subprocess CPU / wall time and ensure the parent can always kill and
+  reap a stuck validator worker.
 
 ### Acceptance criteria
 
@@ -128,6 +131,12 @@ If schema expansion is undesirable, encode extraction status in `fetch_log.notes
 using `kind='classify'` only after classification starts, and add a new
 `kind='extract'` enum if schema amendment is acceptable. Preferred is a new
 `extract` kind for operational clarity.
+
+Sanitization must explicitly strip or neutralize:
+- newlines,
+- carriage returns,
+- terminal escape sequences,
+- and any other control characters that can forge or corrupt logs.
 
 ### Acceptance criteria
 
@@ -164,6 +173,9 @@ observed in the TX run:
 - `app.milliegiving.com`
 - similar profile/listing hosts discovered during test updates
 
+Also reject common URL shorteners and generic redirector domains so a search
+result cannot hide a blocked final destination behind an intermediate host.
+
 #### 3.2 Score candidates instead of first-hit select
 
 For each Brave result, compute a confidence score from:
@@ -180,6 +192,11 @@ For each Brave result, compute a confidence score from:
 Store the scoring weights in configuration rather than hardcoding them in
 resolver logic so they can be tuned during measured batch rollouts without
 rewriting the matching function.
+
+Configuration-loaded weights must be validated on startup:
+- finite numeric values only,
+- bounded range,
+- and total weight normalization enforced if the scoring function depends on it.
 
 #### 3.3 Persist resolver metadata
 
@@ -283,6 +300,13 @@ selected fields only when the new evidence is strictly better, e.g.:
 - classified beats unclassified
 - populated metadata beats NULL
 
+Define "better evidence" with a strict trust hierarchy so lower-trust sources
+can never poison higher-trust rows. At minimum:
+- `own_domain` and `platform_verified` must outrank `platform_unverified`
+- equal-trust updates may fill NULL metadata fields
+- lower-trust updates may append alternate source evidence but must not replace
+  canonical attribution on `reports`
+
 ### Acceptance criteria
 
 - Rediscovering the same PDF with better evidence improves stored provenance.
@@ -331,6 +355,8 @@ These can be emitted in the existing report generator or a new batch-quality rep
 ### `lavandula/reports/db_writer.py`
 - Replace `INSERT OR IGNORE` with evidence-aware conflict handling.
 - Support alternate source preservation if `report_sources` is added.
+- Enforce trust-tier rules in one place so provenance updates cannot silently
+  downgrade canonical attribution.
 
 ### `lavandula/nonprofits/tools/resolve_websites.py`
 - Add denylist entries.
@@ -348,6 +374,7 @@ These can be emitted in the existing report generator or a new batch-quality rep
 1. `test_pdf_structure_timeout_does_not_leak`
    - Simulate a timed-out validation.
    - Assert no unrelated crawler code path receives the timeout exception.
+   - Assert the validator runs in a subprocess, not a thread.
 
 2. `test_extract_failure_logged`
    - Force PDF parse failure after archive write.
@@ -371,6 +398,18 @@ These can be emitted in the existing report generator or a new batch-quality rep
 7. `test_duplicate_pdf_better_evidence_updates_or_preserves_source`
    - Insert weak evidence first, then stronger evidence.
    - Assert stored provenance improves or alternate source is captured.
+
+8. `test_lower_trust_duplicate_cannot_overwrite_higher_trust_source`
+   - Insert `own_domain` or `platform_verified` first, then a weaker source.
+   - Assert canonical attribution is unchanged.
+
+9. `test_extraction_failure_reason_is_log_safe`
+   - Force an extraction error containing control characters.
+   - Assert stored/logged reason is sanitized and single-line.
+
+10. `test_resolver_rejects_shorteners_and_redirectors`
+   - Brave results include `bit.ly` or equivalent redirector hosts.
+   - Assert they are rejected before scoring.
 
 ### Regression suites to rerun
 
