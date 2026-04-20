@@ -29,10 +29,11 @@ from .candidate_filter import (
     Candidate,
     _anchor_matches,
     _path_matches,
+    classify_sitemap_url,
     extract_candidates,
 )
 from .redirect_policy import etld1
-from .robots import can_fetch as robots_can_fetch
+from .robots import can_fetch as robots_can_fetch, sitemap_urls_from_robots
 from .url_redact import canonicalize_url
 
 MAX_SUBPAGES_PER_ORG = config.MAX_SUBPAGES_PER_ORG
@@ -81,10 +82,79 @@ def per_org_candidates(
     def _allowed(path: str) -> bool:
         return robots_can_fetch(robots_text, path, user_agent=ua)
 
+    # --- TICK-004: sitemap discovery phase (BEFORE homepage) -----
+    # AC2: try each robots Sitemap: directive. AC3: fallback to
+    # /sitemap.xml only when robots has zero directives.
+    # AC4-5: individual failures don't halt the org's crawl.
+    def _sitemap_fetcher(url: str) -> bytes | None:
+        s_parsed = urlsplit(url)
+        # AC3: robots disallow on the sitemap path itself → skip.
+        if etld1(s_parsed.hostname or "") == seed_etld1:
+            if not _allowed(s_parsed.path or "/"):
+                return None
+        body, status = fetcher(url, "sitemap")
+        if status != "ok" or not body:
+            return None
+        return body
+
+    robots_sitemap_urls = sitemap_urls_from_robots(robots_text)
+    if robots_sitemap_urls:
+        sitemap_index_urls = robots_sitemap_urls
+    else:
+        sitemap_index_urls = [home_base.rstrip("/") + "/sitemap.xml"]
+
+    # Import locally to avoid circular import at module load.
+    from . import sitemap as _sitemap_mod
+
+    def _parse_sitemap_any(url: str) -> list[str]:
+        """Handle both sitemap-index and top-level urlset formats.
+        Many small sites publish a single sitemap.xml that IS a urlset.
+        """
+        body = _sitemap_fetcher(url)
+        if not body:
+            return []
+        try:
+            # Try as index first; if no children, try as urlset.
+            idx_urls = _sitemap_mod.parse_sitemap_index_recursive(
+                url, fetcher=_sitemap_fetcher
+            )
+            if idx_urls:
+                return idx_urls
+            # Fallback: parse as top-level urlset.
+            return _sitemap_mod.parse_sitemap(body)
+        except Exception as exc:  # noqa: BLE001
+            _log.info("discover: sitemap parse failed for %s: %s", url, exc)
+            return []
+
+    sitemap_urls: list[str] = []
+    for idx_url in sitemap_index_urls:
+        sitemap_urls.extend(_parse_sitemap_any(idx_url))
+
+    cap_reached = False
+    for s_url in sitemap_urls:
+        canonical = canonicalize_url(s_url)
+        parsed = urlsplit(canonical)
+        # Robots gate AFTER canonicalization (AC7-8).
+        if etld1(parsed.hostname or "") == seed_etld1:
+            if not _allowed(parsed.path or "/"):
+                continue
+        c = classify_sitemap_url(
+            url=canonical,
+            seed_etld1=seed_etld1,
+            referring_page_url=home_base,
+        )
+        if c is None:
+            continue
+        if _remember(c):
+            cap_reached = True
+            break
+
     # --- homepage -----
+    if cap_reached:
+        return candidates
     if not _allowed("/"):
         _log.info("discover: robots disallows / for %s", home_base)
-        return []
+        return candidates  # AC4: still return any sitemap-derived candidates.
 
     home_body, home_status = fetcher(home_base, "homepage")
     if home_status == "ok" and home_body:

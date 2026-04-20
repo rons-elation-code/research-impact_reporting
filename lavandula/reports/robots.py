@@ -127,6 +127,30 @@ def _ua_matches(stanza_agent: str, my_ua: str) -> bool:
     return s.lower() in my_ua.lower()
 
 
+def sitemap_urls_from_robots(robots_text: str) -> list[str]:
+    """Extract `Sitemap: <url>` directives from robots.txt.
+
+    TICK-004 AC2: ALL directives are returned in order, so the caller
+    can attempt each one (failures are individual, not fatal).
+    Case-insensitive key match per RFC 9309. Blank/comment lines
+    ignored. Returns [] if no Sitemap: directives present.
+    """
+    urls: list[str] = []
+    for raw_line in (robots_text or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        if key.strip().lower() != "sitemap":
+            continue
+        url = value.strip()
+        if url:
+            urls.append(url)
+    return urls
+
+
 def can_fetch(
     robots_text: str,
     path: str,

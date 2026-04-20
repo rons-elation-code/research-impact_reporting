@@ -56,6 +56,11 @@ def test_ac5_subpage_depth_cap():
     def fake_fetch(url, kind):
         if url.rstrip("/") == "https://example.org":
             return homepage.encode(), "ok"
+        if kind == "sitemap":
+            # TICK-004: sitemap fetch now runs before homepage; return
+            # 404-ish so sitemap phase contributes nothing and we
+            # isolate the subpage cap behavior under test.
+            return b"", "not_found"
         subpages_visited.append(url)
         return b"<html></html>", "ok"
 

@@ -49,6 +49,39 @@ def _host_first_label(host: str) -> str:
     return parts[0] if parts else ""
 
 
+# TICK-004 AC9: anti-noise patterns to reject from sitemap-derived
+# candidates BEFORE keyword matching. CMS-generated sitemaps
+# (especially WordPress news blogs) can list thousands of URLs;
+# without this filter they'd flood the candidate pool with weak
+# matches and reduce recall on actual reports via the per-org cap.
+_SITEMAP_NOISE_SUFFIXES = (
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
+    ".mp4", ".mp3", ".zip", ".css", ".js",
+)
+_SITEMAP_NOISE_PATH_PATTERNS = (
+    "/feed/", "/feed.xml", "/rss", "/atom.xml",
+    "/category/", "/tag/", "/author/",
+    "/wp-json/", "/xmlrpc.php",
+)
+import re as _re
+_SITEMAP_ARCHIVE_RE = _re.compile(r"(/page/\d+/?|/\d{4}/\d{2}/?)$")
+
+
+def _is_sitemap_noise(url: str) -> bool:
+    """TICK-004 AC9: return True if URL should be dropped from
+    sitemap-derived candidate pool before further classification."""
+    path_lower = (urlsplit(url).path or "").lower()
+    for suffix in _SITEMAP_NOISE_SUFFIXES:
+        if path_lower.endswith(suffix):
+            return True
+    for pattern in _SITEMAP_NOISE_PATH_PATTERNS:
+        if pattern in path_lower:
+            return True
+    if _SITEMAP_ARCHIVE_RE.search(path_lower):
+        return True
+    return False
+
+
 def _is_cms_subdomain_match(host: str, seed_etld1: str) -> bool:
     """TICK-002 Fix 1: cross-origin host whose first subdomain label
     matches the seed's brand label (e.g.,
@@ -299,9 +332,82 @@ def extract_candidates(
     return candidates
 
 
+def classify_sitemap_url(
+    *,
+    url: str,
+    seed_etld1: str,
+    referring_page_url: str,
+) -> Candidate | None:
+    """TICK-004: classify a URL discovered via sitemap.xml.
+
+    Applies the AC10 cross-origin decision table + AC9 anti-noise
+    filter + URL-path/PDF-suffix keyword match (no anchor text
+    exists in sitemap-derived discovery).
+    """
+    # Anti-noise rejection comes BEFORE anything else (AC9).
+    if _is_sitemap_noise(url):
+        return None
+
+    parsed = urlsplit(url)
+    host = parsed.hostname or ""
+    if not host:
+        return None
+
+    platform = _platform_for(host)
+    # Platform allowlist: sitemap-only discovery → platform_unverified
+    # per AC12.3 (the sitemap is not a homepage-anchor, so we can't
+    # verify the linking-org owns the platform content). Platforms
+    # are content-hosts; their own path structure IS the filter
+    # signal (issuu.com/X/docs/Y, canva.com/design/Z), so no
+    # additional keyword match required — mirrors homepage classify.
+    if platform is not None:
+        return Candidate(
+            url=url,
+            anchor_text="",
+            referring_page_url=referring_page_url,
+            discovered_via="sitemap",
+            hosting_platform=platform,
+            attribution_confidence="platform_unverified",
+        )
+
+    link_etld1 = etld1(host) if host else seed_etld1
+    is_cross_origin = bool(host and link_etld1 != seed_etld1)
+
+    # CMS-subdomain match (TICK-002 Fix 1), but for sitemap context
+    # we only enforce the label-match if the URL is a PDF — non-PDF
+    # pages on a CMS subdomain that happens to match the seed's
+    # brand are still out of scope for sitemap-only discovery.
+    if is_cross_origin:
+        if _pdf_like(url) and _is_cms_subdomain_match(host, seed_etld1):
+            return Candidate(
+                url=url,
+                anchor_text="",
+                referring_page_url=referring_page_url,
+                discovered_via="sitemap",
+                hosting_platform="own-cms",
+                attribution_confidence="platform_verified",
+            )
+        # Any other cross-origin host → drop (AC10).
+        return None
+
+    # Same-eTLD+1 non-platform URL: accept if PDF or path keyword matches.
+    if not (_pdf_like(url) or _path_matches(parsed.path)):
+        return None
+
+    return Candidate(
+        url=url,
+        anchor_text="",
+        referring_page_url=referring_page_url,
+        discovered_via="sitemap",
+        hosting_platform="own-domain",
+        attribution_confidence="own_domain",
+    )
+
+
 __all__ = [
     "Candidate",
     "extract_candidates",
+    "classify_sitemap_url",
     "CANDIDATE_CAP_PER_ORG",
     "MAX_PARSED_LINKS_PER_PAGE",
 ]
