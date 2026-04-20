@@ -130,6 +130,14 @@ def per_org_candidates(
     for idx_url in sitemap_index_urls:
         sitemap_urls.extend(_parse_sitemap_any(idx_url))
 
+    # TICK-007: sitemap URLs that are HTML report-anchor pages need
+    # the same subpage-expansion treatment that homepage-derived
+    # candidates get — otherwise a site whose sitemap lists
+    # /annual-report/ (HTML landing page) but NOT the /wp-content/
+    # uploads/*.pdf inside it will never surface the PDF. Collected
+    # here and fed into the shared subpages_to_walk below.
+    sitemap_subpages_to_walk: list[Candidate] = []
+
     for s_url in sitemap_urls:
         canonical = canonicalize_url(s_url)
         parsed = urlsplit(canonical)
@@ -144,19 +152,24 @@ def per_org_candidates(
         )
         if c is None:
             continue
-        # `_remember` is idempotent: if the cap is hit, subsequent
-        # calls return True but do NOT mutate the candidates list.
-        # We don't early-return here — homepage phase ALWAYS runs
-        # (per AC12: "homepage version wins for anchor-text provenance
-        # when same URL in both sources"). If the cap is hit, further
-        # additions are no-ops; homepage still gets to contribute
-        # anchor-text metadata to any already-seen URLs via dedup.
         _remember(c)
+        # TICK-007: if this sitemap URL is a same-domain HTML page
+        # whose path matched a report keyword, queue it for subpage
+        # expansion so TICK-001's relaxed PDF filter can fire on its
+        # children. PDFs in the sitemap itself don't need expansion.
+        if not canonical.lower().endswith(".pdf"):
+            if c.hosting_platform == "own-domain":
+                sitemap_subpages_to_walk.append(c)
 
     # --- homepage -----
     if not _allowed("/"):
         _log.info("discover: robots disallows / for %s", home_base)
         return candidates  # AC4: still return any sitemap-derived candidates.
+
+    # TICK-007: start with sitemap-derived HTML report-anchor URLs so
+    # subpage expansion runs even when homepage fetch fails (e.g.,
+    # WAF-gated — the JCCSF pattern).
+    subpages_to_walk: list[Candidate] = list(sitemap_subpages_to_walk)
 
     home_body, home_status = fetcher(home_base, "homepage")
     if home_status == "ok" and home_body:
@@ -167,7 +180,6 @@ def per_org_candidates(
             referring_page_url=home_base,
             discovered_via="homepage-link",
         )
-        subpages_to_walk: list[Candidate] = []
         for c in page_candidates:
             # robots gate on on-domain URLs.
             parsed = urlsplit(c.url)
@@ -179,7 +191,8 @@ def per_org_candidates(
             if _is_html_subpage_candidate(c):
                 subpages_to_walk.append(c)
 
-        # --- one-hop subpages -----
+    # --- one-hop subpages (runs regardless of homepage outcome) -----
+    if subpages_to_walk:
         for sub in subpages_to_walk[:MAX_SUBPAGES_PER_ORG]:
             sub_parsed = urlsplit(sub.url)
             if etld1(sub_parsed.hostname or "") != seed_etld1:
