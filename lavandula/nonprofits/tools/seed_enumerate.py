@@ -24,9 +24,38 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class OrgDetail:
+    revenue: int | None
+    ntee_code: str | None
+    subsection_code: int | None
+    activity_codes: str | None
+    classification_codes: str | None
+    foundation_code: int | None
+    ruling_date: str | None
+    accounting_period: int | None
+
+
+def _to_int(val) -> int | None:
+    if val is None or val == "":
+        return None
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_str(val) -> str | None:
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
 
 # ── defaults ──────────────────────────────────────────────────────────────────
 DEFAULT_STATES = ("CA", "NY", "MA", "WA", "OR", "CT", "NJ", "MD", "RI")
@@ -104,6 +133,16 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
     existing_seed = {row[1] for row in conn.execute("PRAGMA table_info(nonprofits_seed)")}
     if "notes" not in existing_seed:
         conn.execute("ALTER TABLE nonprofits_seed ADD COLUMN notes TEXT DEFAULT NULL")
+    for col, typedef in [
+        ("subsection_code", "INTEGER DEFAULT NULL"),
+        ("activity_codes", "TEXT DEFAULT NULL"),
+        ("classification_codes", "TEXT DEFAULT NULL"),
+        ("foundation_code", "INTEGER DEFAULT NULL"),
+        ("ruling_date", "TEXT DEFAULT NULL"),
+        ("accounting_period", "INTEGER DEFAULT NULL"),
+    ]:
+        if col not in existing_seed:
+            conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
     conn.commit()
 
 
@@ -255,21 +294,26 @@ def _fetch_with_retry(url: str, *, fail_counter: dict[str, int]) -> dict:
 
 def _fetch_org_revenue(
     ein: str, *, fail_counter: dict[str, int]
-) -> tuple[int | None, str | None]:
-    """Return (totrevenue, ntee_code) from most recent 990, or (None, None) on skip."""
+) -> OrgDetail | None:
+    """Return OrgDetail from most recent 990, or None on HTTP/network failure."""
     url = PROPUBLICA_ORG.format(ein=ein)
     try:
         d = _fetch_with_retry(url, fail_counter=fail_counter)
     except (_SkipPage, _SkipPair):
-        return None, None
+        return None
     # _RateLimited and _InfraError propagate to the caller
-    filings = d.get("filings_with_data") or []
-    if not filings:
-        return None, None
-    rev = filings[0].get("totrevenue")
     org = d.get("organization") or {}
-    ntee = org.get("ntee_code")
-    return (int(rev) if rev is not None else None), ntee
+    filings = d.get("filings_with_data") or []
+    return OrgDetail(
+        revenue=_to_int(filings[0]["totrevenue"]) if filings else None,
+        ntee_code=_to_str(org.get("ntee_code")),
+        subsection_code=_to_int(org.get("subsection_code")),
+        activity_codes=_to_str(org.get("activity_codes")),
+        classification_codes=_to_str(org.get("classification_codes")),
+        foundation_code=_to_int(org.get("foundation_code")),
+        ruling_date=_to_str(org.get("ruling_date")),
+        accounting_period=_to_int(org.get("accounting_period")),
+    )
 
 
 # ── Step 3: filter mismatch guard ─────────────────────────────────────────────
@@ -405,34 +449,43 @@ def enumerate_new_orgs(
                         continue
                     # Revenue filter via per-org endpoint
                     try:
-                        rev, full_ntee = _fetch_org_revenue(ein, fail_counter=fail_counter)
+                        detail = _fetch_org_revenue(ein, fail_counter=fail_counter)
                     except _RateLimited:
                         _finish_run(conn, run_id, found, "rate_limited", 0)
                     except _InfraError:
                         _finish_run(conn, run_id, found, "infra_error", 1)
                     time.sleep(SLEEP_BETWEEN_CALLS)
-                    if rev is None or rev < rev_min or rev > rev_max:
+                    if detail is None or detail.revenue is None \
+                            or detail.revenue < rev_min or detail.revenue > rev_max:
                         continue
                     # Step 6: input validation / truncation
                     name: str = (o.get("name") or "")[:200]
                     city: str | None = (o.get("city") or None)
                     if city:
                         city = city[:200]
-                    ntee_code: str | None = (full_ntee or o.get("ntee_code") or None)
+                    ntee_code: str | None = (detail.ntee_code or o.get("ntee_code") or None)
                     if ntee_code:
                         ntee_code = ntee_code[:6]
                     conn.execute(
                         "INSERT OR IGNORE INTO nonprofits_seed"
                         " (ein, name, city, state, ntee_code, revenue,"
+                        "  subsection_code, activity_codes, classification_codes,"
+                        "  foundation_code, ruling_date, accounting_period,"
                         "  website_url, website_candidates_json, discovered_at, run_id)"
-                        " VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
+                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
                         (
                             ein,
                             name,
                             city,
                             o.get("state") or state,
                             ntee_code,
-                            rev,
+                            detail.revenue,
+                            detail.subsection_code,
+                            detail.activity_codes,
+                            detail.classification_codes,
+                            detail.foundation_code,
+                            detail.ruling_date,
+                            detail.accounting_period,
                             iso_now(),
                             run_id,
                         ),
