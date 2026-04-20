@@ -1,0 +1,74 @@
+{
+  "post": {
+    "id": 22726,
+    "date": "2018-10-19T17:40:40",
+    "date_gmt": "2018-10-19T17:40:40",
+    "modified": "2018-10-19T17:42:19",
+    "modified_gmt": "2018-10-19T17:42:19",
+    "slug": "how-your-nonprofit-can-tap-into-the-power-of-app-and-web-based-push-notifications",
+    "link": "https://www.nptechforgood.com/2018/10/19/how-your-nonprofit-can-tap-into-the-power-of-app-and-web-based-push-notifications/",
+    "title": {
+      "rendered": "How Your Nonprofit Can Tap Into the Power of App and Web-based Push Notifications"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: center;\"><a href=\"https://learndojo.org/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22739\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits.jpg?resize=600%2C300\" alt=\"\" width=\"600\" height=\"300\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits.jpg?resize=300%2C150&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>By\u00a0Sajan Devshi from <u><a href=\"https://learndojo.org\"><strong>Learndojo</strong></a></u>, a nonprofit educational website that specializes in providing free A-level and GCSE resources to students, teachers, and parents.</p>\n<hr />\n<p>Push notifications were first introduced by Apple in 2009, yet most nonprofits are still not utilizing push notifications as part of their online marketing and fundraising strategy. So, let\u2019s explore the concept and look at how your nonprofit can easily begin to tap into the power of push notifications.</p>\n<h2><strong>What are Push Notifications?</strong></h2>\n<p>Before we get started, let\u2019s clarify what push notifications actually are. You can classify push notifications generally into two categories:\u00a0<strong>app-based push notifications</strong> and <strong>web-based\u00a0push notifications.</strong></p>\n<p>App-based push notifications send users a notification from an installed application, most commonly on a mobile device. Here&#8217;s an example of how Facebook, Gmail, and other apps use push notifications on a mobile phone:</p>\n<p style=\"text-align: center;\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22728\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/App-based-push-notifications-2.png?resize=600%2C427\" alt=\"\" width=\"600\" height=\"427\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/App-based-push-notifications-2.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/App-based-push-notifications-2.png?resize=300%2C214&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></p>\n<p>Push notifications can be automated from the app itself, like when someone comments on your pictures in Facebook, or sent intentionally by app developers.</p>\n<p>Web-based push notifications function differently in that when a visitor lands on your nonprofit&#8217;s website and push notifications are enabled, after a one-time opt-in, your nonprofit can send push notifications to your website visitors:</p>\n<p style=\"text-align: center;\"><a href=\"https://learndojo.org/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22745\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Web-notifications.png?resize=600%2C230\" alt=\"\" width=\"600\" height=\"230\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Web-notifications.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Web-notifications.png?resize=300%2C115&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<h2>How to Get Your Nonprofit Started with Push Notifications</h2>\n<p><a href=\"https://onesignal.com/\"><strong>OneSignal</strong></a> is a free service that enables users to set up app and web-based push notifications. To begin, create an account and\u00a0\u201cAdd a new app\u201d from your dashboard:</p>\n<p style=\"text-align: center;\"><a href=\"https://onesignal.com/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22731\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Add-new-app.png?resize=600%2C373\" alt=\"\" width=\"600\" height=\"373\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Add-new-app.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Add-new-app.png?resize=300%2C187&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>Next, select what type of push notification you wish to add. In this case, we want to setup web push notifications:</p>\n<p style=\"text-align: center;\"><a href=\"https://onesignal.com/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22733\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/set-up-web-app.png?resize=600%2C374\" alt=\"\" width=\"600\" height=\"374\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/set-up-web-app.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/set-up-web-app.png?resize=300%2C187&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>Then, select the type of website you are running, such as WordPress or a custom-coded site:</p>\n<p style=\"text-align: center;\"><a href=\"https://onesignal.com/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22746\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Final-Step.png?resize=600%2C359\" alt=\"\" width=\"600\" height=\"359\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Final-Step.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Final-Step.png?resize=300%2C180&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>The total setup time is about 25 minutes and once completed you can enter custom push notifications directly from the OneSignal dashboard or through the <a href=\"https://wordpress.org/plugins/onesignal-free-web-push-notifications/\"><strong>One Signal WordPress Plugin</strong></a>. Push notifications can range from fundraising asks to breaking news and are an\u00a0extremely powerful addition to your online marketing and fundraising strategy.</p>\n<p>&nbsp;</p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>By\u00a0Sajan Devshi from Learndojo, a nonprofit educational website that specializes in providing free A-level and GCSE resources to students, teachers, and parents. Push notifications were first introduced by Apple in 2009, yet most nonprofits are still not utilizing push notifications as part of their online marketing and fundraising strategy. So, let\u2019s explore the concept and look at how your nonprofit can easily begin to tap into the power of push notifications. What are Push Notifications? Before we get started, let\u2019s clarify what push notifications actually are. You can classify push notifications generally into two categories:\u00a0app-based push notifications and web-based\u00a0push notifications. </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 22750,
+    "categories": [
+      86,
+      16
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 22750,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits-Facebook-2.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits-Facebook-2.jpg",
+      "featured": true,
+      "local_file": "22726-00.jpg"
+    },
+    {
+      "id": 22739,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Push-Notifications-for-Nonprofits.jpg?resize=600%2C300",
+      "local_file": "22726-01.jpg"
+    },
+    {
+      "id": 22728,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/App-based-push-notifications-2.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/App-based-push-notifications-2.png?resize=600%2C427",
+      "local_file": "22726-02.png"
+    },
+    {
+      "id": 22745,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Web-notifications.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Web-notifications.png?resize=600%2C230",
+      "local_file": "22726-03.png"
+    },
+    {
+      "id": 22731,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Add-new-app.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Add-new-app.png?resize=600%2C373",
+      "local_file": "22726-04.png"
+    },
+    {
+      "id": 22733,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/set-up-web-app.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/set-up-web-app.png?resize=600%2C374",
+      "local_file": "22726-05.png"
+    },
+    {
+      "id": 22746,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Final-Step.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/10/Final-Step.png?resize=600%2C359",
+      "local_file": "22726-06.png"
+    }
+  ]
+}

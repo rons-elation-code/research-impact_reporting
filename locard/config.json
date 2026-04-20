@@ -1,0 +1,15 @@
+{
+  "agentFarm": {
+    "requireAuth": false,
+    "requireAuthLocalhost": false,
+    "allowedHosts": [
+      "cloud2.lavandulagroup.com"
+    ]
+  },
+  "server": {
+    "bind": "127.0.0.1"
+  },
+  "permissions": {
+    "bypass": true
+  }
+}

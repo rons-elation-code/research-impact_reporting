@@ -1,0 +1,46 @@
+{
+  "post": {
+    "id": 6285,
+    "date": "2013-04-02T12:00:59",
+    "date_gmt": "2013-04-02T20:30:59",
+    "modified": "2013-06-26T15:24:07",
+    "modified_gmt": "2013-06-26T15:24:07",
+    "slug": "subscribetextalert",
+    "link": "https://www.nptechforgood.com/2013/04/02/subscribetextalert/",
+    "title": {
+      "rendered": "Text NONPROFITORGS to 51555 to Subscribe to Receive Text Alerts from Nonprofit Tech 2.0!"
+    },
+    "content": {
+      "rendered": "<p><strong><a href=\"http://nonprofitorgs.files.wordpress.com/2013/04/textmessaging.jpg\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"alignright size-medium wp-image-12015\" style=\"border: 1px solid black;\" alt=\"textmessaging\" src=\"http://nonprofitorgs.files.wordpress.com/2013/04/textmessaging.jpg?w=300&#038;resize=300%2C228\" width=\"300\" height=\"228\" /></a></strong></p>\n<p>Thanks to <a href=\"http://www.mobilecause.com/\">MobileCause</a>, I have a new text messaging service to explore and experiment with.\u00a0If you are interested in learning about how to utilize text messaging and the Mobile Web for your nonprofit, then please <strong>text NONPROFITORGS to 51555</strong>\u00a0<strong>(<a href=\"http://www.diosacommunications.com/signupmobilealerts.html\" target=\"_blank\">or enter your phone here</a>)</strong> to subscribe to receive text alerts from Nonprofit Tech 2.0.</p>\n<p>Text alerts will be sent 2-3 times monthly and will:</p>\n<ul>\n<li>Promote nonprofits and nonprofit mobile campaigns</li>\n<li>Share resources and best practices on how nonprofits can utilize the Mobile Web</li>\n<li>Feature breaking news relevant to the nonprofit sector</li>\n</ul>\n<p><strong>* Currently only available to U.S. mobile subscribers.\u00a0Message and Data Rates May Apply.\u00a0Simply text STOP to 51555 to unsubscribe at any time.\u00a0Text <b>HELP</b> to 51555 for help. Terms: <a href=\"http://igfn.org/t\" target=\"_blank\">igfn.org/t</a>. Privacy Policy: <a href=\"http://igfn.org/p\" target=\"_blank\">igfn.org/p</a>.<br />\n</strong></p>\n<p><strong>Related Links:</strong><br />\n<a href=\"http://www.diosacommunications.com/services/webinars.htm\">Webinar: Mobile\u00a0Mobile Communications and Mobile Fundraising</a><br />\n<a href=\"http://www.linkedin.com/groups?home=&amp;gid=2024296\">Mobile Technology for Nonprofit Organizations LinkedIn Group</a></p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>Thanks to MobileCause, I have a new text messaging service to explore and experiment with.\u00a0If you are interested in learning about how to utilize text messaging and the Mobile Web for your nonprofit, then please text NONPROFITORGS to 51555\u00a0(or enter your phone here) to subscribe to receive text alerts from Nonprofit Tech 2.0. Text alerts will be sent 2-3 times monthly and will: Promote nonprofits and nonprofit mobile campaigns Share resources and best practices on how nonprofits can utilize the Mobile Web Feature breaking news relevant to the nonprofit sector * Currently only available to U.S. mobile subscribers.\u00a0Message and Data </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 12798,
+    "categories": [
+      16
+    ],
+    "tags": [
+      69,
+      46
+    ]
+  },
+  "image_refs": [
+    {
+      "id": 12798,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2013/04/textmessaging.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2013/04/textmessaging.jpg",
+      "featured": true,
+      "local_file": "6285-00.jpg"
+    },
+    {
+      "id": 12015,
+      "src": "http://nonprofitorgs.files.wordpress.com/2013/04/textmessaging.jpg?w=300&#038;resize=300%2C228",
+      "src_original": "http://nonprofitorgs.files.wordpress.com/2013/04/textmessaging.jpg?w=300&#038;resize=300%2C228",
+      "local_file": "6285-01.jpg"
+    }
+  ]
+}

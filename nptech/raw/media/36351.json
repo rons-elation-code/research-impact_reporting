@@ -1,0 +1,256 @@
+{
+  "id": 36351,
+  "date": "2023-06-24T17:03:11",
+  "date_gmt": "2023-06-24T17:03:11",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners.jpg"
+  },
+  "modified": "2023-06-24T17:03:11",
+  "modified_gmt": "2023-06-24T17:03:11",
+  "slug": "firefly-partners",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2023/06/24/a-guide-to-email-accessibility-best-practices-for-nonprofits/firefly-partners/",
+  "title": {
+    "rendered": "Firefly Partners"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-36351",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-9sj",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"181\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=300%2C181&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=300%2C181&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=768%2C463&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=50%2C30&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 482,
+    "file": "2023/06/Firefly-Partners-e1687626209221.jpg",
+    "filesize": 150793,
+    "sizes": {
+      "medium": {
+        "file": "Firefly-Partners-e1687626209221-300x181.jpg",
+        "width": 300,
+        "height": 181,
+        "filesize": 11684,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=300%2C181&ssl=1"
+      },
+      "large": {
+        "file": "Firefly-Partners-1024x617.jpg",
+        "width": 1024,
+        "height": 617,
+        "filesize": 77117,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=960%2C578&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Firefly-Partners-e1687626209221-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "filesize": 5360,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Firefly-Partners-e1687626209221-768x463.jpg",
+        "width": 768,
+        "height": 463,
+        "filesize": 44644,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=768%2C463&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Firefly-Partners-e1687626209221-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9044,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Firefly-Partners-e1687626209221-50x30.jpg",
+        "width": 50,
+        "height": 30,
+        "filesize": 846,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=50%2C30&ssl=1"
+      },
+      "featured": {
+        "file": "Firefly-Partners-e1687626209221-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9044,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Firefly-Partners-e1687626209221-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1828,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Firefly-Partners-e1687626209221-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "filesize": 18475,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Firefly-Partners-e1687626209221-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9044,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Firefly-Partners-e1687626209221-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 1963,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Firefly-Partners-e1687626209221-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 14143,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Firefly-Partners-e1687626209221-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1828,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Firefly-Partners-e1687626209221-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "filesize": 18712,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Firefly-Partners-e1687626209221-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 1963,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Firefly-Partners-e1687626209221-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 14143,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Firefly-Partners-e1687626209221.jpg?fit=800%2C482&ssl=1",
+        "width": 800,
+        "height": 482,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg?fit=800%2C482&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 36345,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2023/06/Firefly-Partners-e1687626209221.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/36351",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=36351"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 36345,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/36345"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "id": 45353,
+  "date": "2026-01-08T17:25:20",
+  "date_gmt": "2026-01-08T17:25:20",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png"
+  },
+  "modified": "2026-01-08T17:25:20",
+  "modified_gmt": "2026-01-08T17:25:20",
+  "slug": "tech-adoption-curve",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2026/01/09/new-data-reveals-most-nonprofits-arent-using-ai-for-fundraising/tech-adoption-curve/",
+  "title": {
+    "rendered": "Tech Adoption Curve"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-45353",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bNv",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"155\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?fit=300%2C155&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?w=687&amp;ssl=1 687w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=300%2C155&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=50%2C26&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 687,
+    "height": 355,
+    "file": "2026/01/Tech-Adoption-Curve.png",
+    "filesize": 30686,
+    "sizes": {
+      "medium": {
+        "file": "Tech-Adoption-Curve-300x155.png",
+        "width": 300,
+        "height": 155,
+        "filesize": 4311,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?fit=300%2C155&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Tech-Adoption-Curve-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 2979,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Tech-Adoption-Curve-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 4239,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Tech-Adoption-Curve-50x26.png",
+        "width": 50,
+        "height": 26,
+        "filesize": 1236,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?fit=50%2C26&ssl=1"
+      },
+      "featured": {
+        "file": "Tech-Adoption-Curve-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 4239,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Tech-Adoption-Curve-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 1403,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Tech-Adoption-Curve-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 9299,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Tech-Adoption-Curve-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 4239,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Tech-Adoption-Curve-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 1503,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Tech-Adoption-Curve-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 5420,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Tech-Adoption-Curve-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 1403,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Tech-Adoption-Curve-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 9156,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Tech-Adoption-Curve-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 1503,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Tech-Adoption-Curve-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 5420,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Tech-Adoption-Curve.png?fit=687%2C355&ssl=1",
+        "width": 687,
+        "height": 355,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png?fit=687%2C355&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 45325,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2026/01/Tech-Adoption-Curve.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/45353",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=45353"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 45325,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/45325"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

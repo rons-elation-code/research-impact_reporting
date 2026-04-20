@@ -1,0 +1,169 @@
+{
+  "id": 20612,
+  "date": "2016-12-04T15:29:51",
+  "date_gmt": "2016-12-04T15:29:51",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2016/12/Twitter-Donation-55.png"
+  },
+  "modified": "2016-12-04T15:29:51",
+  "modified_gmt": "2016-12-04T15:29:51",
+  "slug": "twitter-donation-55",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2016/12/04/how-twitter-donations-work-what-your-nonprofit-needs-to-know/twitter-donation-55/",
+  "title": {
+    "rendered": "twitter-donation-55"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-20612",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-5ms",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"120\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?fit=300%2C120&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=300%2C120&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 239,
+    "file": "2016/12/Twitter-Donation-55.png",
+    "sizes": {
+      "thumbnail": {
+        "file": "Twitter-Donation-55-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "Twitter-Donation-55-300x120.png",
+        "width": 300,
+        "height": 120,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?fit=300%2C120&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Twitter-Donation-55-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Twitter-Donation-55-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Twitter-Donation-55-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Twitter-Donation-55-600x239.png",
+        "width": 600,
+        "height": 239,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?resize=600%2C239&ssl=1"
+      },
+      "full": {
+        "file": "Twitter-Donation-55.png?fit=600%2C239&ssl=1",
+        "width": 600,
+        "height": 239,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png?fit=600%2C239&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 20570,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2016/12/Twitter-Donation-55.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/20612",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=20612"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 20570,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/20570"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "id": 31880,
+  "date": "2022-01-10T15:27:25",
+  "date_gmt": "2022-01-10T15:27:25",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg"
+  },
+  "modified": "2022-01-10T15:27:25",
+  "modified_gmt": "2022-01-10T15:27:25",
+  "slug": "google-ad-grant-tool-bar-2",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/01/10/the-ultimate-guide-to-google-ad-grants-for-nonprofits-2022-edition/google-ad-grant-tool-bar-2/",
+  "title": {
+    "rendered": "Google Ad Grant Tool Bar 2"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-31880",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8ic",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"6\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?fit=300%2C6&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?w=793&amp;ssl=1 793w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=300%2C6&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=768%2C15&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=50%2C1&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 793,
+    "height": 15,
+    "file": "2022/01/Google-Ad-Grant-Tool-Bar-2.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-300x6.jpg",
+        "width": 300,
+        "height": 6,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?fit=300%2C6&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=150%2C15&ssl=1"
+      },
+      "medium_large": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-768x15.jpg",
+        "width": 768,
+        "height": 15,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?fit=768%2C15&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=200%2C15&ssl=1"
+      },
+      "icon": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-50x1.jpg",
+        "width": 50,
+        "height": 1,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?fit=50%2C1&ssl=1"
+      },
+      "featured": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=200%2C15&ssl=1"
+      },
+      "related": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=75%2C15&ssl=1"
+      },
+      "slider": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=600%2C15&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=200%2C15&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=80%2C15&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=324%2C15&ssl=1"
+      },
+      "splash-related": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=75%2C15&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=610%2C15&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=80%2C15&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Google-Ad-Grant-Tool-Bar-2-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?resize=324%2C15&ssl=1"
+      },
+      "full": {
+        "file": "Google-Ad-Grant-Tool-Bar-2.jpg?fit=793%2C15&ssl=1",
+        "width": 793,
+        "height": 15,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg?fit=793%2C15&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 31875,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/01/Google-Ad-Grant-Tool-Bar-2.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/31880",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=31880"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 31875,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/31875"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

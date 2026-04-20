@@ -1,0 +1,167 @@
+{
+  "id": 15325,
+  "date": "2014-01-10T17:56:30",
+  "date_gmt": "2014-01-10T17:56:30",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png"
+  },
+  "modified": "2014-01-10T17:56:30",
+  "modified_gmt": "2014-01-10T17:56:30",
+  "slug": "why-smart-marketers-think-mobile-first-infographic",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2014/01/12/19-must-see-social-media-and-fundraising-infographics-for-nonprofits/why-smart-marketers-think-mobile-first-infographic/",
+  "title": {
+    "rendered": "why smart marketers think mobile first infographic"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-15325",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3Zb",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"247\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?fit=300%2C247&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=300%2C247&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 494,
+    "file": "2014/01/why-smart-marketers-think-mobile-first-infographic.png",
+    "sizes": {
+      "thumbnail": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-300x247.png",
+        "width": 300,
+        "height": 247,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?fit=300%2C247&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "why-smart-marketers-think-mobile-first-infographic-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "why-smart-marketers-think-mobile-first-infographic.png?fit=600%2C494&ssl=1",
+        "width": 600,
+        "height": 494,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png?fit=600%2C494&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 15214,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2014/01/why-smart-marketers-think-mobile-first-infographic.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/15325",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=15325"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 15214,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/15214"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

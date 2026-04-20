@@ -1,0 +1,225 @@
+{
+  "id": 30476,
+  "date": "2021-08-09T15:42:21",
+  "date_gmt": "2021-08-09T15:42:21",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg"
+  },
+  "modified": "2021-08-09T15:42:21",
+  "modified_gmt": "2021-08-09T15:42:21",
+  "slug": "heather-mansfield-on-linkedin",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/11/23/10-linkedin-best-practices-for-nonprofits/heather-mansfield-on-linkedin/",
+  "title": {
+    "rendered": "Heather Mansfield on LinkedIn"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-30476",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7Vy",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"294\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?fit=294%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?w=536&amp;ssl=1 536w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=294%2C300&amp;ssl=1 294w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=50%2C50&amp;ssl=1 50w\" sizes=\"auto, (max-width: 294px) 100vw, 294px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 536,
+    "height": 547,
+    "file": "2021/08/Heather-Mansfield-on-LinkedIn.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Heather-Mansfield-on-LinkedIn-294x300.jpg",
+        "width": 294,
+        "height": 300,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?fit=294%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Heather-Mansfield-on-LinkedIn-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Heather-Mansfield-on-LinkedIn-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Heather-Mansfield-on-LinkedIn-50x50.jpg",
+        "width": 50,
+        "height": 50,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?fit=50%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Heather-Mansfield-on-LinkedIn-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Heather-Mansfield-on-LinkedIn-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Heather-Mansfield-on-LinkedIn-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=536%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Heather-Mansfield-on-LinkedIn-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Heather-Mansfield-on-LinkedIn-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Heather-Mansfield-on-LinkedIn-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Heather-Mansfield-on-LinkedIn-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Heather-Mansfield-on-LinkedIn-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=536%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Heather-Mansfield-on-LinkedIn-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Heather-Mansfield-on-LinkedIn-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Heather-Mansfield-on-LinkedIn.jpg?fit=536%2C547&ssl=1",
+        "width": 536,
+        "height": 547,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg?fit=536%2C547&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1628498236",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 30349,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/08/Heather-Mansfield-on-LinkedIn.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/30476",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=30476"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 30349,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/30349"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

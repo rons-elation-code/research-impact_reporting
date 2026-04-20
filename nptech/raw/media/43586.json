@@ -1,0 +1,240 @@
+{
+  "id": 43586,
+  "date": "2025-05-14T17:46:50",
+  "date_gmt": "2025-05-14T17:46:50",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/05/RAINN.png"
+  },
+  "modified": "2025-05-14T17:46:50",
+  "modified_gmt": "2025-05-14T17:46:50",
+  "slug": "rainn-2",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/101-best-practices/10-email-marketing-best-practices-for-nonprofits/rainn-2/",
+  "title": {
+    "rendered": "RAINN"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-43586",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bl0",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"228\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?fit=228%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 524,
+    "height": 690,
+    "file": "2025/05/RAINN-e1747258589377.png",
+    "filesize": 255981,
+    "sizes": {
+      "medium": {
+        "file": "RAINN-228x300.png",
+        "width": 228,
+        "height": 300,
+        "filesize": 64801,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?fit=228%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "RAINN-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 25313,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "RAINN-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 41667,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "RAINN-38x50.png",
+        "width": 38,
+        "height": 50,
+        "filesize": 3321,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?fit=38%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "RAINN-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 41667,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "RAINN-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 7696,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "RAINN-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 112751,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=524%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "RAINN-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 41667,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "RAINN-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 8855,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "RAINN-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 59843,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "RAINN-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 7696,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "RAINN-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 117974,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=524%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "RAINN-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 8855,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "RAINN-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 59843,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "RAINN-e1747258589377.png?fit=524%2C690&ssl=1",
+        "width": 524,
+        "height": 690,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png?fit=524%2C690&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 29408,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/05/RAINN-e1747258589377.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/43586",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=43586"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 29408,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/29408"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,256 @@
+{
+  "id": 33703,
+  "date": "2022-08-12T13:46:43",
+  "date_gmt": "2022-08-12T13:46:43",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/08/Lucid-Fox.jpg"
+  },
+  "modified": "2022-08-12T13:46:43",
+  "modified_gmt": "2022-08-12T13:46:43",
+  "slug": "lucid-fox-2",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/08/12/accessibility-widgets-and-plugins-what-your-nonprofit-needs-to-know/lucid-fox-2/",
+  "title": {
+    "rendered": "Lucid Fox"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-33703",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8LB",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"233\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=300%2C233&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=300%2C233&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=768%2C597&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=50%2C39&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 622,
+    "file": "2022/08/Lucid-Fox-e1660312016246.jpg",
+    "filesize": 167547,
+    "sizes": {
+      "medium": {
+        "file": "Lucid-Fox-e1660312016246-300x233.jpg",
+        "width": 300,
+        "height": 233,
+        "filesize": 15267,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=300%2C233&ssl=1"
+      },
+      "large": {
+        "file": "Lucid-Fox-1024x796.jpg",
+        "width": 1024,
+        "height": 796,
+        "filesize": 94651,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=960%2C746&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Lucid-Fox-e1660312016246-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "filesize": 6041,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Lucid-Fox-e1660312016246-768x597.jpg",
+        "width": 768,
+        "height": 597,
+        "filesize": 58974,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=768%2C597&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Lucid-Fox-e1660312016246-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9744,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Lucid-Fox-e1660312016246-50x39.jpg",
+        "width": 50,
+        "height": 39,
+        "filesize": 961,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=50%2C39&ssl=1"
+      },
+      "featured": {
+        "file": "Lucid-Fox-e1660312016246-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9744,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Lucid-Fox-e1660312016246-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1968,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Lucid-Fox-e1660312016246-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "filesize": 26521,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Lucid-Fox-e1660312016246-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 9744,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Lucid-Fox-e1660312016246-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 2042,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Lucid-Fox-e1660312016246-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 13684,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Lucid-Fox-e1660312016246-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1968,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Lucid-Fox-e1660312016246-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "filesize": 26170,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Lucid-Fox-e1660312016246-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 2042,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Lucid-Fox-e1660312016246-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 13684,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Lucid-Fox-e1660312016246.jpg?fit=800%2C622&ssl=1",
+        "width": 800,
+        "height": 622,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg?fit=800%2C622&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 33698,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/08/Lucid-Fox-e1660312016246.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/33703",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=33703"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 33698,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/33698"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

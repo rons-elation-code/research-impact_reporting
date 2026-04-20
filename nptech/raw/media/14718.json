@@ -1,0 +1,167 @@
+{
+  "id": 14718,
+  "date": "2013-10-11T15:51:57",
+  "date_gmt": "2013-10-11T15:51:57",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif"
+  },
+  "modified": "2013-10-11T15:51:57",
+  "modified_gmt": "2013-10-11T15:51:57",
+  "slug": "25-must-follow-ngo-resources-on-twitter",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/10/11/25-must-follow-ngo-resources-on-twitter/25-must-follow-ngo-resources-on-twitter/",
+  "title": {
+    "rendered": "25-Must-Follow-NGO-Resources-on-Twitter"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14718",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3Po",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?fit=300%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/gif",
+  "media_details": {
+    "width": 500,
+    "height": 500,
+    "file": "2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif",
+    "sizes": {
+      "thumbnail": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-150x150.gif",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-300x300.gif",
+        "width": 300,
+        "height": 300,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?fit=300%2C300&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-75x75.gif",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter-500x250.gif",
+        "width": 500,
+        "height": 250,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?resize=500%2C250&ssl=1"
+      },
+      "full": {
+        "file": "25-Must-Follow-NGO-Resources-on-Twitter.gif?fit=500%2C500&ssl=1",
+        "width": 500,
+        "height": 500,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif?fit=500%2C500&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14655,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/10/25-Must-Follow-NGO-Resources-on-Twitter.gif",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14718",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14718"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14655,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14655"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

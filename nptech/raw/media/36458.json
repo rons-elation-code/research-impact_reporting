@@ -1,0 +1,240 @@
+{
+  "id": 36458,
+  "date": "2023-07-07T00:00:00",
+  "date_gmt": "2023-07-07T00:00:00",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg"
+  },
+  "modified": "2023-07-07T00:00:00",
+  "modified_gmt": "2023-07-07T00:00:00",
+  "slug": "nonprofit-organizations-on-threads",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2023/07/07/threads-for-nonprofits-5-tips-for-the-early-adoption-phase/nonprofit-organizations-on-threads/",
+  "title": {
+    "rendered": "Nonprofit Organizations on Threads"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-36458",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-9u2",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"158\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?fit=158%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?w=450&amp;ssl=1 450w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=158%2C300&amp;ssl=1 158w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=26%2C50&amp;ssl=1 26w\" sizes=\"auto, (max-width: 158px) 100vw, 158px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 450,
+    "height": 854,
+    "file": "2023/07/Nonprofit-Organizations-on-Threads.jpg",
+    "filesize": 146428,
+    "sizes": {
+      "medium": {
+        "file": "Nonprofit-Organizations-on-Threads-158x300.jpg",
+        "width": 158,
+        "height": 300,
+        "filesize": 20234,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?fit=158%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Nonprofit-Organizations-on-Threads-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "filesize": 15089,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Nonprofit-Organizations-on-Threads-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 19324,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Nonprofit-Organizations-on-Threads-26x50.jpg",
+        "width": 26,
+        "height": 50,
+        "filesize": 9609,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?fit=26%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Nonprofit-Organizations-on-Threads-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 19324,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Nonprofit-Organizations-on-Threads-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 10787,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Nonprofit-Organizations-on-Threads-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "filesize": 26312,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=450%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Nonprofit-Organizations-on-Threads-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 19324,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Nonprofit-Organizations-on-Threads-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 10956,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Nonprofit-Organizations-on-Threads-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 21221,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Nonprofit-Organizations-on-Threads-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 10787,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Nonprofit-Organizations-on-Threads-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "filesize": 26349,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=450%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Nonprofit-Organizations-on-Threads-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 10956,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Nonprofit-Organizations-on-Threads-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 21221,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Nonprofit-Organizations-on-Threads.jpg?fit=450%2C854&ssl=1",
+        "width": 450,
+        "height": 854,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg?fit=450%2C854&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 36447,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2023/07/Nonprofit-Organizations-on-Threads.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/36458",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=36458"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 36447,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/36447"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

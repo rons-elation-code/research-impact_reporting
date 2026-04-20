@@ -1,0 +1,46 @@
+{
+  "post": {
+    "id": 8076,
+    "date": "2014-01-01T01:09:30",
+    "date_gmt": "2014-01-01T01:09:30",
+    "modified": "2014-05-09T13:05:15",
+    "modified_gmt": "2014-05-09T13:05:15",
+    "slug": "fundraising_friday",
+    "link": "https://www.nptechforgood.com/2014/01/01/fundraising_friday/",
+    "title": {
+      "rendered": "It&#8217;s #FundraisingFriday :: Please Donate to Your Favorite Nonprofit!"
+    },
+    "content": {
+      "rendered": "<p><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"alignright size-medium wp-image-15304\" alt=\"Ben Carsen\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen-300x300.jpg?resize=300%2C300\" width=\"300\" height=\"300\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg?resize=300%2C300&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg?resize=150%2C150&amp;ssl=1 150w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg?resize=200%2C200&amp;ssl=1 200w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg?resize=75%2C75&amp;ssl=1 75w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg?w=500&amp;ssl=1 500w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a><a href=\"https://twitter.com/search?q=%23FundraisingFriday\">#FundraisingFriday</a>\u00a0is a campaign meant to inspire individuals to commit to donating at least $10 to one of their favorite nonprofits every Friday. First tweeted in May 2012 from @<a href=\"http://www.twitter.com/nonprofitorgs\" target=\"_blank\">NonprofitOrgs</a>, the hashtag has since then been tweeted and retweeted thousands of times.</p>\n<p>If you are a nonprofit, use the <a href=\"https://twitter.com/search?q=%23FundraisingFriday\">#FundraisingFriday</a>\u00a0hashtag to ask your followerers and fans to donate. If you are a donor, please post the name and website of the nonprofit that you donated to below. I&#8217;ll do my best to help get the word out about your generosity and your favorite nonprofits. Thank you.</p>\n<p style=\"text-align: center;\">\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>#FundraisingFriday\u00a0is a campaign meant to inspire individuals to commit to donating at least $10 to one of their favorite nonprofits every Friday. First tweeted in May 2012 from @NonprofitOrgs, the hashtag has since then been tweeted and retweeted thousands of times. If you are a nonprofit, use the #FundraisingFriday\u00a0hashtag to ask your followerers and fans to donate. If you are a donor, please post the name and website of the nonprofit that you donated to below. I&#8217;ll do my best to help get the word out about your generosity and your favorite nonprofits. Thank you.</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 15304,
+    "categories": [
+      18,
+      19
+    ],
+    "tags": [
+      70
+    ]
+  },
+  "image_refs": [
+    {
+      "id": 15304,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen.jpg",
+      "featured": true,
+      "local_file": "8076-00.jpg"
+    },
+    {
+      "id": 15304,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen-300x300.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/01/Ben-Carsen-300x300.jpg?resize=300%2C300",
+      "local_file": "8076-01.jpg"
+    }
+  ]
+}

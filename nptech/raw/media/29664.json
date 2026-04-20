@@ -1,0 +1,232 @@
+{
+  "id": 29664,
+  "date": "2021-04-25T15:12:39",
+  "date_gmt": "2021-04-25T15:12:39",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg"
+  },
+  "modified": "2021-04-25T15:12:39",
+  "modified_gmt": "2021-04-25T15:12:39",
+  "slug": "print-12",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2021/04/26/3-smart-branding-strategies-for-nonprofits/print-12/",
+  "title": {
+    "rendered": "Print"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-29664",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7Is",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"225\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?fit=300%2C225&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?w=1500&amp;ssl=1 1500w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=300%2C225&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=1024%2C768&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=768%2C576&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1500,
+    "height": 1125,
+    "file": "2021/04/Blog-Branding-CBSLogo.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Blog-Branding-CBSLogo-300x225.jpg",
+        "width": 300,
+        "height": 225,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?fit=300%2C225&ssl=1"
+      },
+      "large": {
+        "file": "Blog-Branding-CBSLogo-1024x768.jpg",
+        "width": 1024,
+        "height": 768,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?fit=960%2C720&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Blog-Branding-CBSLogo-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Blog-Branding-CBSLogo-768x576.jpg",
+        "width": 768,
+        "height": 576,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?fit=768%2C576&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Blog-Branding-CBSLogo-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Blog-Branding-CBSLogo-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Blog-Branding-CBSLogo-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Blog-Branding-CBSLogo-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Blog-Branding-CBSLogo-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Blog-Branding-CBSLogo-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Blog-Branding-CBSLogo-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Blog-Branding-CBSLogo-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Blog-Branding-CBSLogo-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Blog-Branding-CBSLogo-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Blog-Branding-CBSLogo-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Blog-Branding-CBSLogo.jpg?fit=1500%2C1125&ssl=1",
+        "width": 1500,
+        "height": 1125,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg?fit=1500%2C1125&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "Print",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 29641,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/04/Blog-Branding-CBSLogo.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/29664",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=29664"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 29641,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/29641"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

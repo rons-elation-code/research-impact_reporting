@@ -1,0 +1,253 @@
+{
+  "id": 33564,
+  "date": "2022-07-16T12:21:14",
+  "date_gmt": "2022-07-16T12:21:14",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/07/99designs-Design-for-Good.png"
+  },
+  "modified": "2022-07-16T12:21:14",
+  "modified_gmt": "2022-07-16T12:21:14",
+  "slug": "99designs-design-for-good",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/07/16/infographic-how-good-design-impacts-nonprofit-digital-marketing-fundraising/99designs-design-for-good/",
+  "title": {
+    "rendered": "99designs Design for Good"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-33564",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8Jm",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"72\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=72%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=72%2C300&amp;ssl=1 72w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=12%2C50&amp;ssl=1 12w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?zoom=2&amp;resize=72%2C300&amp;ssl=1 144w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?zoom=3&amp;resize=72%2C300&amp;ssl=1 216w\" sizes=\"auto, (max-width: 72px) 100vw, 72px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 1191,
+    "height": 4992,
+    "file": "2022/07/99designs-Design-for-Good.png",
+    "sizes": {
+      "medium": {
+        "file": "99designs-Design-for-Good-72x300.png",
+        "width": 72,
+        "height": 300,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=72%2C300&ssl=1"
+      },
+      "large": {
+        "file": "99designs-Design-for-Good-244x1024.png",
+        "width": 244,
+        "height": 1024,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=244%2C1024&ssl=1"
+      },
+      "thumbnail": {
+        "file": "99designs-Design-for-Good-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "99designs-Design-for-Good-768x3219.png",
+        "width": 768,
+        "height": 3219,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=768%2C3219&ssl=1"
+      },
+      "1536x1536": {
+        "file": "99designs-Design-for-Good-366x1536.png",
+        "width": 366,
+        "height": 1536,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=366%2C1536&ssl=1"
+      },
+      "2048x2048": {
+        "file": "99designs-Design-for-Good-489x2048.png",
+        "width": 489,
+        "height": 2048,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=489%2C2048&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "99designs-Design-for-Good-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "99designs-Design-for-Good-12x50.png",
+        "width": 12,
+        "height": 50,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=12%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "99designs-Design-for-Good-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "99designs-Design-for-Good-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "99designs-Design-for-Good-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "99designs-Design-for-Good-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "99designs-Design-for-Good-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "99designs-Design-for-Good-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "99designs-Design-for-Good-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "99designs-Design-for-Good-610x250.png",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "99designs-Design-for-Good-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "99designs-Design-for-Good-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "99designs-Design-for-Good.png?fit=1191%2C4992&ssl=1",
+        "width": 1191,
+        "height": 4992,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png?fit=1191%2C4992&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 33563,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/07/99designs-Design-for-Good.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/33564",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=33564"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 33563,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/33563"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

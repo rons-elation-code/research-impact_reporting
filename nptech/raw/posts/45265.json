@@ -1,0 +1,38 @@
+{
+  "post": {
+    "id": 45265,
+    "date": "2026-01-02T13:44:37",
+    "date_gmt": "2026-01-02T13:44:37",
+    "modified": "2026-01-02T13:44:37",
+    "modified_gmt": "2026-01-02T13:44:37",
+    "slug": "free-webinar-stop-counting-start-planning-how-to-track-use-nonprofit-kpis",
+    "link": "https://www.nptechforgood.com/2026/01/02/free-webinar-stop-counting-start-planning-how-to-track-use-nonprofit-kpis/",
+    "title": {
+      "rendered": "[Free Webinar] Stop Counting, Start Planning: How to Track &#038; Use Nonprofit KPIs"
+    },
+    "content": {
+      "rendered": "<p>Measuring key performance indicators (KPIs) will help you track everything from how you\u2019re engaging your community to the effectiveness of your fundraising campaigns. But choosing what to measure and what to skip\u2014and then figuring out how to get the right data\u2014can be hard.</p>\n<p>Where do you start?</p>\n<p><a href=\"https://register.gotowebinar.com/register/8956065818033752415\">Join this free webinar</a> on February 25 for a no-nonsense look at nonprofit KPIs.</p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>Measuring key performance indicators (KPIs) help track everything from how you\u2019re engaging your community to the effectiveness of your fundraising campaigns. Join this free webinar on February 25 to learn how to track and use nonprofit KPIs.</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 44700,
+    "categories": [
+      18,
+      90
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 44700,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2025/10/Neon-One-2026-Webinar-Graphic-1-e1761918639232.png",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2025/10/Neon-One-2026-Webinar-Graphic-1-e1761918639232.png",
+      "featured": true,
+      "local_file": "45265-00.png"
+    }
+  ]
+}

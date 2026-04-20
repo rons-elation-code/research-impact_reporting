@@ -1,0 +1,225 @@
+{
+  "id": 29333,
+  "date": "2021-03-26T16:45:58",
+  "date_gmt": "2021-03-26T16:45:58",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/03/Gala.jpg"
+  },
+  "modified": "2021-03-26T16:45:58",
+  "modified_gmt": "2021-03-26T16:45:58",
+  "slug": "gala",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2026/01/11/10-instagram-best-practices-for-nonprofits-2/gala/",
+  "title": {
+    "rendered": "Gala"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-29333",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7D7",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"192\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?fit=300%2C192&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 511,
+    "file": "2021/03/Gala-e1640103435467.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Gala-300x192.jpg",
+        "width": 300,
+        "height": 192,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?fit=300%2C192&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Gala-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Gala-768x491.jpg",
+        "width": 768,
+        "height": 491,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?fit=768%2C491&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Gala-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Gala-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Gala-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Gala-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Gala-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Gala-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Gala-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Gala-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Gala-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Gala-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Gala-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Gala-e1640103435467.jpg?fit=800%2C511&ssl=1",
+        "width": 800,
+        "height": 511,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg?fit=800%2C511&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1616751804",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 29283,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/03/Gala-e1640103435467.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/29333",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=29333"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 29283,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/29283"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

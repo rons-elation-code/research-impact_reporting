@@ -1,0 +1,264 @@
+{
+  "id": 43023,
+  "date": "2025-03-16T17:23:05",
+  "date_gmt": "2025-03-16T17:23:05",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage.png"
+  },
+  "modified": "2025-03-16T17:23:05",
+  "modified_gmt": "2025-03-16T17:23:05",
+  "slug": "american-wild-horse-conservation-homepage",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/101-best-practices/10-website-design-best-practices-for-nonprofits/american-wild-horse-conservation-homepage/",
+  "title": {
+    "rendered": "American Wild Horse Conservation Homepage"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-43023",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bbV",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"165\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=300%2C165&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 800,
+    "height": 441,
+    "file": "2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png",
+    "filesize": 193586,
+    "sizes": {
+      "medium": {
+        "file": "American-Wild-Horse-Conservation-Homepage-300x165.png",
+        "width": 300,
+        "height": 165,
+        "filesize": 43171,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=300%2C165&ssl=1"
+      },
+      "large": {
+        "file": "American-Wild-Horse-Conservation-Homepage-1024x564.png",
+        "width": 1024,
+        "height": 564,
+        "filesize": 275411,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=960%2C529&ssl=1"
+      },
+      "thumbnail": {
+        "file": "American-Wild-Horse-Conservation-Homepage-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 23447,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "American-Wild-Horse-Conservation-Homepage-768x423.png",
+        "width": 768,
+        "height": 423,
+        "filesize": 183057,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=768%2C423&ssl=1"
+      },
+      "1536x1536": {
+        "file": "American-Wild-Horse-Conservation-Homepage-1536x847.png",
+        "width": 1536,
+        "height": 847,
+        "filesize": 476969,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=1536%2C847&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "American-Wild-Horse-Conservation-Homepage-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 36545,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "American-Wild-Horse-Conservation-Homepage-50x28.png",
+        "width": 50,
+        "height": 28,
+        "filesize": 2381,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=50%2C28&ssl=1"
+      },
+      "featured": {
+        "file": "American-Wild-Horse-Conservation-Homepage-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 36545,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "American-Wild-Horse-Conservation-Homepage-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 7633,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "American-Wild-Horse-Conservation-Homepage-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 104199,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "American-Wild-Horse-Conservation-Homepage-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 36545,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "American-Wild-Horse-Conservation-Homepage-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 8502,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "American-Wild-Horse-Conservation-Homepage-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 53121,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "American-Wild-Horse-Conservation-Homepage-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 7633,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "American-Wild-Horse-Conservation-Homepage-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 105647,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "American-Wild-Horse-Conservation-Homepage-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 8502,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "American-Wild-Horse-Conservation-Homepage-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 53121,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=800%2C441&ssl=1",
+        "width": 800,
+        "height": 441,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png?fit=800%2C441&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 29350,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/03/American-Wild-Horse-Conservation-Homepage-e1742145799813.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/43023",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=43023"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 29350,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/29350"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

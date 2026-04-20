@@ -1,0 +1,225 @@
+{
+  "id": 26856,
+  "date": "2020-07-11T16:46:54",
+  "date_gmt": "2020-07-11T16:46:54",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg"
+  },
+  "modified": "2020-07-11T16:46:54",
+  "modified_gmt": "2020-07-11T16:46:54",
+  "slug": "liveleaderboardsshare",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/07/12/8-lessons-learned-from-hosting-golf-event-fundraisers-during-covid-19/liveleaderboardsshare/",
+  "title": {
+    "rendered": "LiveLeaderboardsShare"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-26856",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6Za",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"237\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?fit=300%2C237&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?w=1000&amp;ssl=1 1000w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=300%2C237&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=768%2C606&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1000,
+    "height": 789,
+    "file": "2020/07/LiveLeaderboardsShare.jpg",
+    "sizes": {
+      "medium": {
+        "file": "LiveLeaderboardsShare-300x237.jpg",
+        "width": 300,
+        "height": 237,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?fit=300%2C237&ssl=1"
+      },
+      "thumbnail": {
+        "file": "LiveLeaderboardsShare-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "LiveLeaderboardsShare-768x606.jpg",
+        "width": 768,
+        "height": 606,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?fit=768%2C606&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "LiveLeaderboardsShare-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "LiveLeaderboardsShare-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "LiveLeaderboardsShare-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "LiveLeaderboardsShare-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "LiveLeaderboardsShare-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "LiveLeaderboardsShare-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "LiveLeaderboardsShare-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "LiveLeaderboardsShare-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "LiveLeaderboardsShare-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "LiveLeaderboardsShare-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "LiveLeaderboardsShare-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "LiveLeaderboardsShare.jpg?fit=1000%2C789&ssl=1",
+        "width": 1000,
+        "height": 789,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg?fit=1000%2C789&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 26848,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/07/LiveLeaderboardsShare.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/26856",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=26856"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 26848,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/26848"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "id": 21257,
+  "date": "2017-05-19T16:33:07",
+  "date_gmt": "2017-05-19T16:33:07",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2017/05/political-data-donors.jpg"
+  },
+  "modified": "2017-05-19T16:33:07",
+  "modified_gmt": "2017-05-19T16:33:07",
+  "slug": "political-data-donors",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2017/05/19/are-the-majority-of-online-donors-liberal-female-gen-xers/political-data-donors/",
+  "title": {
+    "rendered": "political data donors"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-21257",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-5wR",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"229\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?fit=300%2C229&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=300%2C229&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 600,
+    "height": 458,
+    "file": "2017/05/political-data-donors.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "political-data-donors-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "political-data-donors-300x229.jpg",
+        "width": 300,
+        "height": 229,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?fit=300%2C229&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "political-data-donors-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "political-data-donors-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "political-data-donors-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "political-data-donors-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "political-data-donors.jpg?fit=600%2C458&ssl=1",
+        "width": 600,
+        "height": 458,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg?fit=600%2C458&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1495191266",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 21240,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2017/05/political-data-donors.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/21257",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=21257"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 21240,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/21240"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

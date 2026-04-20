@@ -1,0 +1,256 @@
+{
+  "id": 34631,
+  "date": "2022-12-17T15:57:17",
+  "date_gmt": "2022-12-17T15:57:17",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness.jpg"
+  },
+  "modified": "2022-12-17T15:57:17",
+  "modified_gmt": "2022-12-17T15:57:17",
+  "slug": "donor-effectiveness",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/12/19/10-digital-marketing-fundraising-trends-to-prioritize-in-2023-2/donor-effectiveness/",
+  "title": {
+    "rendered": "Donor Effectiveness"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-34631",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-90z",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"238\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=300%2C238&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=300%2C238&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=768%2C610&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=50%2C40&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 635,
+    "file": "2022/12/Donor-Effectiveness-e1671292649620.jpg",
+    "filesize": 127943,
+    "sizes": {
+      "medium": {
+        "file": "Donor-Effectiveness-e1671292649620-300x238.jpg",
+        "width": 300,
+        "height": 238,
+        "filesize": 10440,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=300%2C238&ssl=1"
+      },
+      "large": {
+        "file": "Donor-Effectiveness-1024x813.jpg",
+        "width": 1024,
+        "height": 813,
+        "filesize": 79701,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=960%2C762&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Donor-Effectiveness-e1671292649620-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "filesize": 4367,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Donor-Effectiveness-e1671292649620-768x610.jpg",
+        "width": 768,
+        "height": 610,
+        "filesize": 47473,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=768%2C610&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Donor-Effectiveness-e1671292649620-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 6794,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Donor-Effectiveness-e1671292649620-50x40.jpg",
+        "width": 50,
+        "height": 40,
+        "filesize": 757,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=50%2C40&ssl=1"
+      },
+      "featured": {
+        "file": "Donor-Effectiveness-e1671292649620-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 6794,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Donor-Effectiveness-e1671292649620-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1552,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Donor-Effectiveness-e1671292649620-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "filesize": 19546,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Donor-Effectiveness-e1671292649620-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "filesize": 6794,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Donor-Effectiveness-e1671292649620-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 1575,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Donor-Effectiveness-e1671292649620-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 10967,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Donor-Effectiveness-e1671292649620-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "filesize": 1552,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Donor-Effectiveness-e1671292649620-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "filesize": 19640,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Donor-Effectiveness-e1671292649620-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "filesize": 1575,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Donor-Effectiveness-e1671292649620-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "filesize": 10967,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Donor-Effectiveness-e1671292649620.jpg?fit=800%2C635&ssl=1",
+        "width": 800,
+        "height": 635,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg?fit=800%2C635&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 34600,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/12/Donor-Effectiveness-e1671292649620.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/34631",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=34631"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 34600,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/34600"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

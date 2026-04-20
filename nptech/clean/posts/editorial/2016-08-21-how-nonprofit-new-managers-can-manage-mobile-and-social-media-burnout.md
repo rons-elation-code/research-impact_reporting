@@ -1,0 +1,41 @@
+---
+id: 19922
+slug: "how-nonprofit-new-managers-can-manage-mobile-and-social-media-burnout"
+title: "How Nonprofit New Media Managers Can Manage Mobile and Social Media Burnout"
+url: "https://www.nptechforgood.com/2016/08/21/how-nonprofit-new-managers-can-manage-mobile-and-social-media-burnout/"
+date: "2016-08-21T15:36:33"
+modified: "2022-06-07T19:19:24"
+categories: [16, 19]
+category_slugs: ["mobile", "social-media"]
+tags: []
+author: 1
+primary_type: "editorial"
+types: ["editorial"]
+is_marketing: false
+classification_signals: ["default"]
+sponsor_paragraphs_removed: 0
+image_count: 1
+---
+# How Nonprofit New Media Managers Can Manage Mobile and Social Media Burnout
+
+> The following is an excerpt from Mobile for Good: A How-To Fundraising Guide for Nonprofits. Nonprofit new media managers often battle mobile and social media burnout. The mental energy required to actively engage multiple communities simultaneously is exhausting. Plugged in from early morning to late afternoon and early evening, many new media managers struggle to find balance at the end of day when they need to shift their mental focus to personal and family responsibilities. Mobile and social media stimulates mental chatter and can sometimes even affect a person’s ability to sleep. All day, almost every day, nonprofit new media managers
+
+**The following is an excerpt from [*Mobile for Good: A How-To Fundraising Guide for Nonprofits*](http://www.amazon.com/Mobile-Good-How--Fundraising-Nonprofits/dp/0071825460).**
+
+---
+
+Nonprofit new media managers often battle mobile and social media burnout. The mental energy required to actively engage multiple communities simultaneously is exhausting. Plugged in from early morning to late afternoon and early evening, many new media managers struggle to find balance at the end of day when they need to shift their mental focus to personal and family responsibilities. Mobile and social media stimulates mental chatter and can sometimes even affect a person’s ability to sleep. All day, almost every day, nonprofit new media managers are immersed in breaking news and thus the world’s problems. Being constantly exposed to a barrage of new stories and images related to violence, poverty, injustice, and cruelty takes its toll. More than any other sector, [**nonprofit new media managers**](http://www.nptechforgood.com/2014/07/14/10-must-have-skills-for-nonprofit-new-media-managers/) run the risk of losing their sense of hope if they do not take steps to effectively manage mobile and social media burnout.
+
+The first sign of burnout is when managing communities feels overwhelming and monotonous. Good new media managers enjoy creating quality content and then monitoring the response to that content on their mobile and social networks. But when burnout sets in, the focus shifts to simply posting a minimal quota of status updates, tweets, grams, and pins. The will to engage and interact is drained, and procrastination sets in. It’s a natural response to an emotionally draining job, and the best cure is a temporary abstinence from mobile and social media. **[The brain needs a break](http://www.socialmediatoday.com/content/how-social-media-can-have-weird-effect-your-brain-infographic)** from the barrage and needs to reset itself to normal operating mode. Taking a break from technology and the 24/7 news cycle is crucial. Many of the social problems we see daily have always existed, but it wasn’t until the rise of mobile and social media that we were given constant access to the stories, images, and videos that document humankind’s dark side.
+
+Thus, when you go on vacation—and [**you must go on vacation**](https://twitter.com/nonprofitorgs/status/737753799562014724)—do not bring your work smartphone with you. You have to disconnect completely to be able to rejuvenate yourself. Let your coworkers know that you will be unreachable and turn on the “Out of Office” reply. If possible, don’t even bring your personal smartphone. Overworked new media managers often find it challenging to connect face to face, or they cannot quiet their mind long enough to read a book on the beach or watch a sunset. During your vacation, you must relieve yourself of the problems of the world and reconnect with your inner nature. While you are gone, other staff can be given the responsibility of managing your mobile and social media campaigns. An online community does not perish because of lack of activity for a week or two. It can be instantaneously reactivated when you return from your vacation.
+
+You should also make an effort to schedule content posts in advance. Your evenings and weekends should be reserved for your personal life. Mobile and social media can be an unhealthy addiction that’s too easily fed when your smartphone is with you at all times. Separating your personal life from work responsibilities is critical to maintaining a healthy balance. You should also regularly evaluate your physical and mental health. Sitting for eight to ten hours a day in front of computer, tense from being uber connected to your communities and the 24/7 news cycle, takes [**a physical toll on the body**](https://www.washingtonpost.com/apps/g/page/national/the-health-hazards-of-sitting/750/). Be sure to stretch and walk throughout your day. For mental balance, when you’re offline read books, listen to music, and watch television programs that you enjoy. Also commit to seeing friends and family in person on a regular basis. Few recognize how difficult a new media manager’s job is because it’s such a new position, but once it has become your daily routine for a couple of years, the downside of being plugged in so intensely for extended periods of time begins to reveal itself. If not managed, you will start to experience compassion fatigue and body aches and pains.
+
+Finally, mobile and social media burnout is compounded when compensation does not reflect your new media manager’s skill set and time investment. Too many nonprofits are losing their most valuable staff because resentment is growing over low pay and overwhelming job descriptions. When polled on Twitter, less than 20 percent of nonprofit communications and fundraising staff have mobile and social media officially recognized in their job descriptions even though they spend hours daily on mobile and social media. This is a problem that eventually leads to burnout and high staff turnover. That said, the growing problem and phenomenon of mobile and social media burnout is also related to gender. The vast majority of nonprofit new media managers are female, and one of the main reasons why a **[gender wage gap of 21 percent](http://www.iwpr.org/initiatives/pay-equity-and-discrimination)** still persists is that women are much less likely to ask for a raise (or budget for an increase) and even more so in the nonprofit sector where financial sacrifice is equated with social justice work. Even small raises are better than none and can do wonders in retaining staff. With the average college graduate now retaining [**$35,000 in student loan debt**](http://blogs.wsj.com/economics/2015/05/08/congratulations-class-of-2015-youre-the-most-indebted-ever-for-now/), if your nonprofit wants a skilled new media manager, then you must budget for one. In the long run, skilled new media managers will raise enough money online to cover their salary and then some, but it requires an upfront investment in salary expenditures.
+
+---
+
+## ***Mobile for Good: A How-To Fundraising Guide for Nonprofits***
+
+[![mobile for good look inside](https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2014/05/mobile-for-good-look-inside.jpg?resize=99%2C150)](http://www.amazon.com/Mobile-Good-How--Fundraising-Nonprofits/dp/0071825460)Based on more than 20 years of experience and 25,000+ hours spent utilizing mobile and social media, [***Mobile for Good: A How-To Fundraising Guide for Nonprofits***](http://www.amazon.com/Mobile-Good-How--Fundraising-Nonprofits/dp/0071825460) is a comprehensive 256-page book packed with more than 500 best practices. Written on the premise that all communications and fundraising are now mobile and social, Mobile for Good is a step-by-step how-to guide for writing, implementing, and maintaining a mobile and social fundraising strategy for your nonprofit.

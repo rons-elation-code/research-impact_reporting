@@ -1,0 +1,167 @@
+{
+  "id": 14977,
+  "date": "2013-11-10T21:08:35",
+  "date_gmt": "2013-11-10T21:08:35",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/11/DWST.png"
+  },
+  "modified": "2013-11-10T21:08:35",
+  "modified_gmt": "2013-11-10T21:08:35",
+  "slug": "dwst",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/11/11/19-holiday-gift-programs-that-benefit-nonprofits/dwst/",
+  "title": {
+    "rendered": "DWST"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14977",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3Tz",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"173\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?fit=300%2C173&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=300%2C173&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 347,
+    "file": "2013/11/DWST.png",
+    "sizes": {
+      "thumbnail": {
+        "file": "DWST-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "DWST-300x173.png",
+        "width": 300,
+        "height": 173,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?fit=300%2C173&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "DWST-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "DWST-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "DWST-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "DWST-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "DWST.png?fit=600%2C347&ssl=1",
+        "width": 600,
+        "height": 347,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png?fit=600%2C347&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14949,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/11/DWST.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14977",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14977"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14949,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14949"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

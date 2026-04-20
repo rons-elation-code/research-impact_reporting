@@ -1,0 +1,232 @@
+{
+  "id": 30495,
+  "date": "2021-08-09T20:13:03",
+  "date_gmt": "2021-08-09T20:13:03",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/08/Public-Welfare-Foundation.jpg"
+  },
+  "modified": "2021-08-09T20:13:03",
+  "modified_gmt": "2021-08-09T20:13:03",
+  "slug": "public-welfare-foundation",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/11/23/10-linkedin-best-practices-for-nonprofits/public-welfare-foundation/",
+  "title": {
+    "rendered": "Public Welfare Foundation"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-30495",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7VR",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"264\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?fit=300%2C264&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 801,
+    "height": 706,
+    "file": "2021/08/Public-Welfare-Foundation-e1640112853286.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Public-Welfare-Foundation-300x264.jpg",
+        "width": 300,
+        "height": 264,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?fit=300%2C264&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Public-Welfare-Foundation-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Public-Welfare-Foundation-768x677.jpg",
+        "width": 768,
+        "height": 677,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?fit=768%2C677&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Public-Welfare-Foundation-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Public-Welfare-Foundation-50x44.jpg",
+        "width": 50,
+        "height": 44,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?fit=50%2C44&ssl=1"
+      },
+      "featured": {
+        "file": "Public-Welfare-Foundation-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Public-Welfare-Foundation-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Public-Welfare-Foundation-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Public-Welfare-Foundation-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Public-Welfare-Foundation-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Public-Welfare-Foundation-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Public-Welfare-Foundation-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Public-Welfare-Foundation-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Public-Welfare-Foundation-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Public-Welfare-Foundation-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Public-Welfare-Foundation-e1640112853286.jpg?fit=801%2C706&ssl=1",
+        "width": 801,
+        "height": 706,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg?fit=801%2C706&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1628514724",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 30349,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/08/Public-Welfare-Foundation-e1640112853286.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/30495",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=30495"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 30349,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/30349"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

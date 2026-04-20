@@ -1,0 +1,88 @@
+[
+  {
+    "id": 30303,
+    "slug": "10-facebook-best-practices-for-nonprofits",
+    "date": "2026-01-26",
+    "primary_type": "page",
+    "is_marketing": true,
+    "types": [
+      "page"
+    ],
+    "categories": []
+  },
+  {
+    "id": 31428,
+    "slug": "10-linkedin-best-practices-for-nonprofits",
+    "date": "2026-01-27",
+    "primary_type": "page",
+    "is_marketing": true,
+    "types": [
+      "page"
+    ],
+    "categories": []
+  },
+  {
+    "id": 42901,
+    "slug": "free-mini-webinar-how-nonprofit-professionals-can-ai-proof-their-careers",
+    "date": "2026-03-25",
+    "primary_type": "promotional",
+    "is_marketing": true,
+    "types": [
+      "promotional"
+    ],
+    "categories": [
+      "artificial-intelligence",
+      "webinar"
+    ]
+  },
+  {
+    "id": 45462,
+    "slug": "free-webinar-ai-for-good-secure-smart-high-impact-ai-for-nonprofits",
+    "date": "2026-01-19",
+    "primary_type": "page",
+    "is_marketing": true,
+    "types": [
+      "page"
+    ],
+    "categories": []
+  },
+  {
+    "id": 45635,
+    "slug": "free-webinar-the-nonprofit-playbook-for-a-successful-golf-fundraiser",
+    "date": "2026-02-20",
+    "primary_type": "page",
+    "is_marketing": true,
+    "types": [
+      "page"
+    ],
+    "categories": []
+  },
+  {
+    "id": 45837,
+    "slug": "ripples-of-a-click-the-anatomy-of-a-nonprofit-donation",
+    "date": "2026-03-26",
+    "primary_type": "sponsored",
+    "is_marketing": true,
+    "types": [
+      "sponsored"
+    ],
+    "categories": [
+      "fundraising",
+      "sponsored-post"
+    ]
+  },
+  {
+    "id": 45861,
+    "slug": "community-as-infrastructure-why-nonprofits-must-start-designing-for-relationships",
+    "date": "2026-04-03",
+    "primary_type": "guest",
+    "is_marketing": false,
+    "types": [
+      "guest"
+    ],
+    "categories": [
+      "fundraising",
+      "guest-post"
+    ]
+  }
+]

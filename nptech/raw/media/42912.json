@@ -1,0 +1,240 @@
+{
+  "id": 42912,
+  "date": "2025-03-09T21:22:59",
+  "date_gmt": "2025-03-09T21:22:59",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png"
+  },
+  "modified": "2025-03-09T21:22:59",
+  "modified_gmt": "2025-03-09T21:22:59",
+  "slug": "neon-one-p2p-demo",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/03/09/8-steps-to-launch-a-peer-to-peer-campaign-for-your-nonprofit/neon-one-p2p-demo/",
+  "title": {
+    "rendered": "Neon One P2P Demo"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-42912",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-ba8",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"117\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?fit=300%2C117&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?w=762&amp;ssl=1 762w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=300%2C117&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=50%2C19&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 762,
+    "height": 296,
+    "file": "2025/03/Neon-One-P2P-Demo.png",
+    "filesize": 69752,
+    "sizes": {
+      "medium": {
+        "file": "Neon-One-P2P-Demo-300x117.png",
+        "width": 300,
+        "height": 117,
+        "filesize": 25442,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?fit=300%2C117&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Neon-One-P2P-Demo-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 15854,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Neon-One-P2P-Demo-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 24093,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Neon-One-P2P-Demo-50x19.png",
+        "width": 50,
+        "height": 19,
+        "filesize": 1562,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?fit=50%2C19&ssl=1"
+      },
+      "featured": {
+        "file": "Neon-One-P2P-Demo-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 24093,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Neon-One-P2P-Demo-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 5809,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Neon-One-P2P-Demo-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 73928,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Neon-One-P2P-Demo-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 24093,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Neon-One-P2P-Demo-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 6323,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Neon-One-P2P-Demo-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 35720,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Neon-One-P2P-Demo-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 5809,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Neon-One-P2P-Demo-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 74155,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Neon-One-P2P-Demo-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 6323,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Neon-One-P2P-Demo-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 35720,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Neon-One-P2P-Demo.png?fit=762%2C296&ssl=1",
+        "width": 762,
+        "height": 296,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png?fit=762%2C296&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 42903,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/03/Neon-One-P2P-Demo.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/42912",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=42912"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 42903,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/42903"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

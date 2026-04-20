@@ -1,0 +1,35 @@
+{
+  "post": {
+    "id": 32131,
+    "date": "2022-02-02T22:02:11",
+    "date_gmt": "2022-02-02T22:02:11",
+    "modified": "2022-04-16T21:06:19",
+    "modified_gmt": "2022-04-16T21:06:19",
+    "slug": "product-tour-eventgroove-fundraising-software",
+    "link": "https://www.nptechforgood.com/product-tour-eventgroove-fundraising-software/",
+    "title": {
+      "rendered": "[PRODUCT DEMO] Eventgroove Fundraising Software"
+    },
+    "content": {
+      "rendered": "<h5><strong>Date:\u00a0</strong>Thursday, April 21, 2022<br />\n<strong>Time:\u00a0</strong>1 pm EDT / 10 am PDT<br />\n<strong>Cost:\u00a0</strong>Free<br />\n<strong>Presented by: <a href=\"https://www.eventgroove.com/\">Eventgroove</a></strong></h5>\n<hr />\n<p>In this 30-minute product tour of Eventgroove, learn how your nonprofit can easily host online, in-person, and hybrid fundraisers, sell tickets for raffles and auctions, and accept donations online through your website.</p>\n<p>Built to help your nonprofit fundraise and run events, <a href=\"https://www.eventgroove.com/\">Eventgroove is an all-in-one integrated fundraising platform</a> that embraces a customer-first approach and provides superb support from its Montana-based team.</p>\n<p><a href=\"https://register.gotowebinar.com/register/5624533461010095118\">This product demo</a>\u00a0will provide an overview of Eventgroove and its capabilities, including:</p>\n<ul>\n<li>Branded end-to-end fundraising campaigns \u2013 from donation pages to crowdfunding</li>\n<li>Online raffles, auctions, A-thons, sweepstakes, and sales fundraisers</li>\n<li>Integrated live streaming</li>\n<li>Team fundraising a.k.a. peer-to-peer fundraising</li>\n<li>Effortless (and contactless) event check-in</li>\n<li>At-your-fingertips donor analytics and engagement</li>\n<li>Print-on-demand and e-commerce products branded to your nonprofit</li>\n<li>Promotional tools, including social sharing, automated email campaigns, and text-to-give</li>\n<li>Integrations with Mailchimp, Facebook, Constant Contact, Twilio, Blackbaud, and more</li>\n</ul>\n<h2 style=\"text-align: center;\">&lt;&lt;<a href=\"https://register.gotowebinar.com/register/5624533461010095118\">Register Now</a>&gt;&gt;</h2>\n<hr />\n<p><strong>Please Note: This demo will be recorded. </strong>If you can not attend the demo live, please register for the webinar to receive the recording 24-48 hours after the demo is over. See <a href=\"https://support.goto.com/webinar\"><strong>GoToWebinar&#8217;s FAQ</strong></a> for information on how to join and attend this webinar.</p>\n<hr />\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>Date:\u00a0Thursday, April 21, 2022 Time:\u00a01 pm EDT / 10 am PDT Cost:\u00a0Free Presented by: Eventgroove In this 30-minute product tour of Eventgroove, learn how your nonprofit can easily host online, in-person, and hybrid fundraisers, sell tickets for raffles and auctions, and accept donations online through your website. Built to help your nonprofit fundraise and run events, Eventgroove is an all-in-one integrated fundraising platform that embraces a customer-first approach and provides superb support from its Montana-based team. This product demo\u00a0will provide an overview of Eventgroove and its capabilities, including: Branded end-to-end fundraising campaigns \u2013 from donation pages to crowdfunding Online raffles, </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 32449,
+    "categories": [],
+    "_is_static_page": true
+  },
+  "image_refs": [
+    {
+      "id": 32449,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2022/02/Product-Demo-Eventgroove-for-Nonprofits.png",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2022/02/Product-Demo-Eventgroove-for-Nonprofits.png",
+      "featured": true,
+      "local_file": "32131-00.png"
+    }
+  ]
+}

@@ -1,0 +1,232 @@
+{
+  "id": 26581,
+  "date": "2020-06-10T21:52:09",
+  "date_gmt": "2020-06-10T21:52:09",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/06/World-Oceans-Day.jpg"
+  },
+  "modified": "2020-06-10T21:52:09",
+  "modified_gmt": "2020-06-10T21:52:09",
+  "slug": "world-oceans-day",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/10/05/10-online-fundraising-best-practices-for-nonprofits-3/world-oceans-day/",
+  "title": {
+    "rendered": "World Oceans Day"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-26581",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6UJ",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"203\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?fit=300%2C203&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 542,
+    "file": "2020/06/World-Oceans-Day-e1639830106928.jpg",
+    "sizes": {
+      "medium": {
+        "file": "World-Oceans-Day-300x203.jpg",
+        "width": 300,
+        "height": 203,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?fit=300%2C203&ssl=1"
+      },
+      "large": {
+        "file": "World-Oceans-Day-1024x694.jpg",
+        "width": 1024,
+        "height": 694,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?fit=960%2C651&ssl=1"
+      },
+      "thumbnail": {
+        "file": "World-Oceans-Day-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "World-Oceans-Day-768x521.jpg",
+        "width": 768,
+        "height": 521,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?fit=768%2C521&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "World-Oceans-Day-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "World-Oceans-Day-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "World-Oceans-Day-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "World-Oceans-Day-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "World-Oceans-Day-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "World-Oceans-Day-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "World-Oceans-Day-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "World-Oceans-Day-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "World-Oceans-Day-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "World-Oceans-Day-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "World-Oceans-Day-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "World-Oceans-Day-e1639830106928.jpg?fit=800%2C542&ssl=1",
+        "width": 800,
+        "height": 542,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg?fit=800%2C542&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1591799768",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 26336,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/06/World-Oceans-Day-e1639830106928.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/26581",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=26581"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 26336,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/26336"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

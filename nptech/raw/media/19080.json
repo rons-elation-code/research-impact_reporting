@@ -1,0 +1,169 @@
+{
+  "id": 19080,
+  "date": "2016-01-24T15:35:34",
+  "date_gmt": "2016-01-24T15:35:34",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2016/01/Givolio.jpg"
+  },
+  "modified": "2016-01-24T15:35:34",
+  "modified_gmt": "2016-01-24T15:35:34",
+  "slug": "givolio",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2016/01/25/8-fundraising-tools-to-watch-in-2016/givolio/",
+  "title": {
+    "rendered": "Givolio"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-19080",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-4XK",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"145\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?fit=300%2C145&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=300%2C145&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 600,
+    "height": 289,
+    "file": "2016/01/Givolio.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "Givolio-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "Givolio-300x145.jpg",
+        "width": 300,
+        "height": 145,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?fit=300%2C145&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Givolio-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Givolio-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Givolio-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Givolio-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "Givolio.jpg?fit=600%2C289&ssl=1",
+        "width": 600,
+        "height": 289,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg?fit=600%2C289&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": "",
+      "orientation": 1,
+      "keywords": []
+    }
+  },
+  "post": 19060,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2016/01/Givolio.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/19080",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=19080"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 19060,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/19060"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

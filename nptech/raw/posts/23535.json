@@ -1,0 +1,34 @@
+{
+  "post": {
+    "id": 23535,
+    "date": "2019-05-16T15:46:37",
+    "date_gmt": "2019-05-16T15:46:37",
+    "modified": "2026-02-28T12:51:26",
+    "modified_gmt": "2026-02-28T12:51:26",
+    "slug": "thank-you",
+    "link": "https://www.nptechforgood.com/thank-you/",
+    "title": {
+      "rendered": "Thank you for registering for our upcoming webinar!"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: left;\">You will soon receive a confirmation email from GoToWebinar that includes your login information.</p>\n<hr />\n<h2>Our 2026 Certificate in Social Media Marketing &amp; Fundraising starts April 29!</h2>\n<p>The\u00a0<a href=\"https://www.nptechforgood.com/101-best-practices/earn-a-certificate-in-social-media-marketing-fundraising-from-nonprofit-tech-for-good/\">2026 Certificate in Social Media Marketing &amp; Fundraising program</a> covers the fundamentals of social media marketing and fundraising for your nonprofit. Participants will learn how to create a social media strategy, craft a content marketing plan, and current best practices for using social media for community engagement and fundraising. The total cost is $229 USD.</p>\n<p style=\"text-align: center;\"><a href=\"https://www.nptechforgood.com/certificate-programs/earn-a-certificate-in-social-media-marketing-fundraising-from-nonprofit-tech-for-good/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"wp-image-44351 size-full aligncenter\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/08/2026-Certificate-in-Social-Media-Marketing-for-Nonprofits-e1756330601741.png?resize=900%2C707&#038;ssl=1\" alt=\"\" width=\"900\" height=\"707\" /></a></p>\n<hr />\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>You will soon receive a confirmation email from GoToWebinar that includes your login information. Our 2026 Certificate in Social Media Marketing &amp; Fundraising starts April 29! The\u00a02026 Certificate in Social Media Marketing &amp; Fundraising program covers the fundamentals of social media marketing and fundraising for your nonprofit. Participants will learn how to create a social media strategy, craft a content marketing plan, and current best practices for using social media for community engagement and fundraising. The total cost is $229 USD.</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 0,
+    "categories": [],
+    "_is_static_page": true
+  },
+  "image_refs": [
+    {
+      "id": 44351,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/08/2026-Certificate-in-Social-Media-Marketing-for-Nonprofits-e1756330601741.png#038;ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/08/2026-Certificate-in-Social-Media-Marketing-for-Nonprofits-e1756330601741.png?resize=900%2C707&#038;ssl=1",
+      "local_file": "23535-00.png"
+    }
+  ]
+}

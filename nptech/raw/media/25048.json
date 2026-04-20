@@ -1,0 +1,232 @@
+{
+  "id": 25048,
+  "date": "2020-01-04T14:33:44",
+  "date_gmt": "2020-01-04T14:33:44",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg"
+  },
+  "modified": "2020-01-04T14:33:44",
+  "modified_gmt": "2020-01-04T14:33:44",
+  "slug": "global-fund-for-women-website-footer",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/01/05/10-website-design-best-practices-for-nonprofits/global-fund-for-women-website-footer/",
+  "title": {
+    "rendered": "Global Fund for Women Website Footer"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-25048",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6w0",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"141\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?fit=300%2C141&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?w=1228&amp;ssl=1 1228w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=300%2C141&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=1024%2C483&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=768%2C362&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1228,
+    "height": 579,
+    "file": "2020/01/Global-Fund-for-Women-Website-Footer.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Global-Fund-for-Women-Website-Footer-300x141.jpg",
+        "width": 300,
+        "height": 141,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?fit=300%2C141&ssl=1"
+      },
+      "large": {
+        "file": "Global-Fund-for-Women-Website-Footer-1024x483.jpg",
+        "width": 1024,
+        "height": 483,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?fit=960%2C453&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Global-Fund-for-Women-Website-Footer-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Global-Fund-for-Women-Website-Footer-768x362.jpg",
+        "width": 768,
+        "height": 362,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?fit=768%2C362&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Global-Fund-for-Women-Website-Footer-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Global-Fund-for-Women-Website-Footer-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Global-Fund-for-Women-Website-Footer-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Global-Fund-for-Women-Website-Footer-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Global-Fund-for-Women-Website-Footer-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Global-Fund-for-Women-Website-Footer-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Global-Fund-for-Women-Website-Footer-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Global-Fund-for-Women-Website-Footer-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Global-Fund-for-Women-Website-Footer-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Global-Fund-for-Women-Website-Footer-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Global-Fund-for-Women-Website-Footer-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Global-Fund-for-Women-Website-Footer.jpg?fit=1228%2C579&ssl=1",
+        "width": 1228,
+        "height": 579,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg?fit=1228%2C579&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1578122983",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 24991,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/01/Global-Fund-for-Women-Website-Footer.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/25048",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=25048"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 24991,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/24991"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "post": {
+    "id": 42901,
+    "date": "2026-03-25T03:26:53",
+    "date_gmt": "2026-03-25T03:26:53",
+    "modified": "2026-03-25T11:57:49",
+    "modified_gmt": "2026-03-25T11:57:49",
+    "slug": "free-mini-webinar-how-nonprofit-professionals-can-ai-proof-their-careers",
+    "link": "https://www.nptechforgood.com/2026/03/25/free-mini-webinar-how-nonprofit-professionals-can-ai-proof-their-careers/",
+    "title": {
+      "rendered": "[Free Mini Webinar] How Nonprofit Professionals Can AI-Proof Their Careers"
+    },
+    "content": {
+      "rendered": "<p>Early adopter marketing and fundraising professionals are experimenting with generative AI, but as we speed towards achieving artificial general intelligence (AGI), working with predictive and agentic AI are also must-have skills of the future.</p>\n<p><a href=\"https://www.nptechforgood.com/webinars/free-mini-webinar-how-nonprofit-professionals-can-ai-proof-their-careers/\">Join this free 20-minute webinar</a>\u00a0to become AI-literate in the concepts most immediately to impact your career so you can start the process of upskilling now and thrive in your career for years to come.</p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>Join this free 20-minute webinar to become AI-literate in the concepts most immediately to impact your career so you can start the process of upskilling now and thrive in your career for years to come.</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 45830,
+    "categories": [
+      132,
+      90
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 45830,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2025/10/AI-for-Careers-2026-Webinar-Graphic-11-e1774439762796.png",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2025/10/AI-for-Careers-2026-Webinar-Graphic-11-e1774439762796.png",
+      "featured": true,
+      "local_file": "42901-00.png"
+    }
+  ]
+}

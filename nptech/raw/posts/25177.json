@@ -1,0 +1,44 @@
+{
+  "post": {
+    "id": 25177,
+    "date": "2020-01-10T21:49:33",
+    "date_gmt": "2020-01-10T21:49:33",
+    "modified": "2020-03-25T20:50:10",
+    "modified_gmt": "2020-03-25T20:50:10",
+    "slug": "free-webinar-introduction-to-google-analytics-for-nonprofits",
+    "link": "https://www.nptechforgood.com/2020/01/10/free-webinar-introduction-to-google-analytics-for-nonprofits/",
+    "title": {
+      "rendered": "[FREE WEBINAR] Introduction to Google Analytics for Nonprofits"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: center;\"><a href=\"https://register.gotowebinar.com/register/7616638505479990029\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-25182\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?resize=960%2C480\" alt=\"\" width=\"960\" height=\"480\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?w=1200&amp;ssl=1 1200w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?resize=300%2C150&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?resize=1024%2C512&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?resize=768%2C384&amp;ssl=1 768w\" sizes=\"auto, (max-width: 960px) 100vw, 960px\" /></a></p>\n<h2><b>UPDATE: This webinar was presented on February 24, 2020. You can view a recording on <a href=\"https://www.youtube.com/watch?v=4r5PQtKjQEA&amp;feature=youtu.be\">YouTube</a>.</b></h2>\n<hr />\n<p>Every nonprofit should have <a href=\"https://marketingplatform.google.com/about/analytics/\"><strong>Google Analytics</strong></a> installed on their website. This free analytics service offers a deep look at what people are doing on your website and provides a treasure trove of data to help your nonprofit make the critical decisions needed to boost marketing performance.</p>\n<p>Even if a nonprofit has Google Analytics installed, most nonprofit marketers aren\u2019t taking advantage of the advanced features, or worse yet, they aren\u2019t looking at their analytics at all. If you know it&#8217;s necessary to dig into your data, but aren\u2019t sure where to start (or don\u2019t think of yourself as a data person), then this webinar is for you.</p>\n<p>Here\u2019s what you\u2019ll learn:</p>\n<p>1. The advanced settings that are an absolute must for marketers.<br />\n2. Key reports that will tell you exactly how well your campaigns are performing.<br />\n3. How you can easily spot trends even if you hate math.</p>\n<h2 style=\"text-align: center;\"><span style=\"color: #000000;\">&lt;&lt;<a href=\"http://www.nptechforgood.com/webinars/\">View All Upcoming Free Webinars</a>&gt;&gt;</span></h2>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>UPDATE: This webinar was presented on February 24, 2020. You can view a recording on YouTube. Every nonprofit should have Google Analytics installed on their website. This free analytics service offers a deep look at what people are doing on your website and provides a treasure trove of data to help your nonprofit make the critical decisions needed to boost marketing performance. Even if a nonprofit has Google Analytics installed, most nonprofit marketers aren\u2019t taking advantage of the advanced features, or worse yet, they aren\u2019t looking at their analytics at all. If you know it&#8217;s necessary to dig into your </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 25186,
+    "categories": [
+      90,
+      93
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 25186,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics-Webinar.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics-Webinar.jpg",
+      "featured": true,
+      "local_file": "25177-00.jpg"
+    },
+    {
+      "id": 25182,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Introduction-to-Google-Analytics.jpg?resize=960%2C480",
+      "local_file": "25177-01.jpg"
+    }
+  ]
+}

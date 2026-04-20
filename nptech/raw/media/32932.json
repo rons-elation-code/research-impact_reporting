@@ -1,0 +1,225 @@
+{
+  "id": 32932,
+  "date": "2022-04-08T21:33:35",
+  "date_gmt": "2022-04-08T21:33:35",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/04/Golf-Website.jpg"
+  },
+  "modified": "2022-04-08T21:33:35",
+  "modified_gmt": "2022-04-08T21:33:35",
+  "slug": "golf-website",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/04/09/case-study-first-time-golf-tournament-exceeds-fundraising-goal-for-habitat-for-humanity-of-chicago/golf-website/",
+  "title": {
+    "rendered": "Golf Website"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-32932",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8za",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"185\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?fit=300%2C185&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?w=754&amp;ssl=1 754w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=300%2C185&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=50%2C31&amp;ssl=1 50w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=324%2C200&amp;ssl=1 324w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 754,
+    "height": 464,
+    "file": "2022/04/Golf-Website.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Golf-Website-300x185.jpg",
+        "width": 300,
+        "height": 185,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?fit=300%2C185&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Golf-Website-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Golf-Website-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Golf-Website-50x31.jpg",
+        "width": 50,
+        "height": 31,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?fit=50%2C31&ssl=1"
+      },
+      "featured": {
+        "file": "Golf-Website-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Golf-Website-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Golf-Website-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Golf-Website-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Golf-Website-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Golf-Website-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Golf-Website-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Golf-Website-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Golf-Website-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Golf-Website-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Golf-Website.jpg?fit=754%2C464&ssl=1",
+        "width": 754,
+        "height": 464,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg?fit=754%2C464&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 32930,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/04/Golf-Website.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/32932",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=32932"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 32930,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/32930"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

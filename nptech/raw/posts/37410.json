@@ -1,0 +1,34 @@
+{
+  "post": {
+    "id": 37410,
+    "date": "2023-10-13T10:00:40",
+    "date_gmt": "2023-10-13T10:00:40",
+    "modified": "2023-10-13T10:00:40",
+    "modified_gmt": "2023-10-13T10:00:40",
+    "slug": "research-2023-social-media-engagement-rates-for-nonprofits",
+    "link": "https://www.nptechforgood.com/research-2023-social-media-engagement-rates-for-nonprofits/",
+    "title": {
+      "rendered": "[Research] 2023 Social Media Engagement Rates for Nonprofits"
+    },
+    "content": {
+      "rendered": "<p><span class=\"css-901oao css-16my406 r-poiln3 r-bcqeeo r-qvutc0\">Social media engagement rate benchmarks for the nonprofit sector are hard to find! <a href=\"https://blog.hootsuite.com/average-engagement-rate/\">New data from HootSuite</a>:</span></p>\n<p style=\"text-align: center;\"><a href=\"https://blog.hootsuite.com/average-engagement-rate/\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"size-full wp-image-37411 aligncenter\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png?resize=596%2C481&#038;ssl=1\" alt=\"\" width=\"596\" height=\"481\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png?w=596&amp;ssl=1 596w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png?resize=300%2C242&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png?resize=50%2C40&amp;ssl=1 50w\" sizes=\"auto, (max-width: 596px) 100vw, 596px\" /></a></p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>Social media engagement rate benchmarks for the nonprofit sector are hard to find! New data from HootSuite:</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 0,
+    "categories": [],
+    "_is_static_page": true
+  },
+  "image_refs": [
+    {
+      "id": 37411,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png#038;ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/10/Average-Engagement-Rates.png?resize=596%2C481&#038;ssl=1",
+      "local_file": "37410-00.png"
+    }
+  ]
+}

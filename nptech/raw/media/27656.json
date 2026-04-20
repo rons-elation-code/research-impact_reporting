@@ -1,0 +1,232 @@
+{
+  "id": 27656,
+  "date": "2020-11-15T17:34:41",
+  "date_gmt": "2020-11-15T17:34:41",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif"
+  },
+  "modified": "2020-11-15T17:34:41",
+  "modified_gmt": "2020-11-15T17:34:41",
+  "slug": "recurring_giving_pop_up-2",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/11/16/5-online-strategies-to-encourage-recurring-giving/recurring_giving_pop_up-2/",
+  "title": {
+    "rendered": "Recurring_Giving_Pop_Up (2)"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-27656",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7c4",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"184\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?fit=300%2C184&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/gif",
+  "media_details": {
+    "width": 1224,
+    "height": 750,
+    "file": "2020/11/Recurring_Giving_Pop_Up-2.gif",
+    "sizes": {
+      "medium": {
+        "file": "Recurring_Giving_Pop_Up-2-300x184.gif",
+        "width": 300,
+        "height": 184,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?fit=300%2C184&ssl=1"
+      },
+      "large": {
+        "file": "Recurring_Giving_Pop_Up-2-1024x627.gif",
+        "width": 1024,
+        "height": 627,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?fit=960%2C588&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Recurring_Giving_Pop_Up-2-150x150.gif",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Recurring_Giving_Pop_Up-2-768x471.gif",
+        "width": 768,
+        "height": 471,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?fit=768%2C471&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Recurring_Giving_Pop_Up-2-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Recurring_Giving_Pop_Up-2-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Recurring_Giving_Pop_Up-2-75x75.gif",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Recurring_Giving_Pop_Up-2-600x250.gif",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Recurring_Giving_Pop_Up-2-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Recurring_Giving_Pop_Up-2-80x80.gif",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Recurring_Giving_Pop_Up-2-324x200.gif",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Recurring_Giving_Pop_Up-2-75x75.gif",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Recurring_Giving_Pop_Up-2-610x250.gif",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Recurring_Giving_Pop_Up-2-80x80.gif",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Recurring_Giving_Pop_Up-2-324x200.gif",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Recurring_Giving_Pop_Up-2.gif?fit=1224%2C750&ssl=1",
+        "width": 1224,
+        "height": 750,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif?fit=1224%2C750&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 27648,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/11/Recurring_Giving_Pop_Up-2.gif",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/27656",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=27656"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 27648,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/27648"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

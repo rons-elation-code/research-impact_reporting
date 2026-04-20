@@ -1,0 +1,138 @@
+{
+  "id": 12615,
+  "date": "2013-06-25T21:29:49",
+  "date_gmt": "2013-06-25T21:29:49",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/06/amy_ganderson_2.jpg"
+  },
+  "modified": "2013-06-25T21:29:49",
+  "modified_gmt": "2013-06-25T21:29:49",
+  "slug": "12615",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/12615/",
+  "title": {
+    "rendered": ""
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-12615",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3ht",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"219\" height=\"236\" src=\"https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?fit=219%2C236&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "file",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 219,
+    "height": 236,
+    "file": "2013/06/amy_ganderson_2.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "amy_ganderson_2-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "amy_ganderson_2-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "amy_ganderson_2-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "amy_ganderson_2-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?resize=75%2C75&ssl=1"
+      },
+      "full": {
+        "file": "amy_ganderson_2.jpg?fit=219%2C236&ssl=1",
+        "width": 219,
+        "height": 236,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/amy_ganderson_2.jpg?fit=219%2C236&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": null,
+  "source_url": "https://localhost:10003/wp-content/uploads/2013/06/amy_ganderson_2.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/12615",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=12615"
+      }
+    ]
+  }
+}

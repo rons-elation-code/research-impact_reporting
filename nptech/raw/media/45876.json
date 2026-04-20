@@ -1,0 +1,240 @@
+{
+  "id": 45876,
+  "date": "2026-04-05T16:51:38",
+  "date_gmt": "2026-04-05T16:51:38",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png"
+  },
+  "modified": "2026-04-05T16:51:38",
+  "modified_gmt": "2026-04-05T16:51:38",
+  "slug": "community-hives-banner-ad",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2026/04/03/community-as-infrastructure-why-nonprofits-must-start-designing-for-relationships/community-hives-banner-ad/",
+  "title": {
+    "rendered": "Community Hives Banner Ad"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-45876",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bVW",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"100\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?fit=300%2C100&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=300%2C100&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=50%2C17&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 200,
+    "file": "2026/04/Community-Hives-Banner-Ad.png",
+    "filesize": 62189,
+    "sizes": {
+      "medium": {
+        "file": "Community-Hives-Banner-Ad-300x100.png",
+        "width": 300,
+        "height": 100,
+        "filesize": 26308,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?fit=300%2C100&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Community-Hives-Banner-Ad-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 9831,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Community-Hives-Banner-Ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11307,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Community-Hives-Banner-Ad-50x17.png",
+        "width": 50,
+        "height": 17,
+        "filesize": 1550,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?fit=50%2C17&ssl=1"
+      },
+      "featured": {
+        "file": "Community-Hives-Banner-Ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11307,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Community-Hives-Banner-Ad-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3550,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Community-Hives-Banner-Ad-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 84309,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=600%2C200&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Community-Hives-Banner-Ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11307,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Community-Hives-Banner-Ad-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 4038,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Community-Hives-Banner-Ad-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 26069,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Community-Hives-Banner-Ad-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3550,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Community-Hives-Banner-Ad-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 85950,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=600%2C200&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Community-Hives-Banner-Ad-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 4038,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Community-Hives-Banner-Ad-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 26069,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Community-Hives-Banner-Ad.png?fit=600%2C200&ssl=1",
+        "width": 600,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png?fit=600%2C200&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 45861,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2026/04/Community-Hives-Banner-Ad.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/45876",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=45876"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 45861,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/45861"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

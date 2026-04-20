@@ -1,0 +1,240 @@
+{
+  "id": 40871,
+  "date": "2024-07-16T14:03:49",
+  "date_gmt": "2024-07-16T14:03:49",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter.png"
+  },
+  "modified": "2024-07-16T14:03:49",
+  "modified_gmt": "2024-07-16T14:03:49",
+  "slug": "famm-enewsletter",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/01/16/6-ways-to-grow-your-nonprofits-following-on-social-media/famm-enewsletter/",
+  "title": {
+    "rendered": "FAMM eNewsletter"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-40871",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-aDd",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"293\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?fit=300%2C293&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 586,
+    "file": "2024/07/FAMM-eNewsletter-e1721319036756.png",
+    "filesize": 100836,
+    "sizes": {
+      "medium": {
+        "file": "FAMM-eNewsletter-300x293.png",
+        "width": 300,
+        "height": 293,
+        "filesize": 56056,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?fit=300%2C293&ssl=1"
+      },
+      "thumbnail": {
+        "file": "FAMM-eNewsletter-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 16813,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "FAMM-eNewsletter-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 28650,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "FAMM-eNewsletter-50x50.png",
+        "width": 50,
+        "height": 50,
+        "filesize": 2297,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?fit=50%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "FAMM-eNewsletter-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 28650,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "FAMM-eNewsletter-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 5501,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "FAMM-eNewsletter-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 65146,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "FAMM-eNewsletter-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 28650,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "FAMM-eNewsletter-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 6109,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "FAMM-eNewsletter-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 43425,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "FAMM-eNewsletter-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 5501,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "FAMM-eNewsletter-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 64889,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=600%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "FAMM-eNewsletter-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 6109,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "FAMM-eNewsletter-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 43425,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "FAMM-eNewsletter-e1721319036756.png?fit=600%2C586&ssl=1",
+        "width": 600,
+        "height": 586,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png?fit=600%2C586&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 40870,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2024/07/FAMM-eNewsletter-e1721319036756.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/40871",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=40871"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 40870,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/40870"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

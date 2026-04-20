@@ -26,3 +26,6 @@ __pycache__/
 .DS_Store
 *.swp
 *.swo
+lavandula/nonprofits/data/
+lavandula/nonprofits/logs/
+.claude/

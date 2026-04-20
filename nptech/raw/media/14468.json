@@ -1,0 +1,167 @@
+{
+  "id": 14468,
+  "date": "2013-09-22T12:55:21",
+  "date_gmt": "2013-09-22T12:55:21",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/09/AWF-Contest-Email-3.png"
+  },
+  "modified": "2013-09-22T12:55:21",
+  "modified_gmt": "2013-09-22T12:55:21",
+  "slug": "awf-contest-email-3",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/09/29/how-to-integrate-social-media-into-your-nonprofits-online-contests/awf-contest-email-3/",
+  "title": {
+    "rendered": "AWF Contest Email 3"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14468",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3Lm",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"145\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?fit=300%2C145&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=300%2C145&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 600,
+    "height": 291,
+    "file": "2013/09/AWF-Contest-Email-3.png",
+    "sizes": {
+      "thumbnail": {
+        "file": "AWF-Contest-Email-3-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "AWF-Contest-Email-3-300x145.png",
+        "width": 300,
+        "height": 145,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?fit=300%2C145&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "AWF-Contest-Email-3-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "AWF-Contest-Email-3-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "AWF-Contest-Email-3-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "AWF-Contest-Email-3-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "AWF-Contest-Email-3.png?fit=600%2C291&ssl=1",
+        "width": 600,
+        "height": 291,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png?fit=600%2C291&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14463,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/09/AWF-Contest-Email-3.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14468",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14468"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14463,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14463"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

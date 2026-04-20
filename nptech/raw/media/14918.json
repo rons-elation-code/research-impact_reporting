@@ -1,0 +1,160 @@
+{
+  "id": 14918,
+  "date": "2013-11-02T17:30:55",
+  "date_gmt": "2013-11-02T17:30:55",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png"
+  },
+  "modified": "2013-11-02T17:30:55",
+  "modified_gmt": "2013-11-02T17:30:55",
+  "slug": "amazon-smile-sign-up-5",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/11/02/new-amazon-program-enables-shoppers-to-easily-donate-to-their-favorite-nonprofits/amazon-smile-sign-up-5/",
+  "title": {
+    "rendered": "Amazon Smile Sign Up 5"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14918",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3SC",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"185\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?fit=300%2C185&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?w=388&amp;ssl=1 388w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?resize=300%2C185&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 388,
+    "height": 240,
+    "file": "2013/11/Amazon-Smile-Sign-Up-5.png",
+    "sizes": {
+      "thumbnail": {
+        "file": "Amazon-Smile-Sign-Up-5-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "Amazon-Smile-Sign-Up-5-300x185.png",
+        "width": 300,
+        "height": 185,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?fit=300%2C185&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Amazon-Smile-Sign-Up-5-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Amazon-Smile-Sign-Up-5-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Amazon-Smile-Sign-Up-5-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?resize=75%2C75&ssl=1"
+      },
+      "full": {
+        "file": "Amazon-Smile-Sign-Up-5.png?fit=388%2C240&ssl=1",
+        "width": 388,
+        "height": 240,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png?fit=388%2C240&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14902,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/11/Amazon-Smile-Sign-Up-5.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14918",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14918"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14902,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14902"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

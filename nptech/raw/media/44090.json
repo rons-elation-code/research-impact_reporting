@@ -1,0 +1,256 @@
+{
+  "id": 44090,
+  "date": "2025-07-24T16:49:57",
+  "date_gmt": "2025-07-24T16:49:57",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits.png"
+  },
+  "modified": "2025-07-24T20:43:44",
+  "modified_gmt": "2025-07-24T20:43:44",
+  "slug": "2026-certificate-in-ai-for-nonprofits",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/certificate-programs/certificate-in-artificial-intelligence-ai-for-marketing-fundraising/2026-certificate-in-ai-for-nonprofits/",
+  "title": {
+    "rendered": "2026 Certificate in AI for Nonprofits"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-44090",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bt8",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"236\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=300%2C236&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"Certificate in AI for Marketing &amp; Fundraising awarded by Nonprofit Tech for Good, signed by CEO Heather Mansfield, with a blue award banner.\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "Certificate in AI for Marketing & Fundraising awarded by Nonprofit Tech for Good, signed by CEO Heather Mansfield, with a blue award banner.",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 900,
+    "height": 707,
+    "file": "2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png",
+    "filesize": 104504,
+    "sizes": {
+      "medium": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-300x236.png",
+        "width": 300,
+        "height": 236,
+        "filesize": 15304,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=300%2C236&ssl=1"
+      },
+      "large": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-1024x805.png",
+        "width": 1024,
+        "height": 805,
+        "filesize": 139472,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=960%2C755&ssl=1"
+      },
+      "thumbnail": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 6413,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-768x604.png",
+        "width": 768,
+        "height": 604,
+        "filesize": 76697,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=768%2C604&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11004,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-50x39.png",
+        "width": 50,
+        "height": 39,
+        "filesize": 1096,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=50%2C39&ssl=1"
+      },
+      "featured": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11004,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 2147,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 26612,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 11004,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 2768,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 15782,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 2147,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 32537,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 2768,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 15782,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=900%2C707&ssl=1",
+        "width": 900,
+        "height": 707,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?fit=900%2C707&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 40678,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/44090",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=44090"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 40678,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/40678"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

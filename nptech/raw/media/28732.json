@@ -1,0 +1,232 @@
+{
+  "id": 28732,
+  "date": "2021-01-31T14:00:33",
+  "date_gmt": "2021-01-31T14:00:33",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg"
+  },
+  "modified": "2021-01-31T14:00:33",
+  "modified_gmt": "2021-01-31T14:00:33",
+  "slug": "roundup-app-fundraising",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2021/01/31/10-online-fundraising-tools-to-watch-in-2021/roundup-app-fundraising/",
+  "title": {
+    "rendered": "RoundUp App Fundraising"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-28732",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7tq",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"187\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?fit=300%2C187&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?w=1215&amp;ssl=1 1215w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=300%2C187&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=1024%2C638&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=768%2C478&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1215,
+    "height": 757,
+    "file": "2021/01/RoundUp-App-Fundraising.jpg",
+    "sizes": {
+      "medium": {
+        "file": "RoundUp-App-Fundraising-300x187.jpg",
+        "width": 300,
+        "height": 187,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?fit=300%2C187&ssl=1"
+      },
+      "large": {
+        "file": "RoundUp-App-Fundraising-1024x638.jpg",
+        "width": 1024,
+        "height": 638,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?fit=960%2C598&ssl=1"
+      },
+      "thumbnail": {
+        "file": "RoundUp-App-Fundraising-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "RoundUp-App-Fundraising-768x478.jpg",
+        "width": 768,
+        "height": 478,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?fit=768%2C478&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "RoundUp-App-Fundraising-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "RoundUp-App-Fundraising-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "RoundUp-App-Fundraising-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "RoundUp-App-Fundraising-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "RoundUp-App-Fundraising-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "RoundUp-App-Fundraising-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "RoundUp-App-Fundraising-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "RoundUp-App-Fundraising-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "RoundUp-App-Fundraising-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "RoundUp-App-Fundraising-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "RoundUp-App-Fundraising-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "RoundUp-App-Fundraising.jpg?fit=1215%2C757&ssl=1",
+        "width": 1215,
+        "height": 757,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg?fit=1215%2C757&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1612076411",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 28704,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/01/RoundUp-App-Fundraising.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/28732",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=28732"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 28704,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/28704"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

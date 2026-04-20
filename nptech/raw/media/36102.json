@@ -1,0 +1,256 @@
+{
+  "id": 36102,
+  "date": "2023-05-23T15:09:58",
+  "date_gmt": "2023-05-23T15:09:58",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media.png"
+  },
+  "modified": "2023-05-23T15:09:58",
+  "modified_gmt": "2023-05-23T15:09:58",
+  "slug": "classy-and-social-media",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/101-best-practices/10-digital-content-marketing-best-practices-for-nonprofits/classy-and-social-media/",
+  "title": {
+    "rendered": "Classy and Social Media"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-36102",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-9oi",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"247\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=247%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?w=500&amp;ssl=1 500w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=247%2C300&amp;ssl=1 247w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=41%2C50&amp;ssl=1 41w\" sizes=\"auto, (max-width: 247px) 100vw, 247px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 500,
+    "height": 608,
+    "file": "2023/05/Classy-and-Social-Media-e1684855560518.png",
+    "filesize": 36324,
+    "sizes": {
+      "medium": {
+        "file": "Classy-and-Social-Media-e1684855560518-247x300.png",
+        "width": 247,
+        "height": 300,
+        "filesize": 27147,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=247%2C300&ssl=1"
+      },
+      "large": {
+        "file": "Classy-and-Social-Media-843x1024.png",
+        "width": 843,
+        "height": 1024,
+        "filesize": 136999,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=843%2C1024&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Classy-and-Social-Media-e1684855560518-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 10229,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Classy-and-Social-Media-e1684854611265-768x933.png",
+        "width": 768,
+        "height": 933,
+        "filesize": 135302,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=768%2C933&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Classy-and-Social-Media-e1684855560518-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 15301,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Classy-and-Social-Media-e1684855560518-41x50.png",
+        "width": 41,
+        "height": 50,
+        "filesize": 2610,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=41%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Classy-and-Social-Media-e1684855560518-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 15301,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Classy-and-Social-Media-e1684855560518-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4123,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Classy-and-Social-Media-e1684855560518-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 33323,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=500%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Classy-and-Social-Media-e1684855560518-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 15301,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Classy-and-Social-Media-e1684855560518-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 4537,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Classy-and-Social-Media-e1684855560518-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 18192,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Classy-and-Social-Media-e1684855560518-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4123,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Classy-and-Social-Media-e1684855560518-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 32861,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=500%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Classy-and-Social-Media-e1684855560518-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 4537,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Classy-and-Social-Media-e1684855560518-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 18192,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Classy-and-Social-Media-e1684855560518.png?fit=500%2C608&ssl=1",
+        "width": 500,
+        "height": 608,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png?fit=500%2C608&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 33934,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2023/05/Classy-and-Social-Media-e1684855560518.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/36102",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=36102"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 33934,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/33934"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

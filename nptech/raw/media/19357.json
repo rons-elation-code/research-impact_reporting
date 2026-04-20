@@ -1,0 +1,176 @@
+{
+  "id": 19357,
+  "date": "2016-03-16T16:28:43",
+  "date_gmt": "2016-03-16T16:28:43",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg"
+  },
+  "modified": "2016-03-16T16:28:43",
+  "modified_gmt": "2016-03-16T16:28:43",
+  "slug": "fundraisinglogo2016dates",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2016/03/16/4-ways-to-participate-online-in-the-2016-afp-international-fundraising-conference/fundraisinglogo2016dates/",
+  "title": {
+    "rendered": "FundrAisingLogo2016Dates"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-19357",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-52d",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?fit=300%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=150%2C150&amp;ssl=1 150w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=300%2C300&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=768%2C768&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=200%2C200&amp;ssl=1 200w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=75%2C75&amp;ssl=1 75w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 800,
+    "file": "2016/03/AFP-4-ways-to-participate-online.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "AFP-4-ways-to-participate-online-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "AFP-4-ways-to-participate-online-300x300.jpg",
+        "width": 300,
+        "height": 300,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?fit=300%2C300&ssl=1"
+      },
+      "medium_large": {
+        "file": "AFP-4-ways-to-participate-online-768x768.jpg",
+        "width": 768,
+        "height": 768,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?fit=768%2C768&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "AFP-4-ways-to-participate-online-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "AFP-4-ways-to-participate-online-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "AFP-4-ways-to-participate-online-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "AFP-4-ways-to-participate-online-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?resize=600%2C250&ssl=1"
+      },
+      "full": {
+        "file": "AFP-4-ways-to-participate-online.jpg?fit=800%2C800&ssl=1",
+        "width": 800,
+        "height": 800,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg?fit=800%2C800&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "FundrAisingLogo2016Dates",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 19354,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2016/03/AFP-4-ways-to-participate-online.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/19357",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=19357"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 19354,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/19354"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

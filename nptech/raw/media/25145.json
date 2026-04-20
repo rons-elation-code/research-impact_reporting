@@ -1,0 +1,232 @@
+{
+  "id": 25145,
+  "date": "2020-01-09T16:54:46",
+  "date_gmt": "2020-01-09T16:54:46",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png"
+  },
+  "modified": "2020-01-09T16:54:46",
+  "modified_gmt": "2020-01-09T16:54:46",
+  "slug": "elements-of-storytelling-for-international-ngos",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/01/09/digital-storytelling-to-access-attract-and-activate-u-s-donors/elements-of-storytelling-for-international-ngos/",
+  "title": {
+    "rendered": "Elements of storytelling for international NGOs"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-25145",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6xz",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"161\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?fit=300%2C161&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?w=1234&amp;ssl=1 1234w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=300%2C161&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=1024%2C551&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=768%2C413&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 1234,
+    "height": 664,
+    "file": "2020/01/Elements-of-storytelling-for-international-NGOs.png",
+    "sizes": {
+      "medium": {
+        "file": "Elements-of-storytelling-for-international-NGOs-300x161.png",
+        "width": 300,
+        "height": 161,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?fit=300%2C161&ssl=1"
+      },
+      "large": {
+        "file": "Elements-of-storytelling-for-international-NGOs-1024x551.png",
+        "width": 1024,
+        "height": 551,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?fit=960%2C517&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Elements-of-storytelling-for-international-NGOs-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Elements-of-storytelling-for-international-NGOs-768x413.png",
+        "width": 768,
+        "height": 413,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?fit=768%2C413&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Elements-of-storytelling-for-international-NGOs-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Elements-of-storytelling-for-international-NGOs-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Elements-of-storytelling-for-international-NGOs-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Elements-of-storytelling-for-international-NGOs-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Elements-of-storytelling-for-international-NGOs-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Elements-of-storytelling-for-international-NGOs-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Elements-of-storytelling-for-international-NGOs-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Elements-of-storytelling-for-international-NGOs-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Elements-of-storytelling-for-international-NGOs-610x250.png",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Elements-of-storytelling-for-international-NGOs-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Elements-of-storytelling-for-international-NGOs-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Elements-of-storytelling-for-international-NGOs.png?fit=1234%2C664&ssl=1",
+        "width": 1234,
+        "height": 664,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png?fit=1234%2C664&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 25120,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/01/Elements-of-storytelling-for-international-NGOs.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/25145",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=25145"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 25120,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/25120"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

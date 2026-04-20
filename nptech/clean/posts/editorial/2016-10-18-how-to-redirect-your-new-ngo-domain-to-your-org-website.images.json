@@ -1,0 +1,56 @@
+{
+  "post_id": 20122,
+  "post_url": "https://www.nptechforgood.com/2016/10/18/how-to-redirect-your-new-ngo-domain-to-your-org-website/",
+  "post_date": "2016-10-18T12:16:09",
+  "post_title": "How to Redirect Your New .NGO Domain to Your .ORG Website",
+  "images": [
+    {
+      "position": 0,
+      "media_id": 20127,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/How-to-Redirect-300x300.jpg?resize=300%2C300",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/How-to-Redirect-300x300.jpg",
+      "local_file": "20122-01.jpg",
+      "alt": "how-to-redirect",
+      "alt_source": "inline",
+      "section_heading": null,
+      "width": 800,
+      "height": 800
+    },
+    {
+      "position": 1,
+      "media_id": 20124,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/domain-forwarding.jpg?resize=600%2C238",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/domain-forwarding.jpg",
+      "local_file": "20122-02.jpg",
+      "alt": "domain-forwarding",
+      "alt_source": "inline",
+      "section_heading": "Step 1: Login to Enset > Navigate to My Domains > Select Your Domain(s) > Select Options.",
+      "width": 600,
+      "height": 238
+    },
+    {
+      "position": 2,
+      "media_id": 20125,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/Domain-Forwarding-2.jpg?resize=600%2C244",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/Domain-Forwarding-2.jpg",
+      "local_file": "20122-03.jpg",
+      "alt": "domain-forwarding-2",
+      "alt_source": "inline",
+      "section_heading": "Step 2: Select “Redirect” as the “Forwarding Type” and enter the .ORG website that your .NGO domain name should redirect to > Select “Create.”",
+      "width": 600,
+      "height": 244
+    },
+    {
+      "position": 3,
+      "media_id": 20071,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/for-blog.jpg?resize=600%2C316",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2016/10/for-blog.jpg",
+      "local_file": "20122-04.jpg",
+      "alt": "Web",
+      "alt_source": "inline",
+      "section_heading": "Step 2: Select “Redirect” as the “Forwarding Type” and enter the .ORG website that your .NGO domain name should redirect to > Select “Create.”",
+      "width": 600,
+      "height": 316
+    }
+  ]
+}

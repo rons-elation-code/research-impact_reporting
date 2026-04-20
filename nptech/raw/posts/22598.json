@@ -1,0 +1,49 @@
+{
+  "post": {
+    "id": 22598,
+    "date": "2018-09-06T18:17:14",
+    "date_gmt": "2018-09-06T18:17:14",
+    "modified": "2018-09-06T19:22:40",
+    "modified_gmt": "2018-09-06T19:22:40",
+    "slug": "github-for-good-what-nonprofits-need-to-know",
+    "link": "https://www.nptechforgood.com/2018/09/06/github-for-good-what-nonprofits-need-to-know/",
+    "title": {
+      "rendered": "GitHub for Good: What Nonprofits Need to Know"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: center;\"><a href=\"https://github.com/nonprofit\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22601\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Twitter.png?resize=600%2C300\" alt=\"\" width=\"600\" height=\"300\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Twitter.png?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Twitter.png?resize=300%2C150&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>By <a href=\"https://richardchiriboga.com/\"><strong>Richard Chiriboga</strong></a>, a web project manager and front-end developer and founder of <a href=\"https://www.corrientelatina.com/\"><strong>CorrienteLatina.com</strong></a>.</p>\n<hr />\n<p>To first understand how <a href=\"https://github.com/nonprofit\"><strong>GitHub for Good</strong></a> works, let\u2019s take a step back and understand what <a href=\"https://github.com/\"><strong>GitHub</strong></a> actually is. At its simplest form, Github is a place that houses <a href=\"https://www.economist.com/the-economist-explains/2015/09/08/what-is-code\"><strong>code</strong></a> into groups called <a href=\"https://github.com/trending\"><strong>repositories</strong></a> and allows one or more people to update and keep <a href=\"https://en.wikipedia.org/wiki/Version_control\"><strong>version controlled</strong></a> copies of their files.</p>\n<p><strong>Imagine this scenario: </strong>Joe and Alex are both web developers working on a nonprofit\u2019s website who want to may sure they:</p>\n<ol>\n<li>Do not overwrite each other\u2019s work</li>\n<li>Keep one central location for all their web files</li>\n</ol>\n<p>The nonprofit has a Github Repository for <em>nonprofitname.org </em>and both developers add their files to the repository. Each time they add an update, both the current and older versions are saved. For the more technically advanced, you can build <a href=\"https://github.com/Kunena/Kunena-Forum/wiki/Create-a-new-branch-with-git-and-manage-branches\"><strong>branches</strong></a> to create new functionality, do code reviews, get outside help, and merge fixes back into the original code. Example of a GitHub Repository:</p>\n<p style=\"text-align: center;\"><a href=\"https://github.com/nonprofit\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-22599\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-1.jpg?resize=600%2C262\" alt=\"\" width=\"600\" height=\"262\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-1.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-1.jpg?resize=300%2C131&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<h2><strong>Enter Github for Good</strong></h2>\n<p>In short, <a href=\"https://github.com/nonprofit\"><strong>GitHub for Good</strong></a> is a free GitHub account. To qualify, your organization must meet a set of requirements:</p>\n<p><strong>GitHub nonprofit accounts are designed for official nonprofit organizations and charities that are nongovernment, nonacademic, noncommercial, nonpolitical in nature, and have no religious affiliation.</strong></p>\n<p>If your organization does not fall within their guidelines, you can <a href=\"https://github.com/pricing\"><strong>find a plan</strong></a> that works for you. \u00a0Finally, it\u2019s worth noting that GitHub is also compatible with many different project management systems, such as <a href=\"https://basecamp.com/\"><strong>Basecamp</strong></a>, <a href=\"https://zapier.com/\"><strong>Zapier</strong></a>, <a href=\"https://slack.com\"><strong>Slack</strong></a>, and <a href=\"https://trello.com/\"><strong>Trello</strong></a>.</p>\n<h2><strong>Nonprofits and Nonprofit Technology Companies Using GitHub</strong></h2>\n<ol>\n<li>Blackbaud/Convio:\u00a0<strong><a href=\"https://github.com/convio\">github.com/convio</a></strong></li>\n<li>Institute for NonProfit News:\u00a0<strong><a href=\"https://github.com/INN\">github.com/INN</a></strong></li>\n<li>Classy:\u00a0<strong><a href=\"https://github.com/classy-org\">github.com/classy-org</a></strong></li>\n<li>Donor Drive:\u00a0<strong><a href=\"https://github.com/DonorDrive\">github.com/DonorDrive</a></strong></li>\n<li>Free Code Camp:<strong>\u00a0<a href=\"https://github.com/freeCodeCamp\">github.com/freeCodeCamp</a></strong></li>\n<li>6Charity Navigator:<strong>\u00a0<a href=\"https://github.com/CharityNavigator\">github.com/CharityNavigator</a></strong></li>\n</ol>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>By Richard Chiriboga, a web project manager and front-end developer and founder of CorrienteLatina.com. To first understand how GitHub for Good works, let\u2019s take a step back and understand what GitHub actually is. At its simplest form, Github is a place that houses code into groups called repositories and allows one or more people to update and keep version controlled copies of their files. Imagine this scenario: Joe and Alex are both web developers working on a nonprofit\u2019s website who want to may sure they: Do not overwrite each other\u2019s work Keep one central location for all their web files </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 22605,
+    "categories": [
+      86
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 22605,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Facebook.png",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Facebook.png",
+      "featured": true,
+      "local_file": "22598-00.png"
+    },
+    {
+      "id": 22601,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Twitter.png",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-for-Nonprofits-Twitter.png?resize=600%2C300",
+      "local_file": "22598-01.png"
+    },
+    {
+      "id": 22599,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-1.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/GitHub-for-Good-1.jpg?resize=600%2C262",
+      "local_file": "22598-02.jpg"
+    }
+  ]
+}

@@ -1,0 +1,240 @@
+{
+  "id": 35070,
+  "date": "2023-02-03T12:31:43",
+  "date_gmt": "2023-02-03T12:31:43",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png"
+  },
+  "modified": "2023-02-03T12:31:43",
+  "modified_gmt": "2023-02-03T12:31:43",
+  "slug": "p2p-fundraising-ad",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2023/02/05/4-easy-ways-to-acquire-new-donors-for-your-nonprofit-with-peer-to-peer-fundraising/p2p-fundraising-ad/",
+  "title": {
+    "rendered": "p2p fundraising ad"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-35070",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-97E",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"237\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?fit=237%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?w=548&amp;ssl=1 548w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=237%2C300&amp;ssl=1 237w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=39%2C50&amp;ssl=1 39w\" sizes=\"auto, (max-width: 237px) 100vw, 237px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 548,
+    "height": 695,
+    "file": "2023/02/p2p-fundraising-ad.png",
+    "filesize": 334789,
+    "sizes": {
+      "medium": {
+        "file": "p2p-fundraising-ad-237x300.png",
+        "width": 237,
+        "height": 300,
+        "filesize": 84452,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?fit=237%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "p2p-fundraising-ad-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 34468,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "p2p-fundraising-ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58077,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "p2p-fundraising-ad-39x50.png",
+        "width": 39,
+        "height": 50,
+        "filesize": 3489,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?fit=39%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "p2p-fundraising-ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58077,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "p2p-fundraising-ad-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 9709,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "p2p-fundraising-ad-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 219737,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=548%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "p2p-fundraising-ad-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58077,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "p2p-fundraising-ad-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 11154,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "p2p-fundraising-ad-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 105983,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "p2p-fundraising-ad-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 9709,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "p2p-fundraising-ad-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 221309,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=548%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "p2p-fundraising-ad-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 11154,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "p2p-fundraising-ad-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 105983,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "p2p-fundraising-ad.png?fit=548%2C695&ssl=1",
+        "width": 548,
+        "height": 695,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png?fit=548%2C695&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 35068,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2023/02/p2p-fundraising-ad.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/35070",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=35070"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 35068,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/35068"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

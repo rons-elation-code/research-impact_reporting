@@ -1,0 +1,239 @@
+{
+  "id": 27350,
+  "date": "2020-09-30T17:20:49",
+  "date_gmt": "2020-09-30T17:20:49",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg"
+  },
+  "modified": "2020-09-30T17:20:49",
+  "modified_gmt": "2020-09-30T17:20:49",
+  "slug": "giving-tuesday-nonprofit-hub",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/10/01/7-ways-nonprofits-can-automate-donor-retention/giving-tuesday-nonprofit-hub/",
+  "title": {
+    "rendered": "Giving Tuesday Nonprofit Hub"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-27350",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-778",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"155\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=300%2C155&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?w=1673&amp;ssl=1 1673w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=300%2C155&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=1024%2C528&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=768%2C396&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=1536%2C792&amp;ssl=1 1536w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1673,
+    "height": 863,
+    "file": "2020/09/Giving-Tuesday-Nonprofit-Hub.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-300x155.jpg",
+        "width": 300,
+        "height": 155,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=300%2C155&ssl=1"
+      },
+      "large": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-1024x528.jpg",
+        "width": 1024,
+        "height": 528,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=960%2C495&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-768x396.jpg",
+        "width": 768,
+        "height": 396,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=768%2C396&ssl=1"
+      },
+      "1536x1536": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-1536x792.jpg",
+        "width": 1536,
+        "height": 792,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=1536%2C792&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Giving-Tuesday-Nonprofit-Hub-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Giving-Tuesday-Nonprofit-Hub.jpg?fit=1673%2C863&ssl=1",
+        "width": 1673,
+        "height": 863,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg?fit=1673%2C863&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1601461195",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 27344,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/09/Giving-Tuesday-Nonprofit-Hub.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/27350",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=27350"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 27344,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/27344"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

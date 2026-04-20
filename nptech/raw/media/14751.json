@@ -1,0 +1,167 @@
+{
+  "id": 14751,
+  "date": "2013-10-19T15:01:41",
+  "date_gmt": "2013-10-19T15:01:41",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg"
+  },
+  "modified": "2013-10-19T15:01:41",
+  "modified_gmt": "2013-10-19T15:01:41",
+  "slug": "the-power-of-kawaii",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/10/19/the-power-of-kawaii-for-nonprofit-social-media-managers/the-power-of-kawaii/",
+  "title": {
+    "rendered": "The Power of Kawaii"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14751",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3PV",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?fit=300%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?w=467&amp;ssl=1 467w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=150%2C150&amp;ssl=1 150w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=300%2C300&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=200%2C200&amp;ssl=1 200w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=75%2C75&amp;ssl=1 75w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n<p>Twin polar bear cubs (Ursus maritimus), about 3 months old, inside a snow den. (Their mother was nearby, tranquilized, and having her condition assessed by Canadian Wildlife Service polar bear biologists.) The polar bear is listed as a Vulnerable species on the IUCN Red List (designated in 2005), and as a Threatened species under the U.S. Endangered Species Act (listed in 2008). Polar bear maternity denning area, Wapusk National Park, Manitoba, Canada.</p>\n"
+  },
+  "caption": {
+    "rendered": "<p>Via Zoo Atlanta: Polar Bear Cubs (Endangered)</p>\n"
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 467,
+    "height": 467,
+    "file": "2013/10/The-Power-of-Kawaii.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "The-Power-of-Kawaii-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "The-Power-of-Kawaii-300x300.jpg",
+        "width": 300,
+        "height": 300,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?fit=300%2C300&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "The-Power-of-Kawaii-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "The-Power-of-Kawaii-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "The-Power-of-Kawaii-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "The-Power-of-Kawaii-467x250.jpg",
+        "width": 467,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?resize=467%2C250&ssl=1"
+      },
+      "full": {
+        "file": "The-Power-of-Kawaii.jpg?fit=467%2C467&ssl=1",
+        "width": 467,
+        "height": 467,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg?fit=467%2C467&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "Jenny E. Ross",
+      "camera": "",
+      "caption": "Twin polar bear cubs (Ursus maritimus), about 3 months old, inside a snow den. (Their mother was nearby, tranquilized, and having her condition assessed by Canadian Wildlife Service polar bear biologists.) The polar bear is listed as a Vulnerable species on the IUCN Red List (designated in 2005), and as a Threatened species under the U.S. Endangered Species Act (listed in 2008). Polar bear maternity denning area, Wapusk National Park, Manitoba, Canada.",
+      "created_timestamp": 0,
+      "copyright": "Copyright Jenny E. Ross",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14739,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/10/The-Power-of-Kawaii.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14751",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14751"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14739,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14739"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

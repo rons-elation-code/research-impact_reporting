@@ -1,0 +1,138 @@
+{
+  "id": 12612,
+  "date": "2013-06-25T21:29:48",
+  "date_gmt": "2013-06-25T21:29:48",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg"
+  },
+  "modified": "2013-06-25T21:29:48",
+  "modified_gmt": "2013-06-25T21:29:48",
+  "slug": "12612",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/12612/",
+  "title": {
+    "rendered": ""
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-12612",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3hq",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"219\" height=\"200\" src=\"https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?fit=219%2C200&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "file",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 219,
+    "height": 200,
+    "file": "2013/06/chrispoolefilmingalextiger.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "chrispoolefilmingalextiger-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "chrispoolefilmingalextiger-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "chrispoolefilmingalextiger-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "chrispoolefilmingalextiger-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?resize=75%2C75&ssl=1"
+      },
+      "full": {
+        "file": "chrispoolefilmingalextiger.jpg?fit=219%2C200&ssl=1",
+        "width": 219,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/localhost/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg?fit=219%2C200&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 8,
+      "credit": "",
+      "camera": "Canon EOS 20D",
+      "caption": "",
+      "created_timestamp": 1289411256,
+      "copyright": "",
+      "focal_length": "41",
+      "iso": "1600",
+      "shutter_speed": "0.008",
+      "title": ""
+    }
+  },
+  "post": null,
+  "source_url": "https://localhost:10003/wp-content/uploads/2013/06/chrispoolefilmingalextiger.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/12612",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=12612"
+      }
+    ]
+  }
+}

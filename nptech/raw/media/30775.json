@@ -1,0 +1,232 @@
+{
+  "id": 30775,
+  "date": "2021-10-10T17:58:56",
+  "date_gmt": "2021-10-10T17:58:56",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus.jpg"
+  },
+  "modified": "2021-10-10T17:58:56",
+  "modified_gmt": "2021-10-10T17:58:56",
+  "slug": "eventsitepoweredbygolfstatus",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2021/10/10/8-best-practices-for-a-successful-2022-golf-fundraiser/eventsitepoweredbygolfstatus/",
+  "title": {
+    "rendered": "Event+site+powered+by+GolfStatus"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-30775",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-80n",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"200\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=300%2C200&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 534,
+    "file": "2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg",
+    "sizes": {
+      "medium": {
+        "file": "EventsitepoweredbyGolfStatus-300x200.jpg",
+        "width": 300,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=300%2C200&ssl=1"
+      },
+      "thumbnail": {
+        "file": "EventsitepoweredbyGolfStatus-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "EventsitepoweredbyGolfStatus-768x512.jpg",
+        "width": 768,
+        "height": 512,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=768%2C512&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "EventsitepoweredbyGolfStatus-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "EventsitepoweredbyGolfStatus-50x33.jpg",
+        "width": 50,
+        "height": 33,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=50%2C33&ssl=1"
+      },
+      "featured": {
+        "file": "EventsitepoweredbyGolfStatus-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "EventsitepoweredbyGolfStatus-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "EventsitepoweredbyGolfStatus-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "EventsitepoweredbyGolfStatus-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "EventsitepoweredbyGolfStatus-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "EventsitepoweredbyGolfStatus-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "EventsitepoweredbyGolfStatus-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "EventsitepoweredbyGolfStatus-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "EventsitepoweredbyGolfStatus-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "EventsitepoweredbyGolfStatus-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=800%2C534&ssl=1",
+        "width": 800,
+        "height": 534,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg?fit=800%2C534&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 30768,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2021/10/EventsitepoweredbyGolfStatus-e1639860682357.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/30775",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=30775"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 30768,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/30768"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

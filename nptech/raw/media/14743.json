@@ -1,0 +1,167 @@
+{
+  "id": 14743,
+  "date": "2013-10-19T14:17:41",
+  "date_gmt": "2013-10-19T14:17:41",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/10/NRDC-Seals.jpg"
+  },
+  "modified": "2013-10-19T14:17:41",
+  "modified_gmt": "2013-10-19T14:17:41",
+  "slug": "nrdc-seals",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/10/19/the-power-of-kawaii-for-nonprofit-social-media-managers/nrdc-seals/",
+  "title": {
+    "rendered": "NRDC Seals"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-14743",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3PN",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"264\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?fit=264%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?w=452&amp;ssl=1 452w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=264%2C300&amp;ssl=1 264w\" sizes=\"auto, (max-width: 264px) 100vw, 264px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 452,
+    "height": 512,
+    "file": "2013/10/NRDC-Seals.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "NRDC-Seals-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "NRDC-Seals-264x300.jpg",
+        "width": 264,
+        "height": 300,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?fit=264%2C300&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "NRDC-Seals-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "NRDC-Seals-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "NRDC-Seals-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "NRDC-Seals-452x250.jpg",
+        "width": 452,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?resize=452%2C250&ssl=1"
+      },
+      "full": {
+        "file": "NRDC-Seals.jpg?fit=452%2C512&ssl=1",
+        "width": 452,
+        "height": 512,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg?fit=452%2C512&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 14739,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/10/NRDC-Seals.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/14743",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=14743"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 14739,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/14739"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

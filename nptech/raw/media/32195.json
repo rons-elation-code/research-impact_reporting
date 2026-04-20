@@ -1,0 +1,239 @@
+{
+  "id": 32195,
+  "date": "2022-02-08T16:52:52",
+  "date_gmt": "2022-02-08T16:52:52",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/02/Ink-to-the-People.jpg"
+  },
+  "modified": "2022-02-08T16:52:52",
+  "modified_gmt": "2022-02-08T16:52:52",
+  "slug": "ink-to-the-people",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/02/08/8-fundraising-tools-to-watch-in-2022/ink-to-the-people/",
+  "title": {
+    "rendered": "Ink to the People"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-32195",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8nh",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"128\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=300%2C128&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 340,
+    "file": "2022/02/Ink-to-the-People-e1644339190519.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Ink-to-the-People-300x128.jpg",
+        "width": 300,
+        "height": 128,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=300%2C128&ssl=1"
+      },
+      "large": {
+        "file": "Ink-to-the-People-1024x435.jpg",
+        "width": 1024,
+        "height": 435,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=960%2C408&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Ink-to-the-People-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Ink-to-the-People-768x326.jpg",
+        "width": 768,
+        "height": 326,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=768%2C326&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Ink-to-the-People-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Ink-to-the-People-50x21.jpg",
+        "width": 50,
+        "height": 21,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=50%2C21&ssl=1"
+      },
+      "featured": {
+        "file": "Ink-to-the-People-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Ink-to-the-People-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Ink-to-the-People-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Ink-to-the-People-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Ink-to-the-People-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Ink-to-the-People-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Ink-to-the-People-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Ink-to-the-People-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Ink-to-the-People-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Ink-to-the-People-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Ink-to-the-People-e1644339190519.jpg?fit=800%2C340&ssl=1",
+        "width": 800,
+        "height": 340,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg?fit=800%2C340&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 32144,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/02/Ink-to-the-People-e1644339190519.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/32195",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=32195"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 32144,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/32144"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,232 @@
+{
+  "id": 25122,
+  "date": "2020-01-09T15:18:37",
+  "date_gmt": "2020-01-09T15:18:37",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/01/Giving-USA-Report.png"
+  },
+  "modified": "2020-01-09T15:18:37",
+  "modified_gmt": "2020-01-09T15:18:37",
+  "slug": "giving-usa-report",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/01/09/digital-storytelling-to-access-attract-and-activate-u-s-donors/giving-usa-report/",
+  "title": {
+    "rendered": "Giving USA Report"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-25122",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6xc",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"220\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?fit=300%2C220&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?w=1472&amp;ssl=1 1472w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=300%2C220&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=1024%2C751&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=768%2C563&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 1472,
+    "height": 1080,
+    "file": "2020/01/Giving-USA-Report.png",
+    "sizes": {
+      "medium": {
+        "file": "Giving-USA-Report-300x220.png",
+        "width": 300,
+        "height": 220,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?fit=300%2C220&ssl=1"
+      },
+      "large": {
+        "file": "Giving-USA-Report-1024x751.png",
+        "width": 1024,
+        "height": 751,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?fit=960%2C704&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Giving-USA-Report-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Giving-USA-Report-768x563.png",
+        "width": 768,
+        "height": 563,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?fit=768%2C563&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Giving-USA-Report-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Giving-USA-Report-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Giving-USA-Report-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Giving-USA-Report-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Giving-USA-Report-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Giving-USA-Report-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Giving-USA-Report-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Giving-USA-Report-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Giving-USA-Report-610x250.png",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Giving-USA-Report-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Giving-USA-Report-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Giving-USA-Report.png?fit=1472%2C1080&ssl=1",
+        "width": 1472,
+        "height": 1080,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png?fit=1472%2C1080&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 25120,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/01/Giving-USA-Report.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/25122",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=25122"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 25120,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/25120"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

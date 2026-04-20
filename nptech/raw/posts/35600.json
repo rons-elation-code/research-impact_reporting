@@ -1,0 +1,27 @@
+{
+  "post": {
+    "id": 35600,
+    "date": "2023-04-01T14:47:43",
+    "date_gmt": "2023-04-01T14:47:43",
+    "modified": "2023-04-02T16:16:17",
+    "modified_gmt": "2023-04-02T16:16:17",
+    "slug": "thank-you-social-media-certificate",
+    "link": "https://www.nptechforgood.com/thank-you-social-media-certificate/",
+    "title": {
+      "rendered": "Thank You!"
+    },
+    "content": {
+      "rendered": "<p><strong>You will be sent the notes and webinar recording(s) via email within the next 24 hours!</strong></p>\n<hr />\n<h2></h2>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>You will be sent the notes and webinar recording(s) via email within the next 24 hours!</p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 0,
+    "categories": [],
+    "_is_static_page": true
+  },
+  "image_refs": []
+}

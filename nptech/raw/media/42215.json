@@ -1,0 +1,256 @@
+{
+  "id": 42215,
+  "date": "2024-12-28T14:41:51",
+  "date_gmt": "2024-12-28T14:41:51",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2024/04/1-password.png"
+  },
+  "modified": "2024-12-28T14:42:05",
+  "modified_gmt": "2024-12-28T14:42:05",
+  "slug": "1-password",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2024/12/28/5-cybersecurity-best-practices-for-your-nonprofit/1-password/",
+  "title": {
+    "rendered": "1 password"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-42215",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-aYT",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"178\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=300%2C178&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 800,
+    "height": 474,
+    "file": "2024/04/1-password-e1735396923490.png",
+    "filesize": 307615,
+    "sizes": {
+      "medium": {
+        "file": "1-password-300x178.png",
+        "width": 300,
+        "height": 178,
+        "filesize": 27576,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=300%2C178&ssl=1"
+      },
+      "large": {
+        "file": "1-password-1024x607.png",
+        "width": 1024,
+        "height": 607,
+        "filesize": 196709,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=960%2C569&ssl=1"
+      },
+      "thumbnail": {
+        "file": "1-password-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 12478,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "1-password-768x455.png",
+        "width": 768,
+        "height": 455,
+        "filesize": 120851,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=768%2C455&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "1-password-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 19462,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "1-password-50x30.png",
+        "width": 50,
+        "height": 30,
+        "filesize": 1952,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=50%2C30&ssl=1"
+      },
+      "featured": {
+        "file": "1-password-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 19462,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "1-password-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4604,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "1-password-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 51115,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "1-password-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 19462,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "1-password-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "1-password-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 32216,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "1-password-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4604,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "1-password-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 51504,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "1-password-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "1-password-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 32216,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "1-password-e1735396923490.png?fit=800%2C474&ssl=1",
+        "width": 800,
+        "height": 474,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?fit=800%2C474&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 34923,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/42215",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=42215"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 34923,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/34923"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

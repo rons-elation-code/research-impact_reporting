@@ -1,0 +1,218 @@
+{
+  "id": 28040,
+  "date": "2020-12-13T16:05:29",
+  "date_gmt": "2020-12-13T16:05:29",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg"
+  },
+  "modified": "2020-12-13T16:05:29",
+  "modified_gmt": "2020-12-13T16:05:29",
+  "slug": "nonprofit-slide-4",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/12/13/10-design-tips-for-awesome-nonprofit-online-presentations/nonprofit-slide-4/",
+  "title": {
+    "rendered": "Nonprofit Slide 4"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-28040",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-7ig",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"225\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?fit=300%2C225&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?w=720&amp;ssl=1 720w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=300%2C225&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 720,
+    "height": 540,
+    "file": "2020/12/Nonprofit-Slide-4.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Nonprofit-Slide-4-300x225.jpg",
+        "width": 300,
+        "height": 225,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?fit=300%2C225&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Nonprofit-Slide-4-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Nonprofit-Slide-4-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Nonprofit-Slide-4-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Nonprofit-Slide-4-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Nonprofit-Slide-4-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Nonprofit-Slide-4-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Nonprofit-Slide-4-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Nonprofit-Slide-4-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Nonprofit-Slide-4-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Nonprofit-Slide-4-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Nonprofit-Slide-4-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Nonprofit-Slide-4-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Nonprofit-Slide-4.jpg?fit=720%2C540&ssl=1",
+        "width": 720,
+        "height": 540,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg?fit=720%2C540&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 28035,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/12/Nonprofit-Slide-4.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/28040",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=28040"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 28035,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/28035"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

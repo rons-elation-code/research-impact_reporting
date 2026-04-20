@@ -1,0 +1,239 @@
+{
+  "id": 33242,
+  "date": "2022-05-05T21:46:16",
+  "date_gmt": "2022-05-05T21:46:16",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits.jpg"
+  },
+  "modified": "2022-05-05T21:46:16",
+  "modified_gmt": "2022-05-05T21:46:16",
+  "slug": "network-for-good-for-small-nonprofits",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/05/05/how-to-demonstrate-roi-to-your-nonprofit-board-members/network-for-good-for-small-nonprofits/",
+  "title": {
+    "rendered": "Network for Good for Small Nonprofits"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-33242",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8Ea",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"150\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=300%2C150&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 800,
+    "height": 400,
+    "file": "2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Network-for-Good-for-Small-Nonprofits-300x150.jpg",
+        "width": 300,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=300%2C150&ssl=1"
+      },
+      "large": {
+        "file": "Network-for-Good-for-Small-Nonprofits-1024x512.jpg",
+        "width": 1024,
+        "height": 512,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=960%2C480&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Network-for-Good-for-Small-Nonprofits-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Network-for-Good-for-Small-Nonprofits-768x384.jpg",
+        "width": 768,
+        "height": 384,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=768%2C384&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Network-for-Good-for-Small-Nonprofits-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Network-for-Good-for-Small-Nonprofits-50x25.jpg",
+        "width": 50,
+        "height": 25,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=50%2C25&ssl=1"
+      },
+      "featured": {
+        "file": "Network-for-Good-for-Small-Nonprofits-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Network-for-Good-for-Small-Nonprofits-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Network-for-Good-for-Small-Nonprofits-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Network-for-Good-for-Small-Nonprofits-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Network-for-Good-for-Small-Nonprofits-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Network-for-Good-for-Small-Nonprofits-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Network-for-Good-for-Small-Nonprofits-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Network-for-Good-for-Small-Nonprofits-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Network-for-Good-for-Small-Nonprofits-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Network-for-Good-for-Small-Nonprofits-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=800%2C400&ssl=1",
+        "width": 800,
+        "height": 400,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg?fit=800%2C400&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 33235,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/05/Network-for-Good-for-Small-Nonprofits-e1651787189483.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/33242",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=33242"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 33235,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/33235"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

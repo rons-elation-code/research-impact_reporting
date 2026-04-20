@@ -1,0 +1,232 @@
+{
+  "id": 26873,
+  "date": "2020-07-13T14:58:31",
+  "date_gmt": "2020-07-13T14:58:31",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/07/Clean-Water.jpg"
+  },
+  "modified": "2020-07-13T14:58:31",
+  "modified_gmt": "2020-07-13T14:58:31",
+  "slug": "clean-water",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2020/07/13/how-water-org-adapted-their-social-media-content-strategy-in-response-to-covid-19/clean-water/",
+  "title": {
+    "rendered": "Clean Water"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-26873",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6Zr",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"168\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?fit=300%2C168&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?w=1229&amp;ssl=1 1229w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=300%2C168&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=1024%2C575&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=768%2C431&amp;ssl=1 768w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 1229,
+    "height": 690,
+    "file": "2020/07/Clean-Water.jpg",
+    "sizes": {
+      "medium": {
+        "file": "Clean-Water-300x168.jpg",
+        "width": 300,
+        "height": 168,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?fit=300%2C168&ssl=1"
+      },
+      "large": {
+        "file": "Clean-Water-1024x575.jpg",
+        "width": 1024,
+        "height": 575,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?fit=960%2C539&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Clean-Water-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Clean-Water-768x431.jpg",
+        "width": 768,
+        "height": 431,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?fit=768%2C431&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Clean-Water-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "Clean-Water-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Clean-Water-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Clean-Water-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Clean-Water-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Clean-Water-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Clean-Water-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Clean-Water-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Clean-Water-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Clean-Water-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Clean-Water-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Clean-Water.jpg?fit=1229%2C690&ssl=1",
+        "width": 1229,
+        "height": 690,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg?fit=1229%2C690&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "Heather Mansfield",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "1594627009",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 26870,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/07/Clean-Water.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/26873",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=26873"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 26870,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/26870"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "post": {
+    "id": 44623,
+    "date": "2025-10-22T15:47:08",
+    "date_gmt": "2025-10-22T15:47:08",
+    "modified": "2025-10-22T15:47:08",
+    "modified_gmt": "2025-10-22T15:47:08",
+    "slug": "test-1",
+    "link": "https://www.nptechforgood.com/test-1/",
+    "title": {
+      "rendered": "TEST 1"
+    },
+    "content": {
+      "rendered": "",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 0,
+    "categories": [],
+    "_is_static_page": true
+  },
+  "image_refs": []
+}

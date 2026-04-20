@@ -1,0 +1,248 @@
+{
+  "id": 36442,
+  "date": "2023-07-06T21:28:40",
+  "date_gmt": "2023-07-06T21:28:40",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png"
+  },
+  "modified": "2023-07-06T21:28:40",
+  "modified_gmt": "2023-07-06T21:28:40",
+  "slug": "09-enhanced-measurement-01",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2023/07/09/how-nonprofits-can-create-track-conversions-in-google-analytics-4/09-enhanced-measurement-01/",
+  "title": {
+    "rendered": "09 &#8211; Enhanced-measurement-01"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-36442",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-9tM",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"203\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?fit=300%2C203&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=300%2C203&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=768%2C518&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=50%2C34&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 800,
+    "height": 540,
+    "file": "2023/07/09-Enhanced-measurement-01.png",
+    "filesize": 88372,
+    "sizes": {
+      "medium": {
+        "file": "09-Enhanced-measurement-01-300x203.png",
+        "width": 300,
+        "height": 203,
+        "filesize": 18482,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?fit=300%2C203&ssl=1"
+      },
+      "thumbnail": {
+        "file": "09-Enhanced-measurement-01-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 8554,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "09-Enhanced-measurement-01-768x518.png",
+        "width": 768,
+        "height": 518,
+        "filesize": 87340,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?fit=768%2C518&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "09-Enhanced-measurement-01-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13761,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "09-Enhanced-measurement-01-50x34.png",
+        "width": 50,
+        "height": 34,
+        "filesize": 1666,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?fit=50%2C34&ssl=1"
+      },
+      "featured": {
+        "file": "09-Enhanced-measurement-01-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13761,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "09-Enhanced-measurement-01-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3255,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "09-Enhanced-measurement-01-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 28690,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "09-Enhanced-measurement-01-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13761,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "09-Enhanced-measurement-01-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 3578,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "09-Enhanced-measurement-01-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 16620,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "09-Enhanced-measurement-01-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3255,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "09-Enhanced-measurement-01-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 27574,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "09-Enhanced-measurement-01-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 3578,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "09-Enhanced-measurement-01-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 16620,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "09-Enhanced-measurement-01.png?fit=800%2C540&ssl=1",
+        "width": 800,
+        "height": 540,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png?fit=800%2C540&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 36410,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2023/07/09-Enhanced-measurement-01.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/36442",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=36442"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 36410,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/36410"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

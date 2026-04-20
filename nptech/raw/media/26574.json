@@ -1,0 +1,225 @@
+{
+  "id": 26574,
+  "date": "2020-06-10T19:06:17",
+  "date_gmt": "2020-06-10T19:06:17",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2020/06/YMCA-NYC.jpg"
+  },
+  "modified": "2020-06-10T19:06:17",
+  "modified_gmt": "2020-06-10T19:06:17",
+  "slug": "ymca-nyc",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/10/05/10-online-fundraising-best-practices-for-nonprofits-3/ymca-nyc/",
+  "title": {
+    "rendered": "YMCA NYC"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-26574",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-6UC",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"169\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?fit=169%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?w=750&amp;ssl=1 750w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=169%2C300&amp;ssl=1 169w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=576%2C1024&amp;ssl=1 576w\" sizes=\"auto, (max-width: 169px) 100vw, 169px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 750,
+    "height": 1334,
+    "file": "2020/06/YMCA-NYC.jpg",
+    "sizes": {
+      "medium": {
+        "file": "YMCA-NYC-169x300.jpg",
+        "width": 169,
+        "height": 300,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?fit=169%2C300&ssl=1"
+      },
+      "large": {
+        "file": "YMCA-NYC-576x1024.jpg",
+        "width": 576,
+        "height": 1024,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?fit=576%2C1024&ssl=1"
+      },
+      "thumbnail": {
+        "file": "YMCA-NYC-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "YMCA-NYC-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "YMCA-NYC-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "YMCA-NYC-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "YMCA-NYC-600x250.jpg",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "YMCA-NYC-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "YMCA-NYC-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "YMCA-NYC-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "YMCA-NYC-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "YMCA-NYC-610x250.jpg",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "YMCA-NYC-80x80.jpg",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "YMCA-NYC-324x200.jpg",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "YMCA-NYC.jpg?fit=750%2C1334&ssl=1",
+        "width": 750,
+        "height": 1334,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg?fit=750%2C1334&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "1",
+      "keywords": []
+    }
+  },
+  "post": 26336,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2020/06/YMCA-NYC.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/26574",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=26574"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 26336,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/26336"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

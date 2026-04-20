@@ -1,0 +1,248 @@
+{
+  "id": 40185,
+  "date": "2024-05-14T20:56:46",
+  "date_gmt": "2024-05-14T20:56:46",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign.png"
+  },
+  "modified": "2024-05-14T20:56:46",
+  "modified_gmt": "2024-05-14T20:56:46",
+  "slug": "employer-matching-gift-campaign",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/101-best-practices/10-online-fundraising-best-practices-for-nonprofits/employer-matching-gift-campaign/",
+  "title": {
+    "rendered": "Employer matching gift campaign"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-40185",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-as9",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"298\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?fit=300%2C298&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 800,
+    "height": 794,
+    "file": "2024/05/Employer-matching-gift-campaign-e1715720219601.png",
+    "filesize": 67100,
+    "sizes": {
+      "medium": {
+        "file": "Employer-matching-gift-campaign-300x298.png",
+        "width": 300,
+        "height": 298,
+        "filesize": 24899,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?fit=300%2C298&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Employer-matching-gift-campaign-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 8505,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Employer-matching-gift-campaign-768x762.png",
+        "width": 768,
+        "height": 762,
+        "filesize": 92049,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?fit=768%2C762&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Employer-matching-gift-campaign-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13007,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Employer-matching-gift-campaign-50x50.png",
+        "width": 50,
+        "height": 50,
+        "filesize": 1882,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?fit=50%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Employer-matching-gift-campaign-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13007,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Employer-matching-gift-campaign-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3087,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Employer-matching-gift-campaign-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 19231,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Employer-matching-gift-campaign-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 13007,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Employer-matching-gift-campaign-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 3341,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Employer-matching-gift-campaign-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 16501,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Employer-matching-gift-campaign-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 3087,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Employer-matching-gift-campaign-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 19601,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Employer-matching-gift-campaign-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 3341,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Employer-matching-gift-campaign-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 16501,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Employer-matching-gift-campaign-e1715720219601.png?fit=800%2C794&ssl=1",
+        "width": 800,
+        "height": 794,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png?fit=800%2C794&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 30300,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2024/05/Employer-matching-gift-campaign-e1715720219601.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/40185",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=40185"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 30300,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/30300"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

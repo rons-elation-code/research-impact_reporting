@@ -1,0 +1,45 @@
+{
+  "post": {
+    "id": 22611,
+    "date": "2018-09-15T16:12:35",
+    "date_gmt": "2018-09-15T16:12:35",
+    "modified": "2020-03-15T22:50:00",
+    "modified_gmt": "2020-03-15T22:50:00",
+    "slug": "22611",
+    "link": "https://www.nptechforgood.com/2018/09/15/22611/",
+    "title": {
+      "rendered": "The 2018 Global Trends in Giving Report Is Now Available for Download!"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: center;\"><a href=\"https://funraise.org/techreport-past-reports\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter wp-image-22613 size-full\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-Twitter-600.jpg?resize=600%2C315\" alt=\"\" width=\"600\" height=\"315\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-Twitter-600.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-Twitter-600.jpg?resize=300%2C158&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<p>The <a href=\"https://www.funraise.org/giving-report/past-reports\"><strong>2018 Global Trends in Giving Report</strong></a> is based on the survey results of 6,057 donors worldwide and available for download in four languages \u2013 <strong>English</strong>, <strong>espa\u00f1ol</strong>, <strong>fran\u00e7ais</strong>, and <strong>portugu\u00eas</strong>.</p>\n<p>Produced by Nonprofit Tech for Good, the report summarizes donor data across six continents about how online technology effects giving. The report also examines the impact of gender, generation, ideology, religion, and donor size upon giving.</p>\n<p>This year the report also features data from 1,049 non-donors who share why they don&#8217;t give and whether they plan to in the future.<a href=\"https://funraise.org/techreport-past-reports\"><br />\n</a></p>\n<p>P.S. Thank you to our <a href=\"https://www.funraise.org/giving-report/past-reports\"><strong>2018 partners</strong></a> that helped promote the survey to donors worldwide!</p>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>The 2018 Global Trends in Giving Report is based on the survey results of 6,057 donors worldwide and available for download in four languages \u2013 English, espa\u00f1ol, fran\u00e7ais, and portugu\u00eas. Produced by Nonprofit Tech for Good, the report summarizes donor data across six continents about how online technology effects giving. The report also examines the impact of gender, generation, ideology, religion, and donor size upon giving. This year the report also features data from 1,049 non-donors who share why they don&#8217;t give and whether they plan to in the future. P.S. Thank you to our 2018 partners that helped promote </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 22614,
+    "categories": [
+      18,
+      81,
+      80
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 22614,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-FB.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-FB.jpg",
+      "featured": true,
+      "local_file": "22611-00.jpg"
+    },
+    {
+      "id": 22613,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-Twitter-600.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2018/09/Report-Blue-English-Twitter-600.jpg?resize=600%2C315",
+      "local_file": "22611-01.jpg"
+    }
+  ]
+}

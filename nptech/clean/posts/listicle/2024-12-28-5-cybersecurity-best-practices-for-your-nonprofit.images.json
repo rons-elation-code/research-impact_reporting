@@ -1,0 +1,68 @@
+{
+  "post_id": 34923,
+  "post_url": "https://www.nptechforgood.com/2024/12/28/5-cybersecurity-best-practices-for-your-nonprofit/",
+  "post_date": "2024-12-28T01:35:41",
+  "post_title": "5 Cybersecurity Best Practices for Your Nonprofit",
+  "images": [
+    {
+      "position": 0,
+      "media_id": 39670,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/Page-Speed-Insights-for-Nonprofits-e1712248758872.png?resize=800%2C433&ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/Page-Speed-Insights-for-Nonprofits-e1712248758872.png",
+      "local_file": "34923-01.png",
+      "alt": "PageSpeed Insights report showing scores: 91 for Performance, 82 for Accessibility, 100 for Best Practices, and 90 for SEO.",
+      "alt_source": "inline",
+      "section_heading": "1) Use a premium hosting service for your website.",
+      "width": 800,
+      "height": 433
+    },
+    {
+      "position": 1,
+      "media_id": 39657,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/Double-optin.png?resize=639%2C462&ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2023/02/Double-optin.png",
+      "local_file": "34923-02.png",
+      "alt": "Diagram comparing Single Opt-in and Double Opt-in processes for email marketing, showing how users subscribe or fail to confirm subscription via email.",
+      "alt_source": "inline",
+      "section_heading": "2) Require a double opt-in subscription process for your email list(s).",
+      "width": 639,
+      "height": 462
+    },
+    {
+      "position": 2,
+      "media_id": 42214,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/Meta-Account-Center-e1735396769208.png?resize=800%2C572&ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/Meta-Account-Center-e1735396769208.png",
+      "local_file": "34923-03.png",
+      "alt": "Meta Accounts Center interface showing Password and Security settings, including options for changing password, two-factor authentication, and security checks.",
+      "alt_source": "inline",
+      "section_heading": "3) Enable two-factor authentification for all social media accounts.",
+      "width": 800,
+      "height": 572
+    },
+    {
+      "position": 3,
+      "media_id": 42215,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png?resize=800%2C474&ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/04/1-password-e1735396923490.png",
+      "local_file": "34923-04.png",
+      "alt": "1Password homepage with the tagline 'Every sign-in, secure' displayed on a gradient blue and cream background, alongside navigation and call-to-action buttons.",
+      "alt_source": "inline",
+      "section_heading": "4) Use a password management tool.",
+      "width": 800,
+      "height": 474
+    },
+    {
+      "position": 4,
+      "media_id": 44090,
+      "src_display": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png?resize=900%2C707&ssl=1",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/07/2026-Certificate-in-AI-for-Nonprofits-e1753375936499.png",
+      "local_file": "34923-05.png",
+      "alt": "Certificate in AI for Marketing & Fundraising awarded by Nonprofit Tech for Good, signed by CEO Heather Mansfield, with a blue award banner.",
+      "alt_source": "inline",
+      "section_heading": "5) Update your software often and backup your data daily.",
+      "width": 900,
+      "height": 707
+    }
+  ]
+}

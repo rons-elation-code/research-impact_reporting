@@ -1,0 +1,256 @@
+{
+  "id": 43934,
+  "date": "2025-06-22T18:08:18",
+  "date_gmt": "2025-06-22T18:08:18",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp"
+  },
+  "modified": "2025-06-22T18:08:18",
+  "modified_gmt": "2025-06-22T18:08:18",
+  "slug": "human-skills",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2025/06/23/how-nonprofit-professionals-can-begin-to-ai-proof-their-careers/human-skills/",
+  "title": {
+    "rendered": "Human skills"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-43934",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bqC",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"240\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=240%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?w=850&amp;ssl=1 850w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=240%2C300&amp;ssl=1 240w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=819%2C1024&amp;ssl=1 819w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=768%2C960&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=40%2C50&amp;ssl=1 40w\" sizes=\"auto, (max-width: 240px) 100vw, 240px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/webp",
+  "media_details": {
+    "width": 850,
+    "height": 1063,
+    "file": "2025/06/Human-skills.webp",
+    "filesize": 126740,
+    "sizes": {
+      "medium": {
+        "file": "Human-skills-240x300.webp",
+        "width": 240,
+        "height": 300,
+        "filesize": 16184,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=240%2C300&ssl=1"
+      },
+      "large": {
+        "file": "Human-skills-819x1024.webp",
+        "width": 819,
+        "height": 1024,
+        "filesize": 123136,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=819%2C1024&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Human-skills-150x150.webp",
+        "width": 150,
+        "height": 150,
+        "filesize": 6416,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Human-skills-768x960.webp",
+        "width": 768,
+        "height": 960,
+        "filesize": 110560,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=768%2C960&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Human-skills-200x200.webp",
+        "width": 200,
+        "height": 200,
+        "filesize": 9420,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Human-skills-40x50.webp",
+        "width": 40,
+        "height": 50,
+        "filesize": 1460,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=40%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Human-skills-200x200.webp",
+        "width": 200,
+        "height": 200,
+        "filesize": 9420,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Human-skills-75x75.webp",
+        "width": 75,
+        "height": 75,
+        "filesize": 2662,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Human-skills-600x250.webp",
+        "width": 600,
+        "height": 250,
+        "filesize": 20554,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Human-skills-200x200.webp",
+        "width": 200,
+        "height": 200,
+        "filesize": 9420,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Human-skills-80x80.webp",
+        "width": 80,
+        "height": 80,
+        "filesize": 2928,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Human-skills-324x200.webp",
+        "width": 324,
+        "height": 200,
+        "filesize": 12414,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Human-skills-75x75.webp",
+        "width": 75,
+        "height": 75,
+        "filesize": 2662,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Human-skills-610x250.webp",
+        "width": 610,
+        "height": 250,
+        "filesize": 22106,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Human-skills-80x80.webp",
+        "width": 80,
+        "height": 80,
+        "filesize": 2928,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Human-skills-324x200.webp",
+        "width": 324,
+        "height": 200,
+        "filesize": 12414,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Human-skills.webp?fit=850%2C1063&ssl=1",
+        "width": 850,
+        "height": 1063,
+        "mime_type": "image/webp",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp?fit=850%2C1063&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 43904,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/06/Human-skills.webp",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/43934",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=43934"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 43904,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/43904"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

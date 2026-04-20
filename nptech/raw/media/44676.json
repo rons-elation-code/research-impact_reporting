@@ -1,0 +1,240 @@
+{
+  "id": 44676,
+  "date": "2025-10-26T16:29:15",
+  "date_gmt": "2025-10-26T16:29:15",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png"
+  },
+  "modified": "2025-10-26T16:29:15",
+  "modified_gmt": "2025-10-26T16:29:15",
+  "slug": "salt-river-horses-stars",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/101-best-practices/10-facebook-best-practices-for-nonprofits/salt-river-horses-stars/",
+  "title": {
+    "rendered": "Salt River Horses Stars"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-44676",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-bCA",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"257\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?fit=257%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?w=762&amp;ssl=1 762w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=257%2C300&amp;ssl=1 257w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=43%2C50&amp;ssl=1 43w\" sizes=\"auto, (max-width: 257px) 100vw, 257px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 762,
+    "height": 890,
+    "file": "2025/10/Salt-River-Horses-Stars.png",
+    "filesize": 536369,
+    "sizes": {
+      "medium": {
+        "file": "Salt-River-Horses-Stars-257x300.png",
+        "width": 257,
+        "height": 300,
+        "filesize": 34452,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?fit=257%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Salt-River-Horses-Stars-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 13625,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Salt-River-Horses-Stars-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 21562,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Salt-River-Horses-Stars-43x50.png",
+        "width": 43,
+        "height": 50,
+        "filesize": 2547,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?fit=43%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Salt-River-Horses-Stars-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 21562,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Salt-River-Horses-Stars-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4883,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Salt-River-Horses-Stars-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 65314,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Salt-River-Horses-Stars-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 21562,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Salt-River-Horses-Stars-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5340,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Salt-River-Horses-Stars-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 36591,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Salt-River-Horses-Stars-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4883,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Salt-River-Horses-Stars-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 131963,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Salt-River-Horses-Stars-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5340,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Salt-River-Horses-Stars-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 36591,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Salt-River-Horses-Stars.png?fit=762%2C890&ssl=1",
+        "width": 762,
+        "height": 890,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png?fit=762%2C890&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 30303,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2025/10/Salt-River-Horses-Stars.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/44676",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=44676"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "page",
+        "id": 30303,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/pages/30303"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

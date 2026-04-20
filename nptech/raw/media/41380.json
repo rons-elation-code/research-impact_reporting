@@ -1,0 +1,256 @@
+{
+  "id": 41380,
+  "date": "2024-08-30T16:50:50",
+  "date_gmt": "2024-08-30T16:50:50",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png"
+  },
+  "modified": "2024-08-30T16:50:50",
+  "modified_gmt": "2024-08-30T16:50:50",
+  "slug": "eventgroove-for-nonprofits-website",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2024/08/30/6-strategies-to-involve-young-people-in-your-nonprofit/eventgroove-for-nonprofits-website/",
+  "title": {
+    "rendered": "eventgroove for Nonprofits Website"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-41380",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-aLq",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"144\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=300%2C144&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?w=1134&amp;ssl=1 1134w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=300%2C144&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=1024%2C491&amp;ssl=1 1024w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=768%2C368&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=50%2C24&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 1134,
+    "height": 544,
+    "file": "2024/08/eventgroove-for-Nonprofits-Website.png",
+    "filesize": 108586,
+    "sizes": {
+      "medium": {
+        "file": "eventgroove-for-Nonprofits-Website-300x144.png",
+        "width": 300,
+        "height": 144,
+        "filesize": 20067,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=300%2C144&ssl=1"
+      },
+      "large": {
+        "file": "eventgroove-for-Nonprofits-Website-1024x491.png",
+        "width": 1024,
+        "height": 491,
+        "filesize": 110310,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=960%2C460&ssl=1"
+      },
+      "thumbnail": {
+        "file": "eventgroove-for-Nonprofits-Website-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 14756,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "eventgroove-for-Nonprofits-Website-768x368.png",
+        "width": 768,
+        "height": 368,
+        "filesize": 76204,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=768%2C368&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "eventgroove-for-Nonprofits-Website-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 22326,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "eventgroove-for-Nonprofits-Website-50x24.png",
+        "width": 50,
+        "height": 24,
+        "filesize": 1241,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=50%2C24&ssl=1"
+      },
+      "featured": {
+        "file": "eventgroove-for-Nonprofits-Website-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 22326,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "eventgroove-for-Nonprofits-Website-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4954,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "eventgroove-for-Nonprofits-Website-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 47137,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "eventgroove-for-Nonprofits-Website-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 22326,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "eventgroove-for-Nonprofits-Website-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5553,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "eventgroove-for-Nonprofits-Website-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 31000,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "eventgroove-for-Nonprofits-Website-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 4954,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "eventgroove-for-Nonprofits-Website-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 48150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "eventgroove-for-Nonprofits-Website-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 5553,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "eventgroove-for-Nonprofits-Website-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 31000,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "eventgroove-for-Nonprofits-Website.png?fit=1134%2C544&ssl=1",
+        "width": 1134,
+        "height": 544,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png?fit=1134%2C544&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 41358,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2024/08/eventgroove-for-Nonprofits-Website.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/41380",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=41380"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 41358,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/41358"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

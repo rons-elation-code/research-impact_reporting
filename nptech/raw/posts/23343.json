@@ -1,0 +1,44 @@
+{
+  "post": {
+    "id": 23343,
+    "date": "2019-03-11T22:19:18",
+    "date_gmt": "2019-03-11T22:19:18",
+    "modified": "2019-08-15T21:57:53",
+    "modified_gmt": "2019-08-15T21:57:53",
+    "slug": "free-webinar-how-nonprofits-can-raise-more-money-through-crowdfunding",
+    "link": "https://www.nptechforgood.com/2019/03/11/free-webinar-how-nonprofits-can-raise-more-money-through-crowdfunding/",
+    "title": {
+      "rendered": "[FREE WEBINAR] How Nonprofits Can Raise More Money Through Crowdfunding"
+    },
+    "content": {
+      "rendered": "<p style=\"text-align: center;\"><a href=\"https://register.gotowebinar.com/register/5912543911416079628\"><img data-recalc-dims=\"1\" loading=\"lazy\" decoding=\"async\" class=\"aligncenter size-full wp-image-23345\" style=\"border: 1px solid black;\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2019/03/Nonprofit-Crowdfunding-Webinar.jpg?resize=600%2C300\" alt=\"\" width=\"600\" height=\"300\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2019/03/Nonprofit-Crowdfunding-Webinar.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2019/03/Nonprofit-Crowdfunding-Webinar.jpg?resize=300%2C150&amp;ssl=1 300w\" sizes=\"auto, (max-width: 600px) 100vw, 600px\" /></a></p>\n<h2><b><span style=\"color: #000000;\">UPDATE: </span>This webinar was presented on April 16, 2019. You can view a recap of the webinar on the <span style=\"color: #867ac0;\"><a style=\"color: #867ac0;\" href=\"https://fundraising.crowdrise.com/blog/how-nonprofits-can-raise-more-money-through-crowdfunding\">CrowdRise website</a></span>.</b></h2>\n<p><span style=\"font-weight: 400;\">This webinar will\u00a0</span><span style=\"font-weight: 400;\">walk through the basics of crowdfunding so that your nonprofit can utilize this growing fundraising method to bring in more money for your cause. In addition to covering crowdfunding best practices, additional topics include: </span></p>\n<ul>\n<li><span style=\"font-weight: 400;\">The difference between peer-to-peer fundraising and crowdfunding\u00a0\u2013 and how you can use both in your fundraising campaign simultaneously</span></li>\n<li style=\"font-weight: 400;\"><span style=\"font-weight: 400;\">How to set up your nonprofit crowdfunding page</span></li>\n<li>The power of social media to increase crowdfunding for your cause</li>\n<li style=\"font-weight: 400;\"><span style=\"font-weight: 400;\">How to thank your crowdfunding donors and fundraisers and inspire them to continue to give and fundraise for your cause</span></li>\n</ul>\n<h2 style=\"text-align: center;\">&lt;&lt;<span style=\"color: #867ac0;\"><a style=\"color: #867ac0;\" href=\"http://www.nptechforgood.com/webinars/\">View All Upcoming Free Webinars</a></span>&gt;&gt;</h2>\n",
+      "protected": false
+    },
+    "excerpt": {
+      "rendered": "<p>UPDATE: This webinar was presented on April 16, 2019. You can view a recap of the webinar on the CrowdRise website. This webinar will\u00a0walk through the basics of crowdfunding so that your nonprofit can utilize this growing fundraising method to bring in more money for your cause. In addition to covering crowdfunding best practices, additional topics include: The difference between peer-to-peer fundraising and crowdfunding\u00a0\u2013 and how you can use both in your fundraising campaign simultaneously How to set up your nonprofit crowdfunding page The power of social media to increase crowdfunding for your cause How to thank your crowdfunding donors </p>\n",
+      "protected": false
+    },
+    "author": 1,
+    "featured_media": 23350,
+    "categories": [
+      18,
+      90
+    ],
+    "tags": []
+  },
+  "image_refs": [
+    {
+      "id": 23350,
+      "src": "https://www.nptechforgood.com/wp-content/uploads/2019/03/Opus-the-Cat2.jpg",
+      "src_original": "https://www.nptechforgood.com/wp-content/uploads/2019/03/Opus-the-Cat2.jpg",
+      "featured": true,
+      "local_file": "23343-00.jpg"
+    },
+    {
+      "id": 23345,
+      "src": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2019/03/Nonprofit-Crowdfunding-Webinar.jpg",
+      "src_original": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2019/03/Nonprofit-Crowdfunding-Webinar.jpg?resize=600%2C300",
+      "local_file": "23343-01.jpg"
+    }
+  ]
+}

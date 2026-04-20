@@ -1,0 +1,232 @@
+{
+  "id": 33240,
+  "date": "2022-05-05T14:56:20",
+  "date_gmt": "2022-05-05T14:56:20",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png"
+  },
+  "modified": "2022-05-05T14:56:20",
+  "modified_gmt": "2022-05-05T14:56:20",
+  "slug": "nonprofit-board-roi",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2022/05/05/how-to-demonstrate-roi-to-your-nonprofit-board-members/nonprofit-board-roi/",
+  "title": {
+    "rendered": "Nonprofit Board ROI"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-33240",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-8E8",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?fit=300%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?w=800&amp;ssl=1 800w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=300%2C300&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=150%2C150&amp;ssl=1 150w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=768%2C768&amp;ssl=1 768w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=200%2C200&amp;ssl=1 200w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=50%2C50&amp;ssl=1 50w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=75%2C75&amp;ssl=1 75w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=80%2C80&amp;ssl=1 80w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 800,
+    "height": 800,
+    "file": "2022/05/Nonprofit-Board-ROI.png",
+    "sizes": {
+      "medium": {
+        "file": "Nonprofit-Board-ROI-300x300.png",
+        "width": 300,
+        "height": 300,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?fit=300%2C300&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Nonprofit-Board-ROI-150x150.png",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=150%2C150&ssl=1"
+      },
+      "medium_large": {
+        "file": "Nonprofit-Board-ROI-768x768.png",
+        "width": 768,
+        "height": 768,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?fit=768%2C768&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Nonprofit-Board-ROI-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Nonprofit-Board-ROI-50x50.png",
+        "width": 50,
+        "height": 50,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?fit=50%2C50&ssl=1"
+      },
+      "featured": {
+        "file": "Nonprofit-Board-ROI-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Nonprofit-Board-ROI-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Nonprofit-Board-ROI-600x250.png",
+        "width": 600,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=600%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Nonprofit-Board-ROI-200x200.png",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Nonprofit-Board-ROI-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Nonprofit-Board-ROI-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Nonprofit-Board-ROI-75x75.png",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Nonprofit-Board-ROI-610x250.png",
+        "width": 610,
+        "height": 250,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=610%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Nonprofit-Board-ROI-80x80.png",
+        "width": 80,
+        "height": 80,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Nonprofit-Board-ROI-324x200.png",
+        "width": 324,
+        "height": 200,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Nonprofit-Board-ROI.png?fit=800%2C800&ssl=1",
+        "width": 800,
+        "height": 800,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png?fit=800%2C800&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 33235,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/05/Nonprofit-Board-ROI.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/33240",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=33240"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 33235,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/33235"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

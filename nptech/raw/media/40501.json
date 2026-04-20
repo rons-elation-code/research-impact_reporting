@@ -1,0 +1,240 @@
+{
+  "id": 40501,
+  "date": "2024-06-17T13:04:17",
+  "date_gmt": "2024-06-17T13:04:17",
+  "guid": {
+    "rendered": "https://www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png"
+  },
+  "modified": "2024-06-17T13:04:17",
+  "modified_gmt": "2024-06-17T13:04:17",
+  "slug": "blue-marine",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2024/06/19/10-threads-x-best-practices-for-nonprofits/blue-marine/",
+  "title": {
+    "rendered": "Blue Marine"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-40501",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-axf",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"236\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?fit=300%2C236&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?w=595&amp;ssl=1 595w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=300%2C236&amp;ssl=1 300w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=50%2C39&amp;ssl=1 50w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/png",
+  "media_details": {
+    "width": 595,
+    "height": 468,
+    "file": "2022/04/Blue-Marine.png",
+    "filesize": 295261,
+    "sizes": {
+      "medium": {
+        "file": "Blue-Marine-300x236.png",
+        "width": 300,
+        "height": 236,
+        "filesize": 97719,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?fit=300%2C236&ssl=1"
+      },
+      "thumbnail": {
+        "file": "Blue-Marine-150x150.png",
+        "width": 150,
+        "height": 150,
+        "filesize": 35071,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=150%2C150&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "Blue-Marine-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58721,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=200%2C200&ssl=1"
+      },
+      "icon": {
+        "file": "Blue-Marine-50x39.png",
+        "width": 50,
+        "height": 39,
+        "filesize": 3994,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?fit=50%2C39&ssl=1"
+      },
+      "featured": {
+        "file": "Blue-Marine-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58721,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "Blue-Marine-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 9991,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "Blue-Marine-600x250.png",
+        "width": 600,
+        "height": 250,
+        "filesize": 140312,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=595%2C250&ssl=1"
+      },
+      "splash-featured": {
+        "file": "Blue-Marine-200x200.png",
+        "width": 200,
+        "height": 200,
+        "filesize": 58721,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=200%2C200&ssl=1"
+      },
+      "splash-widgetthumb": {
+        "file": "Blue-Marine-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 11155,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=80%2C80&ssl=1"
+      },
+      "splash-widgetfull": {
+        "file": "Blue-Marine-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 85552,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=324%2C200&ssl=1"
+      },
+      "splash-related": {
+        "file": "Blue-Marine-75x75.png",
+        "width": 75,
+        "height": 75,
+        "filesize": 9991,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=75%2C75&ssl=1"
+      },
+      "splash-slider": {
+        "file": "Blue-Marine-610x250.png",
+        "width": 610,
+        "height": 250,
+        "filesize": 139843,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=595%2C250&ssl=1"
+      },
+      "wp_review_small": {
+        "file": "Blue-Marine-80x80.png",
+        "width": 80,
+        "height": 80,
+        "filesize": 11155,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=80%2C80&ssl=1"
+      },
+      "wp_review_large": {
+        "file": "Blue-Marine-324x200.png",
+        "width": 324,
+        "height": 200,
+        "filesize": 85552,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?resize=324%2C200&ssl=1"
+      },
+      "full": {
+        "file": "Blue-Marine.png?fit=595%2C468&ssl=1",
+        "width": 595,
+        "height": 468,
+        "mime_type": "image/png",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png?fit=595%2C468&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": "0",
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": "0",
+      "copyright": "",
+      "focal_length": "0",
+      "iso": "0",
+      "shutter_speed": "0",
+      "title": "",
+      "orientation": "0",
+      "keywords": []
+    }
+  },
+  "post": 32618,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2022/04/Blue-Marine.png",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/40501",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=40501"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 32618,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/32618"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "id": 13584,
+  "date": "2013-07-05T21:01:10",
+  "date_gmt": "2013-07-05T21:01:10",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2013/02/mistakes-on-twitter1.gif"
+  },
+  "modified": "2013-07-05T21:01:10",
+  "modified_gmt": "2013-07-05T21:01:10",
+  "slug": "mistakes-on-twitter-2",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2013/02/10/eight-common-mistakes-nonprofits-make-when-they-first-join-twitter/mistakes-on-twitter-2/",
+  "title": {
+    "rendered": "mistakes on twitter"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-13584",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-3x6",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"267\" height=\"300\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?fit=267%2C300&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/gif",
+  "media_details": {
+    "width": 300,
+    "height": 336,
+    "file": "2013/02/mistakes-on-twitter1.gif",
+    "sizes": {
+      "thumbnail": {
+        "file": "mistakes-on-twitter1-150x150.gif",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "mistakes-on-twitter1-267x300.gif",
+        "width": 267,
+        "height": 300,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?fit=267%2C300&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "mistakes-on-twitter1-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "mistakes-on-twitter1-200x200.gif",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "mistakes-on-twitter1-75x75.gif",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "mistakes-on-twitter1-300x250.gif",
+        "width": 300,
+        "height": 250,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?resize=300%2C250&ssl=1"
+      },
+      "full": {
+        "file": "mistakes-on-twitter1.gif?fit=300%2C336&ssl=1",
+        "width": 300,
+        "height": 336,
+        "mime_type": "image/gif",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif?fit=300%2C336&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": ""
+    }
+  },
+  "post": 11246,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2013/02/mistakes-on-twitter1.gif",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/13584",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=13584"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 11246,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/11246"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

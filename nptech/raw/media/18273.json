@@ -1,0 +1,168 @@
+{
+  "id": 18273,
+  "date": "2015-09-16T19:40:16",
+  "date_gmt": "2015-09-16T19:40:16",
+  "guid": {
+    "rendered": "http://localhost:10003/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg"
+  },
+  "modified": "2015-09-16T19:40:16",
+  "modified_gmt": "2015-09-16T19:40:16",
+  "slug": "pir-report-graphic-newsletter",
+  "status": "inherit",
+  "type": "attachment",
+  "link": "https://www.nptechforgood.com/2015/09/16/20-must-know-fundraising-and-social-media-stats/pir-report-graphic-newsletter/",
+  "title": {
+    "rendered": "PIR-Report-Graphic-Newsletter"
+  },
+  "author": 1,
+  "featured_media": 0,
+  "comment_status": "open",
+  "ping_status": "closed",
+  "template": "",
+  "meta": {
+    "_acf_changed": false,
+    "advanced_seo_description": "",
+    "jetpack_seo_html_title": "",
+    "jetpack_seo_noindex": false,
+    "jetpack_post_was_ever_published": false
+  },
+  "class_list": [
+    "post-18273",
+    "attachment",
+    "type-attachment",
+    "status-inherit",
+    "hentry"
+  ],
+  "acf": [],
+  "jetpack_shortlink": "https://wp.me/a3Gfd4-4KJ",
+  "jetpack_sharing_enabled": true,
+  "description": {
+    "rendered": "<p class=\"attachment\"><a href=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?ssl=1\"><img loading=\"lazy\" decoding=\"async\" width=\"300\" height=\"100\" src=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?fit=300%2C100&amp;ssl=1\" class=\"attachment-medium size-medium\" alt=\"\" srcset=\"https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?w=600&amp;ssl=1 600w, https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=300%2C100&amp;ssl=1 300w\" sizes=\"auto, (max-width: 300px) 100vw, 300px\" /></a></p>\n"
+  },
+  "caption": {
+    "rendered": ""
+  },
+  "alt_text": "",
+  "media_type": "image",
+  "mime_type": "image/jpeg",
+  "media_details": {
+    "width": 600,
+    "height": 200,
+    "file": "2015/09/PIR-Report-Graphic-Newsletter.jpg",
+    "sizes": {
+      "thumbnail": {
+        "file": "PIR-Report-Graphic-Newsletter-150x150.jpg",
+        "width": 150,
+        "height": 150,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=150%2C150&ssl=1"
+      },
+      "medium": {
+        "file": "PIR-Report-Graphic-Newsletter-300x100.jpg",
+        "width": 300,
+        "height": 100,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?fit=300%2C100&ssl=1"
+      },
+      "post-thumbnail": {
+        "file": "PIR-Report-Graphic-Newsletter-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=200%2C200&ssl=1"
+      },
+      "featured": {
+        "file": "PIR-Report-Graphic-Newsletter-200x200.jpg",
+        "width": 200,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=200%2C200&ssl=1"
+      },
+      "related": {
+        "file": "PIR-Report-Graphic-Newsletter-75x75.jpg",
+        "width": 75,
+        "height": 75,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=75%2C75&ssl=1"
+      },
+      "slider": {
+        "file": "PIR-Report-Graphic-Newsletter-600x200.jpg",
+        "width": 600,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?resize=600%2C200&ssl=1"
+      },
+      "full": {
+        "file": "PIR-Report-Graphic-Newsletter.jpg?fit=600%2C200&ssl=1",
+        "width": 600,
+        "height": 200,
+        "mime_type": "image/jpeg",
+        "source_url": "https://i0.wp.com/www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg?fit=600%2C200&ssl=1"
+      }
+    },
+    "image_meta": {
+      "aperture": 0,
+      "credit": "",
+      "camera": "",
+      "caption": "",
+      "created_timestamp": 0,
+      "copyright": "",
+      "focal_length": 0,
+      "iso": 0,
+      "shutter_speed": 0,
+      "title": "",
+      "orientation": 0
+    }
+  },
+  "post": 18203,
+  "source_url": "https://www.nptechforgood.com/wp-content/uploads/2015/09/PIR-Report-Graphic-Newsletter.jpg",
+  "_links": {
+    "self": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media/18273",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/media"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/types/attachment"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/comments?post=18273"
+      }
+    ],
+    "wp:attached-to": [
+      {
+        "embeddable": true,
+        "post_type": "post",
+        "id": 18203,
+        "href": "https://www.nptechforgood.com/wp-json/wp/v2/posts/18203"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}
