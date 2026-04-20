@@ -98,6 +98,7 @@ CREATE VIEW IF NOT EXISTS reports_public AS
   FROM reports
   WHERE attribution_confidence IN ('own_domain','platform_verified')
     AND classification IS NOT NULL
+    AND classification != 'not_a_report'
     AND classification_confidence >= 0.8
     AND pdf_has_javascript = 0
     AND pdf_has_launch = 0
@@ -113,7 +114,7 @@ CREATE TABLE IF NOT EXISTS fetch_log (
   fetched_at     TEXT NOT NULL,
   elapsed_ms     INTEGER,
   notes          TEXT,
-  CHECK (kind IN ('robots','sitemap','homepage','subpage','pdf-head','pdf-get','classify')),
+  CHECK (kind IN ('robots','sitemap','homepage','subpage','pdf-head','pdf-get','extract','classify')),
   CHECK (fetch_status IN ('ok','not_found','rate_limited','forbidden','server_error',
                           'network_error','size_capped','blocked_content_type',
                           'blocked_scheme','blocked_ssrf','cross_origin_blocked',

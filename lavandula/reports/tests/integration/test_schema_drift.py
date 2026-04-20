@@ -27,6 +27,7 @@ def test_ac26_ac12_3_attribution_clause_present(tmp_reports_db):
 def test_ac26_ac16_2_classification_confidence_clause_present(tmp_reports_db):
     sql = _view_sql(tmp_reports_db).lower()
     assert "classification is not null" in sql
+    assert "classification != 'not_a_report'" in sql or 'classification != "not_a_report"' in sql
     assert "classification_confidence" in sql
     assert ">= 0.8" in sql or ">=0.8" in sql
 

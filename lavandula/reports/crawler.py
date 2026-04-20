@@ -337,6 +337,8 @@ def process_org(
         creator = None
         producer = None
         creation_date = None
+        extract_status = "ok"
+        extract_note = ""
         try:
             import io as _io
             from pypdf import PdfReader as _PdfReader
@@ -351,8 +353,18 @@ def process_org(
                 meta.get("/CreationDate") if isinstance(meta, dict)
                 else getattr(meta, "creation_date_raw", None)
             )
-        except Exception:  # noqa: BLE001,S110  # nosec B110 — malformed metadata tolerated; first-page text may still be available
-            pass
+        except Exception as exc:  # noqa: BLE001
+            extract_status = "server_error"
+            extract_note = sanitize(str(exc))
+
+        db_writer.record_fetch(
+            conn,
+            ein=ein,
+            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+            kind="extract",
+            fetch_status=extract_status,
+            notes=extract_note or (f"page_count={page_count}" if page_count is not None else "no_pages_extracted"),
+        )
 
         classification = None
         classification_confidence = None
@@ -441,7 +453,7 @@ def process_org(
             report_year_source=None,
             extractor_version=config.EXTRACTOR_VERSION,
         )
-        if classification is not None:
+        if classification in {"annual", "impact", "hybrid"}:
             result.confirmed_report_count += 1
 
     db_writer.upsert_crawled_org(
