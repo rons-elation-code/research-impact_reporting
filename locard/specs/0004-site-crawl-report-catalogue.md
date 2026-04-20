@@ -1621,8 +1621,10 @@ Target time-to-merge: same-day.
 identified from the 2026-04-19 100-org coastal run. Each fix
 addresses a concrete miss observed in the fetch_log of that run.
 Together they should lift hit rate an estimated 15-30% on
-mid-market nonprofit sites. All additive; no schema change; no
-new external dependencies.
+mid-market nonprofit sites. All additive in behavior. **One
+minor schema addition**: the `'own-cms'` enum value is added to
+the `reports.hosting_platform` CHECK constraint via migration
+in `schema.py` (Fix 1). No external dependency changes.
 
 **Motivation**
 
