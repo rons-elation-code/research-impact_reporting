@@ -36,6 +36,7 @@ from .redirect_policy import etld1
 from .robots import RobotsCache
 from .url_guard import is_address_allowed
 from .url_redact import redact_url
+from .year_extract import infer_report_year
 
 
 log = logging.getLogger("lavandula.reports.crawler")
@@ -425,6 +426,12 @@ def process_org(
                         pass
                 raise
 
+        report_year, report_year_source = infer_report_year(
+            source_url=outcome.final_url or cand.url,
+            first_page_text=first_page_text or None,
+            pdf_creation_date=str(creation_date) if creation_date else None,
+        )
+
         db_writer.upsert_report(
             conn,
             content_sha256=outcome.content_sha256,
@@ -449,8 +456,8 @@ def process_org(
             classification_confidence=classification_confidence,
             classifier_model=config.CLASSIFIER_MODEL,
             classifier_version=config.CLASSIFIER_VERSION,
-            report_year=None,
-            report_year_source=None,
+            report_year=report_year,
+            report_year_source=report_year_source,
             extractor_version=config.EXTRACTOR_VERSION,
         )
         if classification in {"annual", "impact", "hybrid"}:

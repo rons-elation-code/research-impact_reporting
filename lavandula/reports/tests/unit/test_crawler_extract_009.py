@@ -118,7 +118,7 @@ def test_process_org_logs_extract_success(tmp_path, monkeypatch):
         "per_org_candidates",
         lambda **kwargs: [
             Candidate(
-                url="https://example.org/report.pdf",
+                url="https://example.org/2024-impact-report.pdf",
                 anchor_text="Annual Report",
                 referring_page_url="https://example.org/reports",
                 discovered_via="subpage-link",
@@ -132,9 +132,9 @@ def test_process_org_logs_extract_success(tmp_path, monkeypatch):
         "download",
         lambda *args, **kwargs: fetch_pdf.DownloadOutcome(
             status="ok",
-            url="https://example.org/report.pdf",
-            final_url="https://example.org/report.pdf",
-            final_url_redacted="https://example.org/report.pdf",
+            url="https://example.org/2024-impact-report.pdf",
+            final_url="https://example.org/2024-impact-report.pdf",
+            final_url_redacted="https://example.org/2024-impact-report.pdf",
             redirect_chain=[],
             redirect_chain_redacted=[],
             content_sha256="b" * 64,
@@ -190,6 +190,12 @@ def test_process_org_logs_extract_success(tmp_path, monkeypatch):
     assert row[0] == "extract"
     assert row[1] == "ok"
     assert "page_count=1" in (row[2] or "")
+    stored = conn.execute(
+        "SELECT report_year, report_year_source FROM reports WHERE content_sha256 = ?",
+        ("b" * 64,),
+    ).fetchone()
+    assert stored["report_year"] == 2024
+    assert stored["report_year_source"] == "filename"
 
     conn.close()
 
