@@ -5,7 +5,7 @@ selected classifier backend on each row's `first_page_text`, writes
 the result back in-place.
 
 Usage:
-    CLASSIFIER_CLIENT=codex python -m lavandula.reports.tools.classify_null \\
+    python -m lavandula.reports.tools.classify_null \\
         --db /tmp/0004-coastal-run/data/reports.db
 
 Idempotent — re-runs only touch rows still NULL.
