@@ -1326,10 +1326,105 @@ AC9 — Live smoke test: `--target 5 --states MA` fetches 5 MA orgs (or whatever
 
 AC10 — Unit tests cover filter logic with mocked ProPublica JSON responses (no network).
 
+**Schema changes** (corrected v2 per Codex review — the v1 draft
+contradicted itself by claiming "no schema migration" while also
+requiring ALTER TABLE):
+
+```sql
+-- Run at startup, guarded by PRAGMA table_info() idempotency check:
+ALTER TABLE runs ADD COLUMN last_page_scanned TEXT DEFAULT NULL;
+  -- JSON cursor: {"CA:P": 3, "TX:A": 1, ...}
+
+ALTER TABLE nonprofits_seed ADD COLUMN notes TEXT DEFAULT NULL;
+  -- Used by both TICK-005 and TICK-006 for status notes
+  -- (rate-limit-hit, no-non-blocklist-result, etc.).
+```
+
+Both migrations are additive (new nullable columns); no
+backward-incompatibility.
+
+**Resume semantics** (clarified v2 per Codex review):
+
+- Cursor is `(state, ntee_major) → page_number`, stored as JSON
+  in `runs.last_page_scanned`. Example: `{"CA:P": 3, "TX:A": 1}`.
+- Cursor advances BEFORE returning from a successful page loop
+  iteration. Crash between fetch and DB commit leaves cursor at
+  the previous page; that page is refetched on resume (idempotent
+  — EIN PRIMARY KEY dedup keeps DB consistent).
+- If `--states` or `--ntee-majors` differ between runs against
+  the same DB, the tool REFUSES to run (exit 2, clear error
+  message). Operators must use a different `--db` or clear the
+  `runs` table.
+- `--target` counts NEW orgs added this run (not cumulative
+  across runs). Resume continues until `--target` met OR all
+  filter combos exhausted.
+
+**Error handling** (new v2 per Codex review):
+
+| Condition | Behavior |
+|---|---|
+| 2xx | Process normally |
+| 429 | Retry 1s / 5s / 30s; after 3 fails, commit + exit 0 |
+| 5xx, network, timeout | Retry 2s / 10s; after 2 fails, skip this (state,ntee) pair for this run, log, continue |
+| JSON parse error | Skip this page, log byte length (never body), continue |
+| 5 consecutive connection failures | Exit 1 (infrastructure problem) |
+
+**Logging** (new v2 per Codex review):
+
+- One INFO line per page fetched: `state, ntee, page, orgs_added_this_page`
+- One INFO line per org added: `EIN, name[:40], state`
+- WARNING on HTTP errors with `status_code, retry_attempt`
+- One INFO line at exit: `total_added, total_runs_db_rows, exit_reason`
+- NEVER log raw ProPublica response bodies or API URLs (ProPublica has no API key, but be consistent).
+
+**Security** (new v2 per Codex review):
+
+- ProPublica response bodies > 1 MB rejected with warning.
+- EIN matched against `^\d{9}$` before DB insert.
+- Name / city truncated to 200 chars before write.
+
+**Acceptance Criteria** (revised v2 per Codex/Gemini review)
+
+AC1 — CLI accepts all 6 flags; invalid values → `SystemExit(2)`.
+
+AC2 — Default-flag invocation produces observable behavior: at
+least N rows (N=`--target`) are added, each with a valid 9-digit
+EIN, non-empty name, state in `--states`, ntee_code starting
+with a major in `--ntee-majors`, revenue in
+`[--revenue-min, --revenue-max]`, and `website_url` NULL
+(TICK-006's job).
+
+AC3 — `--states TX,OK` queries both sequentially; merges into
+the same DB.
+
+AC4 — `--ntee-majors P,E` filters results to NTEE codes starting
+with P or E (client-side filter; ProPublica doesn't support
+multi-major ranges natively).
+
+AC5 — Revenue filter applied via per-EIN `/organization/{ein}.json`
+lookup on the most recent 990's `totrevenue`.
+
+AC6 — Re-running adds only NEW EINs (idempotent).
+
+AC7 — Resume: same filter set → resumes from cursor; different
+filter set → exits 2 with clear error.
+
+AC8 — Rate-limit + error behavior per tables above.
+
+AC9 — Live smoke test: `--target 5 --states MA --db /tmp/test.db`
+adds ≥1 MA org (exact count unreliable). Skips if ProPublica
+unreachable.
+
+AC10 — Unit tests cover filter logic, cursor advancement, error
+handling with mocked JSON responses.
+
+AC11 — Logging matches the logging spec above; test asserts no
+raw response body appears in stderr.
+
 **Implementation Sizing**
 
-~80 LoC of changes to the existing prototype + ~150 LoC tests.
-No schema migration (runs.last_page_scanned is a JSON string; goes in a new column via ALTER TABLE).
+~100 LoC prod changes + ~200 LoC tests. Two idempotent ALTER
+TABLE migrations at startup.
 
 ### TICK-006: Brave-based website resolver (2026-04-20)
 
@@ -1466,13 +1561,55 @@ AC8 — Blocklist is case-insensitive; subdomain matches ("blog.wikipedia.org") 
 
 AC9 — Unit tests use a mocked Brave client (dependency injection). Cover: blocklist filter, retry, QPS sleep, idempotent skip.
 
-AC10 — Live smoke test: 3 orgs with known websites (e.g., ilrc.org, selfhelpelderly.org, newroads.org). Assert all 3 resolve to domains matching the expected answers — not a specific URL but the right primary domain.
+AC10 — Live smoke test (revised v2 per Codex — original version
+was brittle because search rankings change): runs against 3
+known well-known orgs (Immigrant Legal Resource Center,
+Self-Help for the Elderly, New Roads School). Asserts: (a)
+`website_url` is non-empty after the run, (b) host is not in the
+blocklist, (c) scheme is https. Does NOT assert specific domain
+values since Brave's ranking can shift.
+
+AC11 — URL validation (new v2 per Codex review): before writing
+`website_url`, enforce:
+- scheme is `http` or `https` (reject `javascript:`, `data:`,
+  `ftp:`, `mailto:`, `file:`)
+- host has at least one `.` character (reject `localhost`,
+  single-word hostnames)
+- host does NOT contain punycode (`xn--` prefix) — reject for
+  simpler audit; orgs we target use ASCII domains
+- hostname contains no userinfo component (`user@host`)
+- URL as stored is the canonical `scheme://host` form with no
+  path, query, or fragment (prevents smuggling redirect
+  parameters or tracking markers into seeds.db)
+
+AC12 — `.gov` rule (simplified v2 per Gemini review — v1's
+"unless clearly the org's own domain" was unimplementable):
+for v1, ALL `.gov` and `.mil` domains are blocklisted. Future
+TICK may whitelist specific `.gov` patterns if nonprofit lookups
+legitimately need them.
+
+AC13 — Response-body cap (new v2 per Codex review):
+`website_candidates_json` is truncated to 8 KB before storage.
+Brave responses are typically 2-5 KB; 8 KB is a generous cap
+that prevents pathological responses from bloating the DB.
+
+AC14 — Logging (new v2 per Codex review):
+- INFO per org: `EIN, name[:40], chosen_domain_or_NULL, notes`
+- WARNING on Brave error: `status_code, attempt`
+- NO secret (API key) ever appears in logs; `requests` uses
+  header auth (`X-Subscription-Token`), not URL param.
+
+AC15 — Exit code: 0 if batch completed (even with some NULL
+rows remaining from blocklist-only hits). 1 only if Brave auth
+fails (invalid/missing API key) or SSM unreachable. 2 on CLI
+arg errors.
 
 **Implementation Sizing**
 
-~150 LoC of new code + ~180 LoC tests.
-No schema change (uses existing `seeds.db` columns).
-Adds `requests` to the nonprofits venv if not already there.
+~180 LoC of new code + ~220 LoC tests (tests expanded for new
+URL-validation + logging ACs).
+Uses the `notes` column added by TICK-005.
+Adds `requests` to the nonprofits venv.
 
 **Red-Team Review Focus**
 
