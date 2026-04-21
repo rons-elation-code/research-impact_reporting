@@ -390,9 +390,16 @@ def _resolve_llm_batch(
     max_orgs: int,
     dry_run: bool,
 ) -> None:
-    """Resolve orgs using the LLM-backed resolver (Spec 0005)."""
+    """Resolve orgs using the LLM-backed resolver (Spec 0005, TICK-001).
+
+    Phase 1 now queries Brave Search for candidate URLs; the LLM reasons
+    over the result set rather than generating URLs from training knowledge.
+    A Brave API key is fetched once at startup and bound into the per-query
+    search function that is passed to the resolver for each org.
+    """
     from lavandula.nonprofits.resolver_clients import (
         OrgIdentity,
+        make_brave_search_fn,
         make_resolver_http_client,
         select_resolver_client,
     )
@@ -400,6 +407,12 @@ def _resolve_llm_batch(
     _apply_migrations(conn)
     client = select_resolver_client()
     http_client = make_resolver_http_client()
+    try:
+        brave_key = get_brave_api_key()
+    except SecretUnavailable as exc:
+        log.error("brave API key unavailable: %s", exc)
+        sys.exit(1)
+    search_fn = make_brave_search_fn(brave_key, logger=log)
 
     rows = conn.execute(
         "SELECT ein, name, address, city, state, zipcode, ntee_code"
@@ -418,7 +431,7 @@ def _resolve_llm_batch(
             zipcode=zipcode or None,
             ntee_code=ntee_code or None,
         )
-        result = client.resolve(org, http_client)
+        result = client.resolve(org, http_client, search_fn=search_fn)
         log.info(
             "org ein=%s name=%s status=%s url=%s",
             ein,

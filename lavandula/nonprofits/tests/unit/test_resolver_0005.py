@@ -75,6 +75,25 @@ def _mock_http_client(fetch_result=None) -> MagicMock:
     return http
 
 
+def _mock_search_fn(urls: list[str]):
+    """Return a search_fn that yields a fake Brave response containing urls.
+
+    TICK-001 requires Phase 1 to validate chosen URLs against the Brave
+    result set. Tests that previously relied on the LLM generating URLs
+    from training knowledge must now seed those same URLs into the fake
+    search results.
+    """
+    response = {
+        "web": {
+            "results": [
+                {"url": u, "title": "Result", "description": "snippet"}
+                for u in urls
+            ]
+        }
+    }
+    return lambda _query: (response, None)
+
+
 # ── AC1: client instantiates with env var key ─────────────────────────────────
 
 def test_ac1_client_instantiates(monkeypatch):
@@ -108,8 +127,12 @@ def test_ac2_resolve_happy_path():
         body=b"<html>United Way of Metropolitan Dallas - Dallas TX</html>",
         final_url="https://unitedwaydallas.org",
     ))
+    search_fn = _mock_search_fn([
+        "https://unitedwaydallas.org",
+        "https://www.unitedwaydallas.org",
+    ])
 
-    result = client.resolve(_ORG, http)
+    result = client.resolve(_ORG, http, search_fn=search_fn)
 
     assert result.status == "resolved"
     assert result.url == "https://unitedwaydallas.org"
@@ -130,8 +153,12 @@ def test_ac3_dead_url_unresolved():
     dead_fetch.body = None
     dead_fetch.final_url = "https://deadsite.example.org"
     http = _mock_http_client(dead_fetch)
+    search_fn = _mock_search_fn([
+        "https://deadsite.example.org",
+        "https://alsodead.example.org",
+    ])
 
-    result = client.resolve(_ORG, http)
+    result = client.resolve(_ORG, http, search_fn=search_fn)
 
     assert result.status == "unresolved"
     assert result.url is None
@@ -172,9 +199,13 @@ def test_ac5_key_not_in_logs_or_reason(caplog):
     )
     client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
     http = _mock_http_client()
+    search_fn = _mock_search_fn([
+        "https://unitedwaydallas.org",
+        "https://www.unitedwaydallas.org",
+    ])
 
     with caplog.at_level(logging.DEBUG, logger="lavandula"):
-        result = client.resolve(_ORG, http)
+        result = client.resolve(_ORG, http, search_fn=search_fn)
 
     assert secret_key not in caplog.text
     assert secret_key not in (result.reason or "")
@@ -234,9 +265,13 @@ def test_ac7_llm_strategy_registered_in_runner():
     mock_client = MagicMock()
     mock_client.resolve.return_value = mock_result
 
+    # Provide an explicit llm_search_fn so the runner does not try to fetch
+    # the Brave API key via SSM. A single call pattern is enough since the
+    # mock_client absorbs whatever args are passed.
+    mock_search_fn = MagicMock(return_value=({"web": {"results": []}}, None))
     with patch("lavandula.nonprofits.eval.runner.select_resolver_client", return_value=mock_client), \
          patch("lavandula.nonprofits.eval.runner.make_resolver_http_client", return_value=MagicMock()):
-        decision = evaluate_row(row, strategy="llm")
+        decision = evaluate_row(row, strategy="llm", llm_search_fn=mock_search_fn)
 
     assert decision.predicted_outcome == "accept"
     assert decision.predicted_url == "https://unitedwaydallas.org"
@@ -305,7 +340,11 @@ def test_ac10_prompts_include_address_zipcode():
 
     client._client.chat.completions.create.side_effect = side_effect
     http = _mock_http_client()
-    client.resolve(_ORG, http)
+    search_fn = _mock_search_fn([
+        "https://unitedwaydallas.org",
+        "https://www.unitedwaydallas.org",
+    ])
+    client.resolve(_ORG, http, search_fn=search_fn)
 
     combined = " ".join(prompts_captured)
     assert "1800 N Lamar St" in combined
@@ -420,8 +459,12 @@ def test_resolved_uses_final_redirected_url():
     fetch.body = b"<html>Org content</html>"
     fetch.final_url = "https://new-domain.org"  # redirected
     http = _mock_http_client(fetch)
+    search_fn = _mock_search_fn([
+        "https://old-domain.org",
+        "https://other.org",
+    ])
 
-    result = client.resolve(_ORG, http)
+    result = client.resolve(_ORG, http, search_fn=search_fn)
     assert result.status == "resolved"
     assert result.url == "https://new-domain.org"  # post-redirect URL stored
 
@@ -464,7 +507,13 @@ def test_phase1_capped_at_two_urls():
     fetch.body = b"<html>org</html>"
     fetch.final_url = "https://a.org"
     http = _mock_http_client(fetch)
-    client.resolve(_ORG, http)
+    search_fn = _mock_search_fn([
+        "https://a.org",
+        "https://b.org",
+        "https://c.org",
+        "https://d.org",
+    ])
+    client.resolve(_ORG, http, search_fn=search_fn)
     # Phase 2 must only have been called for the first 2 URLs
     assert http.get.call_count == 2
 
@@ -527,8 +576,12 @@ def test_no_live_candidates_returns_unresolved():
     fetch.body = None
     fetch.final_url = None
     http.get.return_value = fetch
+    search_fn = _mock_search_fn([
+        "https://dead1.org",
+        "https://dead2.org",
+    ])
 
-    result = client.resolve(_ORG, http)
+    result = client.resolve(_ORG, http, search_fn=search_fn)
     assert result.status == "unresolved"
     assert result.reason == "no_live_candidates"
     # Phase 3 should NOT have been called since no live candidates
@@ -595,7 +648,11 @@ def test_http_only_flag_set_in_phase2():
 
     http = MagicMock()
     http.get.side_effect = fetch_side_effect
-    client.resolve(_ORG, http)
+    search_fn = _mock_search_fn([
+        "http://plainhttp.org",
+        "https://secure.org",
+    ])
+    client.resolve(_ORG, http, search_fn=search_fn)
 
     # Phase 2 candidates are in ResolverResult.candidates
     # We can test _phase2_verify directly by inspecting the internal call

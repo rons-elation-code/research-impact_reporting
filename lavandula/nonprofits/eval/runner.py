@@ -9,11 +9,13 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+from lavandula.common.secrets import SecretUnavailable, get_brave_api_key
 from lavandula.nonprofits.eval.schema import EvalRow, load_dataset, write_template
 from lavandula.nonprofits.tools.resolve_websites import pick_best
 from lavandula.nonprofits.resolver_clients import (
     OrgIdentity,
     ResolverResult,
+    make_brave_search_fn,
     make_resolver_http_client,
     select_resolver_client,
 )
@@ -108,10 +110,14 @@ def _decide_llm(
     *,
     llm_client=None,
     llm_http_client=None,
+    llm_search_fn=None,
 ) -> tuple[str | None, float | None, str, str]:
     client = llm_client if llm_client is not None else select_resolver_client()
     http_client = llm_http_client if llm_http_client is not None else make_resolver_http_client()
-    result = client.resolve(_row_to_org_identity(row), http_client)
+    search_fn = llm_search_fn if llm_search_fn is not None else make_brave_search_fn(
+        get_brave_api_key(), logger=log
+    )
+    result = client.resolve(_row_to_org_identity(row), http_client, search_fn=search_fn)
     return _resolver_result_to_decision(result)
 
 
@@ -121,6 +127,7 @@ def evaluate_row(
     strategy: str,
     llm_client=None,
     llm_http_client=None,
+    llm_search_fn=None,
 ) -> EvalDecision:
     if strategy == "current":
         predicted_url, confidence, predicted_outcome, reason = _decide_current(row)
@@ -128,7 +135,10 @@ def evaluate_row(
         predicted_url, confidence, predicted_outcome, reason = _decide_heuristic(row)
     elif strategy == "llm":
         predicted_url, confidence, predicted_outcome, reason = _decide_llm(
-            row, llm_client=llm_client, llm_http_client=llm_http_client
+            row,
+            llm_client=llm_client,
+            llm_http_client=llm_http_client,
+            llm_search_fn=llm_search_fn,
         )
     elif strategy == "packet-cheap":
         predicted_url, confidence, predicted_outcome, reason = _decide_unimplemented(
@@ -225,15 +235,23 @@ def main(argv: list[str] | None = None) -> int:
     rows = load_dataset(args.input_csv)
     llm_client = None
     llm_http_client = None
+    llm_search_fn = None
     if args.strategy == "llm":
         llm_client = select_resolver_client()
         llm_http_client = make_resolver_http_client()
+        try:
+            brave_key = get_brave_api_key()
+        except SecretUnavailable as exc:
+            log.error("brave API key unavailable: %s", exc)
+            return 1
+        llm_search_fn = make_brave_search_fn(brave_key, logger=log)
     decisions = [
         evaluate_row(
             row,
             strategy=args.strategy,
             llm_client=llm_client,
             llm_http_client=llm_http_client,
+            llm_search_fn=llm_search_fn,
         )
         for row in rows
     ]
