@@ -94,3 +94,47 @@ debugging.
 
 5. **Backward compatibility.** `--max-workers=1` must produce identical
    results to the pre-TICK-002 behavior for any given seed set.
+
+### Concurrency architecture (added after multi-agent review)
+
+**SQLite writes — pinned to single-writer queue.** Worker threads
+never write to SQLite directly. They `put()` `WriteOp` records (namedtuple
+of SQL + params) onto a `queue.Queue`. A single dedicated writer thread
+consumes the queue and executes writes on one connection. This avoids
+all lock contention and makes reasoning about transaction boundaries
+trivial. The queue is bounded (`maxsize=256`) to apply backpressure.
+
+**HTTP client — per-thread instance.** Each worker constructs its own
+`ReportsHTTPClient` inside its thread. `requests.Session` is not
+thread-safe (shared cookies, connection pool state), so sharing one
+client across workers would introduce race conditions. Per-thread
+clients cost a small amount of memory and are the simplest fix.
+
+**Per-host throttle — module-level shared dict + lock.** The throttle
+state (`host → last_fetch_time`) must be shared across per-thread
+clients so they coordinate politeness. Move this state into a
+module-level singleton `HostThrottle` protected by a `threading.Lock`.
+Each per-thread `ReportsHTTPClient` delegates throttle checks to
+the singleton.
+
+### Updated traps (supersedes earlier draft)
+
+1. ~~SQLite writes from multiple threads.~~ **Resolved**: single-writer
+   queue. Workers never `execute()` writes directly.
+
+2. **`requests.Session` thread safety**: per-thread clients. Do not share
+   a single `ReportsHTTPClient` across workers.
+
+3. **Host throttle must remain global**: move `last_fetch_time` state
+   to `HostThrottle` singleton. Workers share the singleton, not the
+   HTTP client.
+
+4. Classifier API fanout: 4 concurrent Codex calls on a 2-CPU host is
+   the ceiling. Start at default 4, back off to 2 on first observed
+   rate-limit error.
+
+5. Deterministic output order: do not rely on sequential log order in
+   tests; match on contents.
+
+6. Backward compatibility: `--max-workers=1` must produce identical
+   results to pre-TICK-002 for any seed set. Add a regression test.

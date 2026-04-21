@@ -2251,3 +2251,19 @@ debugging.
 
 5. **Backward compatibility.** `--max-workers=1` must produce identical
    results to the pre-TICK-002 behavior for any given seed set.
+
+### Concurrency architecture (added after multi-agent review)
+
+**SQLite writes — pinned to single-writer queue.** Worker threads never
+write to SQLite directly. They put `WriteOp` records on a
+`queue.Queue(maxsize=256)`. A dedicated writer thread consumes the queue
+on a single connection. This avoids lock contention and makes transaction
+boundaries trivial.
+
+**HTTP client — per-thread instance.** `requests.Session` is not
+thread-safe; each worker constructs its own `ReportsHTTPClient`.
+
+**Per-host throttle — module-level singleton.** `host → last_fetch_time`
+state moves to a `HostThrottle` singleton protected by
+`threading.Lock`. Per-thread clients delegate throttle checks to the
+singleton so politeness is preserved across workers.
