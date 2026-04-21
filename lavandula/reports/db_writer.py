@@ -139,6 +139,10 @@ def upsert_crawled_org(
     now = _now_iso()
 
     def _do(target_conn: sqlite3.Connection) -> None:
+        # TICK-002: classification is deferred to classify_null.py,
+        # which backfills confirmed_report_count. On re-crawl we must
+        # NOT overwrite that backfilled value with 0 — preserve the
+        # existing count and let the next classify pass update it.
         target_conn.execute(
             """
             INSERT INTO crawled_orgs
@@ -148,8 +152,8 @@ def upsert_crawled_org(
             ON CONFLICT(ein) DO UPDATE SET
               last_crawled_at = excluded.last_crawled_at,
               candidate_count = excluded.candidate_count,
-              fetched_count = excluded.fetched_count,
-              confirmed_report_count = excluded.confirmed_report_count
+              fetched_count = excluded.fetched_count
+              -- confirmed_report_count intentionally NOT updated here
             """,
             (ein, now, now, candidate_count, fetched_count,
              confirmed_report_count),

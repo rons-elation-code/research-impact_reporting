@@ -316,6 +316,44 @@ def test_close_thread_clients_closes_sessions():
         assert _crawler._thread_clients == []
 
 
+def test_recrawl_preserves_confirmed_report_count(tmp_path):
+    """Round 6: upsert_crawled_org on re-crawl must NOT zero-out the
+    classify_null-backfilled confirmed_report_count."""
+    from lavandula.reports import db_writer as dbw, schema
+    import sqlite3
+
+    conn = schema.ensure_db(tmp_path / "reports.db")
+    # First crawl writes count=0 (TICK-002 defers classification).
+    dbw.upsert_crawled_org(
+        conn, ein="ein-xyz", candidate_count=5, fetched_count=3,
+        confirmed_report_count=0,
+    )
+    conn.commit()
+    # classify_null backfill sets count=2
+    conn.execute(
+        "UPDATE crawled_orgs SET confirmed_report_count = 2 WHERE ein = ?",
+        ("ein-xyz",),
+    )
+    conn.commit()
+    # Re-crawl with --refresh: upsert_crawled_org runs again.
+    dbw.upsert_crawled_org(
+        conn, ein="ein-xyz", candidate_count=7, fetched_count=4,
+        confirmed_report_count=0,
+    )
+    conn.commit()
+
+    row = conn.execute(
+        "SELECT candidate_count, fetched_count, confirmed_report_count "
+        "FROM crawled_orgs WHERE ein=?", ("ein-xyz",)
+    ).fetchone()
+    conn.close()
+    # candidate/fetched updated, but confirmed_report_count preserved
+    # from the prior backfill.
+    assert row["candidate_count"] == 7
+    assert row["fetched_count"] == 4
+    assert row["confirmed_report_count"] == 2
+
+
 def test_queue_saturation_aborts_run(tmp_path, monkeypatch):
     """Round 5: DBWriterSaturated (queue.Full from a slow writer) must
     propagate up through crawler.run(), not be swallowed as a per-org

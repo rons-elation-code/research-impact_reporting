@@ -237,6 +237,91 @@ def test_budget_exceeded_halts_run(tmp_path, monkeypatch):
     assert classify_calls == []
 
 
+def test_fetch_log_records_classify_events(tmp_path, monkeypatch):
+    """Round 6: every classify attempt must emit a fetch_log row with
+    kind='classify'. Restores the audit trail the old inline crawler
+    path wrote."""
+    from lavandula.reports import schema
+    from lavandula.reports.tools import classify_null
+
+    schema.ensure_db(tmp_path / "reports.db")
+    import sqlite3
+    conn = sqlite3.connect(str(tmp_path / "reports.db"))
+    for i in range(3):
+        conn.execute(
+            "INSERT INTO reports ("
+            "  content_sha256, source_url_redacted, referring_page_url_redacted,"
+            "  redirect_chain_json, source_org_ein, discovered_via,"
+            "  hosting_platform, attribution_confidence, archived_at,"
+            "  content_type, file_size_bytes, page_count, first_page_text,"
+            "  pdf_creator, pdf_producer, pdf_creation_date,"
+            "  pdf_has_javascript, pdf_has_launch, pdf_has_embedded,"
+            "  pdf_has_uri_actions, classification, classification_confidence,"
+            "  classifier_model, classifier_version, classified_at,"
+            "  report_year, report_year_source, extractor_version"
+            ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                f"fl{i:04d}" + "0" * 58, f"https://x/{i}", None, None,
+                f"ein-{i:04d}", "subpage-link", "own-domain", "own_domain",
+                "2026-01-01T00:00:00", "application/pdf", 100, 1, "page text",
+                None, None, None, 0, 0, 0, 0, None, None, "fake-model", 1, None,
+                2025, "filename", 1,
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+    # Mix of outcomes: ok, NULL classification, unexpected
+    outcomes = iter(["ok", "null", "boom"])
+
+    class _Result:
+        def __init__(self, cls, conf, err=""):
+            self.classification = cls
+            self.classification_confidence = conf
+            self.classifier_model = "fake-model"
+            self.input_tokens = 100
+            self.output_tokens = 20
+            self.error = err
+
+    def fake_classify(text, *, client, raise_on_error):
+        outcome = next(outcomes)
+        if outcome == "ok":
+            return _Result("annual", 0.9)
+        if outcome == "null":
+            return _Result(None, None, err="api_error")
+        if outcome == "boom":
+            raise RuntimeError("crash")
+
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.classify_first_page",
+        fake_classify,
+    )
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.select_classifier_client",
+        lambda: object(),
+    )
+    monkeypatch.setattr(sys, "argv", [
+        "classify_null", "--db", str(tmp_path / "reports.db"), "--max-workers", "1",
+    ])
+    rc = classify_null.main()
+    assert rc == 0
+
+    conn = sqlite3.connect(str(tmp_path / "reports.db"))
+    conn.row_factory = sqlite3.Row
+    rows = list(conn.execute(
+        "SELECT ein, kind, fetch_status, notes FROM fetch_log "
+        "WHERE kind='classify' ORDER BY ein"
+    ))
+    conn.close()
+    assert len(rows) == 3
+    statuses = sorted(r["fetch_status"] for r in rows)
+    assert statuses == ["classifier_error", "classifier_error", "ok"]
+    # Each row has an EIN recorded.
+    for r in rows:
+        assert r["ein"] is not None
+        assert r["ein"].startswith("ein-")
+
+
 def test_classifier_client_is_per_thread(tmp_path, monkeypatch):
     """Review round 3: classifier client must be threading.local —
     one instance per worker thread, not shared across all workers."""

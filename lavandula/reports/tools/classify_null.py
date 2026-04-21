@@ -27,7 +27,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from lavandula.reports import budget, config
+from lavandula.reports import budget, config, db_writer
 from lavandula.reports.classifier_clients import (
     CodexSubscriptionClient,
     select_classifier_client,
@@ -249,8 +249,19 @@ def main() -> int:
     conn.row_factory = sqlite3.Row
 
     null_filter = "" if args.re_classify else "AND classification IS NULL"
+    # Detect optional columns — test fixtures sometimes use a minimal
+    # reports schema without source_org_ein / source_url_redacted.
+    have_cols = {
+        r[1] for r in conn.execute("PRAGMA table_info(reports)")
+    }
+    ein_col = "source_org_ein" if "source_org_ein" in have_cols else "NULL AS source_org_ein"
+    url_col = (
+        "source_url_redacted"
+        if "source_url_redacted" in have_cols
+        else "'' AS source_url_redacted"
+    )
     sql = f"""
-        SELECT content_sha256, first_page_text
+        SELECT content_sha256, first_page_text, {ein_col}, {url_col}
         FROM reports
         WHERE first_page_text IS NOT NULL
           AND first_page_text != ''
@@ -311,6 +322,37 @@ def main() -> int:
     halt_event = threading.Event()
     halt_message = {"text": ""}
 
+    # fetch_log may or may not exist on the DB (full reports.db vs. a
+    # test fixture). Probe once so per-row calls don't keep erroring.
+    fetch_log_enabled = True
+    try:
+        conn.execute("SELECT 1 FROM fetch_log LIMIT 1")
+    except sqlite3.OperationalError:
+        fetch_log_enabled = False
+        print("note: fetch_log table absent; classify events not audited",
+              file=sys.stderr)
+
+    def _log_classify_event(sha: str, ein: str | None, url_redacted: str,
+                            fetch_status: str, notes: str = "") -> None:
+        """Write a kind='classify' row to fetch_log (TICK-002 round-6 fix).
+        Restores the audit trail that the old inline crawler path wrote."""
+        if not fetch_log_enabled:
+            return
+        try:
+            with db_lock:
+                db_writer.record_fetch(
+                    conn,
+                    ein=ein,
+                    url_redacted=url_redacted or "",
+                    kind="classify",
+                    fetch_status=fetch_status,
+                    notes=notes or None,
+                )
+                conn.commit()
+        except sqlite3.OperationalError:
+            # Writer-side schema drift — don't block classification.
+            pass
+
     def _write_result(sha: str, result) -> None:
         with db_lock:
             conn.execute(
@@ -338,6 +380,14 @@ def main() -> int:
     )
     interrupted = False
     try:
+        # Map sha → (ein, url_redacted) for the fetch_log audit trail.
+        sha_meta = {
+            row["content_sha256"]: (
+                row["source_org_ein"] if "source_org_ein" in row.keys() else None,
+                row["source_url_redacted"] if "source_url_redacted" in row.keys() else "",
+            )
+            for row in rows
+        }
         futures = {
             executor.submit(
                 _classify_one,
@@ -359,14 +409,21 @@ def main() -> int:
                 print(f"  [{i:>3}/{total}] worker crash: {type(exc).__name__}: {exc}")
                 continue
 
+            ein, url_redacted = sha_meta.get(sha, (None, ""))
+
             if kind == "schema_error":
                 unknown_enum += 1
                 print(f"  [{i:>3}/{total}] sha={sha[:10]}  SCHEMA ERROR: {payload}")
+                _log_classify_event(sha, ein, url_redacted,
+                                    "classifier_error", f"schema:{payload}")
                 continue
             if kind == "unexpected":
                 errs += 1
                 print(f"  [{i:>3}/{total}] sha={sha[:10]}  UNEXPECTED: "
                       f"{type(payload).__name__}: {payload}")
+                _log_classify_event(sha, ein, url_redacted,
+                                    "classifier_error",
+                                    f"{type(payload).__name__}")
                 continue
             if kind == "budget_halt":
                 halt_message["text"] = str(payload)
@@ -387,6 +444,9 @@ def main() -> int:
             if result.classification is None:
                 errs += 1
                 print(f"  [{i:>3}/{total}] sha={sha[:10]}  NULL (error: {result.error})")
+                _log_classify_event(sha, ein, url_redacted,
+                                    "classifier_error",
+                                    str(result.error)[:200])
                 continue
 
             classification_counts[result.classification] = (
@@ -398,6 +458,9 @@ def main() -> int:
 
             _write_result(sha, result)
             ok += 1
+            _log_classify_event(sha, ein, url_redacted, "ok",
+                                f"{result.classification}:"
+                                f"{result.classification_confidence:.2f}")
             print(f"  [{i:>3}/{total}] sha={sha[:10]}  "
                   f"{result.classification:<12} "
                   f"conf={result.classification_confidence:.2f}")
