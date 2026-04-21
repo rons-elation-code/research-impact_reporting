@@ -27,6 +27,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from lavandula.reports import budget, config
 from lavandula.reports.classifier_clients import (
     CodexSubscriptionClient,
     select_classifier_client,
@@ -34,7 +35,15 @@ from lavandula.reports.classifier_clients import (
 from lavandula.reports.classify import (
     ClassifierError,
     classify_first_page,
+    estimate_cents,
 )
+
+
+class _BudgetHalt(SystemExit):
+    """Raised internally to halt the run when the budget cap is hit."""
+    def __init__(self, message: str):
+        super().__init__(2)
+        self.message = message
 
 
 # --- Subprocess tracking (TICK-002 Ctrl-C cleanup) ---------------------
@@ -138,18 +147,75 @@ def _get_thread_classifier():
     return c
 
 
-def _classify_one(sha: str, text: str):
-    """Worker-side classify call. Returns (sha, result_or_exc_tuple)."""
+def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
+                  budget_enabled=False, halt_event=None):
+    """Worker-side classify call. Returns (sha, result_or_exc_tuple).
+
+    When `budget_enabled`, wraps the classifier call with
+    budget.check_and_reserve → settle (on success) / release
+    (on failure). A `BudgetExceeded` from reserve sets the shared
+    `halt_event` and returns a "budget_halt" outcome.
+    """
+    if halt_event is not None and halt_event.is_set():
+        return sha, ("cancelled", None)
+
     client = _get_thread_classifier()
+    reservation_id = None
+    if budget_enabled:
+        try:
+            est = estimate_cents(1200, 150)
+            with db_lock:
+                reservation_id = budget.check_and_reserve(
+                    conn,
+                    estimated_cents=est,
+                    classifier_model=config.CLASSIFIER_MODEL,
+                )
+        except budget.BudgetExceeded as exc:
+            if halt_event is not None:
+                halt_event.set()
+            return sha, ("budget_halt", exc)
+        except Exception as exc:  # noqa: BLE001
+            return sha, ("budget_error", exc)
+
     try:
         result = classify_first_page(
             text, client=client, raise_on_error=False
         )
-        return sha, ("ok", result)
     except ClassifierError as exc:
+        _release_reservation(conn, db_lock, reservation_id)
         return sha, ("schema_error", exc)
     except Exception as exc:  # noqa: BLE001
+        _release_reservation(conn, db_lock, reservation_id)
         return sha, ("unexpected", exc)
+
+    if budget_enabled and reservation_id is not None:
+        if result.classification is None:
+            _release_reservation(conn, db_lock, reservation_id)
+        else:
+            try:
+                with db_lock:
+                    budget.settle(
+                        conn,
+                        reservation_id=reservation_id,
+                        actual_input_tokens=getattr(result, "input_tokens", 0) or 0,
+                        actual_output_tokens=getattr(result, "output_tokens", 0) or 0,
+                        sha256_classified=sha,
+                    )
+            except Exception:  # noqa: BLE001
+                _release_reservation(conn, db_lock, reservation_id)
+                raise
+
+    return sha, ("ok", result)
+
+
+def _release_reservation(conn, db_lock, reservation_id) -> None:
+    if reservation_id is None or db_lock is None:
+        return
+    try:
+        with db_lock:
+            budget.release(conn, reservation_id=reservation_id)
+    except Exception:  # noqa: BLE001,S110  # nosec B110 — best-effort rollback
+        pass
 
 
 def main() -> int:
@@ -176,7 +242,10 @@ def main() -> int:
         print(f"error: {args.db} not found", file=sys.stderr)
         return 2
 
-    conn = sqlite3.connect(str(args.db))
+    # check_same_thread=False: the conn is shared across worker threads
+    # but every access is serialized via db_lock below — SQLite sees a
+    # single writer at a time.
+    conn = sqlite3.connect(str(args.db), check_same_thread=False)
     conn.row_factory = sqlite3.Row
 
     null_filter = "" if args.re_classify else "AND classification IS NULL"
@@ -222,6 +291,26 @@ def main() -> int:
     # DB writes serialized via a lock — single connection, multi-thread callers.
     db_lock = threading.Lock()
 
+    # Budget preflight: reconcile any stale reservations from a prior
+    # crash, then guard every classifier call with check_and_reserve +
+    # settle/release. The lock serializes budget writes on the shared
+    # conn so the DB sees one writer at a time.
+    budget_enabled = True
+    try:
+        with db_lock:
+            reclaimed = budget.reconcile_stale_reservations(conn)
+        if reclaimed:
+            print(f"reconciled {reclaimed} stale classifier preflight reservation(s)")
+    except sqlite3.OperationalError as exc:
+        # Most common cause: test DB without `budget_ledger` table.
+        # In production reports.db always has the table.
+        budget_enabled = False
+        print(f"note: budget ledger unavailable ({exc}); skipping accounting",
+              file=sys.stderr)
+
+    halt_event = threading.Event()
+    halt_message = {"text": ""}
+
     def _write_result(sha: str, result) -> None:
         with db_lock:
             conn.execute(
@@ -250,7 +339,15 @@ def main() -> int:
     interrupted = False
     try:
         futures = {
-            executor.submit(_classify_one, row["content_sha256"], row["first_page_text"]): i
+            executor.submit(
+                _classify_one,
+                row["content_sha256"],
+                row["first_page_text"],
+                conn=conn,
+                db_lock=db_lock,
+                budget_enabled=budget_enabled,
+                halt_event=halt_event,
+            ): i
             for i, row in enumerate(rows, 1)
         }
         for fut in as_completed(futures):
@@ -271,6 +368,20 @@ def main() -> int:
                 print(f"  [{i:>3}/{total}] sha={sha[:10]}  UNEXPECTED: "
                       f"{type(payload).__name__}: {payload}")
                 continue
+            if kind == "budget_halt":
+                halt_message["text"] = str(payload)
+                print(f"  [{i:>3}/{total}] sha={sha[:10]}  BUDGET HALT: {payload}",
+                      file=sys.stderr)
+                continue
+            if kind == "budget_error":
+                errs += 1
+                print(f"  [{i:>3}/{total}] sha={sha[:10]}  BUDGET ERROR: "
+                      f"{type(payload).__name__}: {payload}",
+                      file=sys.stderr)
+                continue
+            if kind == "cancelled":
+                # Future never ran — halt was set before it started.
+                continue
 
             result = payload
             if result.classification is None:
@@ -290,6 +401,10 @@ def main() -> int:
             print(f"  [{i:>3}/{total}] sha={sha[:10]}  "
                   f"{result.classification:<12} "
                   f"conf={result.classification_confidence:.2f}")
+        # Budget cap hit — drain/cancel any still-pending futures so we
+        # don't issue more classifier calls past the cap.
+        if halt_event.is_set():
+            executor.shutdown(wait=False, cancel_futures=True)
     except KeyboardInterrupt:
         # Interrupt path: cancel pending futures AND kill any in-flight
         # codex subprocesses. Do NOT wait for them — they're gone.
@@ -338,6 +453,10 @@ def main() -> int:
         print(f"  {cls:<14} {classification_counts[cls]}")
 
     conn.close()
+    if halt_event.is_set():
+        print(f"\nHALT: classifier budget cap exceeded — {halt_message['text']}",
+              file=sys.stderr)
+        return 2
     return 0
 
 
