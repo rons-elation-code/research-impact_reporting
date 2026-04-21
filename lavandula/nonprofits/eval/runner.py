@@ -43,6 +43,9 @@ def _decide_current(row: EvalRow) -> tuple[str | None, float | None, str, str]:
     the resolver stored a URL but also recorded `ambiguous` or `rejected` status
     are forwarded with their original status so the eval comparison is not
     inflated by double-counting ambiguous results as accepted.
+
+    NOTE: This behaviour was tightened in Spec 0005 (Round 2). Earlier eval
+    runs treated any non-null URL as `accept`, inflating the baseline precision.
     """
     url = row.raw.get("website_url_current") or None
     confidence = row.raw.get("resolver_confidence_current") or None

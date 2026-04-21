@@ -5,23 +5,10 @@ import csv
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from lavandula.nonprofits.tools.resolve_websites import BLOCKLIST_HOSTS
 
-OBVIOUS_REJECT_HOSTS = frozenset({
-    "greatnonprofits.org",
-    "theorg.com",
-    "govtribe.com",
-    "wellness.com",
-    "givefreely.com",
-    "whereorg.com",
-    "influencewatch.org",
-    "foundationcenter.org",
-    "fconline.foundationcenter.org",
-    "intellispect.co",
-    "gudsy.org",
-    "nursa.com",
-    "app.milliegiving.com",
-    "milliegiving.com",
-    "npidb.org",
+# Extends the canonical BLOCKLIST_HOSTS with premark-specific obvious rejects.
+OBVIOUS_REJECT_HOSTS = BLOCKLIST_HOSTS | frozenset({
     "instrumentl.com",
     "giboo.com",
     "charityfootprints.com",

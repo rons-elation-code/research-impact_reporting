@@ -44,8 +44,14 @@ The scaffold currently supports:
 - `current`
   Score the currently stored `website_url_current`.
 - `heuristic`
-  Re-run the local `_pick_best()` resolver scorer against
+  Re-run the local `pick_best()` resolver scorer against
   `candidate_results_json`.
+- `llm`
+  Three-phase LLM pipeline (DeepSeek or Qwen) — Phase 1 generates
+  candidate URLs, Phase 2 verifies via HTTP, Phase 3 scores identity
+  match. Requires `RESOLVER_LLM_API_KEY` env var (or SSM). Must not
+  be run on production seeds until the ≥80% precision gate is
+  validated on the TX eval dataset.
 
 Placeholders are also defined for:
 
@@ -53,8 +59,7 @@ Placeholders are also defined for:
 - `two-cheap-consensus`
 - `frontier-arbitrated`
 
-These intentionally return `ambiguous` until their model-backed logic
-is implemented.
+These raise `NotImplementedError` and must be implemented before use.
 
 ## Usage
 

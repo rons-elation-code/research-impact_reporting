@@ -146,6 +146,11 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
         ("foundation_code", "INTEGER DEFAULT NULL"),
         ("ruling_date", "TEXT DEFAULT NULL"),
         ("accounting_period", "INTEGER DEFAULT NULL"),
+        ("resolver_status", "TEXT DEFAULT NULL"),
+        ("resolver_confidence", "REAL DEFAULT NULL"),
+        ("resolver_method", "TEXT DEFAULT NULL"),
+        ("resolver_reason", "TEXT DEFAULT NULL"),
+        ("website_candidates_json", "TEXT DEFAULT NULL"),
     ]:
         if col not in existing_seed:
             conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
