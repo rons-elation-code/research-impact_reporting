@@ -88,6 +88,89 @@ def test_ac4_classify_null_runs_in_parallel(tmp_path, monkeypatch):
     assert n == 8
 
 
+def test_classifier_client_is_per_thread(tmp_path, monkeypatch):
+    """Review round 3: classifier client must be threading.local —
+    one instance per worker thread, not shared across all workers."""
+    from lavandula.reports.tools import classify_null
+
+    db = tmp_path / "reports.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute("""
+        CREATE TABLE reports (
+          content_sha256 TEXT PRIMARY KEY,
+          first_page_text TEXT,
+          archived_at TEXT,
+          classification TEXT,
+          classification_confidence REAL,
+          classifier_model TEXT,
+          classifier_version INTEGER,
+          classified_at TEXT
+        )
+    """)
+    for i in range(8):
+        conn.execute(
+            "INSERT INTO reports (content_sha256, first_page_text, archived_at) "
+            "VALUES (?, ?, ?)",
+            (f"pt{i:04d}" + "0" * 60, "page text", f"2026-01-0{i+1}T00:00:00"),
+        )
+    conn.commit()
+    conn.close()
+
+    clients_created = []
+    lock = threading.Lock()
+
+    class FakeClient:
+        def __init__(self):
+            with lock:
+                clients_created.append(id(self))
+
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.select_classifier_client",
+        lambda: FakeClient(),
+    )
+
+    barrier = threading.Barrier(4, timeout=5.0)
+    seen_clients_by_thread: dict[str, set[int]] = {}
+
+    class _Result:
+        classification = "annual"
+        classification_confidence = 0.9
+        classifier_model = "fake"
+        error = ""
+
+    def fake_classify(text, *, client, raise_on_error):
+        tname = threading.current_thread().name
+        with lock:
+            seen_clients_by_thread.setdefault(tname, set()).add(id(client))
+        try:
+            barrier.wait()
+        except threading.BrokenBarrierError:
+            pass
+        return _Result()
+
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.classify_first_page",
+        fake_classify,
+    )
+    monkeypatch.setattr(sys, "argv", [
+        "classify_null", "--db", str(db), "--max-workers", "4",
+    ])
+    rc = classify_null.main()
+    assert rc == 0
+
+    # Each thread saw exactly one distinct client id.
+    for tname, ids in seen_clients_by_thread.items():
+        assert len(ids) == 1, (tname, ids)
+    # ≥2 worker threads ran (real parallelism).
+    worker_threads = [t for t in seen_clients_by_thread if t.startswith("classify-null")]
+    assert len(worker_threads) >= 2, seen_clients_by_thread
+    # ≥2 distinct client objects created across those workers.
+    worker_client_ids = set()
+    for t in worker_threads:
+        worker_client_ids |= seen_clients_by_thread[t]
+    assert len(worker_client_ids) >= 2, worker_client_ids
+
+
 def test_backfills_confirmed_report_count_per_ein(tmp_path, monkeypatch):
     """Review round 2: after classification, crawled_orgs.confirmed_report_count
     must equal COUNT(*) of reports with classification in

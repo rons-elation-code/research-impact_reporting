@@ -480,7 +480,6 @@ def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Spec 0004 report crawler")
     parser.add_argument("--nonprofits-db", type=Path, default=None)
     parser.add_argument("--refresh", action="store_true")
-    parser.add_argument("--retry-null-classifications", action="store_true")
     parser.add_argument("--data-dir", type=Path, default=config.DATA)
     parser.add_argument("--archive-dir", type=Path, default=config.RAW)
     parser.add_argument("--skip-tls-self-test", action="store_true",

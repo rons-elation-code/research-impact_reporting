@@ -114,8 +114,33 @@ def iso_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
-def _classify_one(client, sha: str, text: str):
+# Per-thread classifier client (TICK-002 round-3 review).
+#
+# The Anthropic SDK keeps an httpx.Client; the Codex shim builds
+# per-call subprocesses but holds config state. Neither is audited
+# as thread-safe for shared use across workers. Match the crawler's
+# per-thread pattern: each worker thread lazily constructs its own
+# client via threading.local.
+
+_classifier_local = threading.local()
+_classifier_factory = None  # set by main() before dispatch
+
+
+def _get_thread_classifier():
+    c = getattr(_classifier_local, "client", None)
+    if c is None:
+        c = _classifier_factory()
+        # Inject the tracking runner so Ctrl-C can kill in-flight codex
+        # subprocesses started by this thread's client.
+        if isinstance(c, CodexSubscriptionClient):
+            c._runner = _tracking_subprocess_run
+        _classifier_local.client = c
+    return c
+
+
+def _classify_one(sha: str, text: str):
     """Worker-side classify call. Returns (sha, result_or_exc_tuple)."""
+    client = _get_thread_classifier()
     try:
         result = classify_first_page(
             text, client=client, raise_on_error=False
@@ -176,11 +201,18 @@ def main() -> int:
     if total == 0:
         return 0
 
-    client = select_classifier_client()
-    # Inject the tracking runner so Ctrl-C can kill in-flight codex procs.
-    if isinstance(client, CodexSubscriptionClient):
-        client._runner = _tracking_subprocess_run
-    print(f"client: {type(client).__name__}\n")
+    # Per-thread clients (round-3): workers lazily construct their own
+    # via threading.local. We need a sample client up front only to
+    # compute the effective_classifier_model for audit stamps and to
+    # print the class name. The sample is NOT used by workers.
+    global _classifier_factory
+    _classifier_factory = select_classifier_client
+    # Clear main-thread-cached client from any prior main() invocation
+    # (test isolation).
+    if hasattr(_classifier_local, "client"):
+        del _classifier_local.client
+    sample_client = _get_thread_classifier()
+    print(f"client: {type(sample_client).__name__}\n")
 
     ok = 0
     errs = 0
@@ -203,7 +235,7 @@ def main() -> int:
                 (
                     result.classification,
                     result.classification_confidence,
-                    _effective_classifier_model(client, result),
+                    _effective_classifier_model(sample_client, result),
                     1,
                     iso_now(),
                     sha,
@@ -218,7 +250,7 @@ def main() -> int:
     interrupted = False
     try:
         futures = {
-            executor.submit(_classify_one, client, row["content_sha256"], row["first_page_text"]): i
+            executor.submit(_classify_one, row["content_sha256"], row["first_page_text"]): i
             for i, row in enumerate(rows, 1)
         }
         for fut in as_completed(futures):
