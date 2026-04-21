@@ -202,7 +202,7 @@ def _score_candidate(result: dict, *, name: str, city: str | None) -> tuple[floa
     return score, canonical, f"score={score:.2f};matched_tokens={matched_tokens};host={host}"
 
 
-def _pick_best(results: list[dict], *, name: str, city: str | None) -> tuple[str | None, float | None, str, str]:
+def pick_best(results: list[dict], *, name: str, city: str | None) -> tuple[str | None, float | None, str, str]:
     """Return (chosen_url, confidence, status, reason)."""
     scored: list[tuple[float, str, str]] = []
     last_reason = "no-valid-result"
@@ -327,7 +327,7 @@ def resolve_batch(
             resolver_reason = error_note or "brave_error:unknown"
         else:
             results = (response.get("web") or {}).get("results") or []
-            chosen, confidence, resolver_status, resolver_reason = _pick_best(
+            chosen, confidence, resolver_status, resolver_reason = pick_best(
                 results,
                 name=safe_name,
                 city=safe_city,

@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+log = logging.getLogger(__name__)
+
 from lavandula.nonprofits.eval.schema import EvalRow, load_dataset, write_template
-from lavandula.nonprofits.tools.resolve_websites import _pick_best
+from lavandula.nonprofits.tools.resolve_websites import pick_best
 from lavandula.nonprofits.resolver_clients import (
     OrgIdentity,
     ResolverResult,
@@ -32,19 +35,31 @@ class EvalDecision:
 
 
 def _decide_current(row: EvalRow) -> tuple[str | None, float | None, str, str]:
+    """Replay what the production resolver already decided — no HTTP re-verification.
+
+    Returns the stored `website_url_current` as an `accept` decision only when
+    `resolver_status_current` is a resolved/accepted state (or absent, which
+    means the old resolver wrote the URL without a status field). Rows where
+    the resolver stored a URL but also recorded `ambiguous` or `rejected` status
+    are forwarded with their original status so the eval comparison is not
+    inflated by double-counting ambiguous results as accepted.
+    """
     url = row.raw.get("website_url_current") or None
     confidence = row.raw.get("resolver_confidence_current") or None
     parsed_conf = float(confidence) if confidence not in (None, "") else None
-    if url:
+    status_current = (row.raw.get("resolver_status_current") or "").strip().lower()
+
+    if url and status_current not in {"ambiguous", "rejected", "reject", "error"}:
         return url, parsed_conf, "accept", "current_seed_resolution"
-    status = (row.raw.get("resolver_status_current") or "reject").lower()
-    if status not in {"accept", "ambiguous", "reject"}:
-        status = "reject"
-    return None, parsed_conf, status, "current_seed_resolution"
+
+    # URL is absent, or the stored status indicates a non-accepted result.
+    if status_current not in {"accept", "ambiguous", "reject"}:
+        status_current = "reject"
+    return None, parsed_conf, status_current, "current_seed_resolution"
 
 
 def _decide_heuristic(row: EvalRow) -> tuple[str | None, float | None, str, str]:
-    chosen, confidence, status, reason = _pick_best(
+    chosen, confidence, status, reason = pick_best(
         row.candidate_results,
         name=row.name,
         city=row.city,
@@ -56,7 +71,7 @@ def _decide_heuristic(row: EvalRow) -> tuple[str | None, float | None, str, str]
 
 
 def _decide_unimplemented(row: EvalRow, *, label: str) -> tuple[str | None, float | None, str, str]:
-    del row
+    log.warning("strategy %r is a stub; returning ambiguous for ein=%s", label, row.ein)
     return None, None, "ambiguous", f"{label}_strategy_not_implemented"
 
 
