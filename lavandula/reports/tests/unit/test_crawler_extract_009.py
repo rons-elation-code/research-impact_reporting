@@ -88,7 +88,6 @@ def test_process_org_logs_extract_failure(tmp_path, monkeypatch):
         ein="000000001",
         website="https://example.org",
         client=StubClient(),
-        anthropic_client=None,
         conn=conn,
         archive_dir=archive_dir,
     )
@@ -177,7 +176,6 @@ def test_process_org_logs_extract_success(tmp_path, monkeypatch):
         ein="000000002",
         website="https://example.org",
         client=StubClient(),
-        anthropic_client=None,
         conn=conn,
         archive_dir=archive_dir,
     )
@@ -264,21 +262,9 @@ def test_process_org_counts_only_report_classifications(tmp_path, monkeypatch):
     fake_pypdf.PdfReader = GoodPdfReader
     monkeypatch.setitem(sys.modules, "pypdf", fake_pypdf)
 
-    monkeypatch.setattr(
-        crawler._classify,
-        "classify_first_page",
-        lambda *args, **kwargs: SimpleNamespace(
-            classification="not_a_report",
-            classification_confidence=0.99,
-            input_tokens=10,
-            output_tokens=5,
-            error="",
-        ),
-    )
-    monkeypatch.setattr(crawler._classify, "estimate_cents", lambda *args, **kwargs: 1)
-    monkeypatch.setattr(crawler.budget, "check_and_reserve", lambda *args, **kwargs: 123)
-    monkeypatch.setattr(crawler.budget, "settle", lambda *args, **kwargs: None)
-
+    # TICK-002: classification is no longer invoked from process_org —
+    # confirmed_report_count is therefore always 0. The post-crawl
+    # `classify_null.py` pass fills classification later.
     class StubClient:
         def get(self, url, kind, seed_etld1=None):
             return _stub_fetch_result(status="not_found", final_url=url)
@@ -287,12 +273,19 @@ def test_process_org_counts_only_report_classifications(tmp_path, monkeypatch):
         ein="000000003",
         website="https://example.org",
         client=StubClient(),
-        anthropic_client=object(),
         conn=conn,
         archive_dir=archive_dir,
     )
 
     assert result.fetched_count == 1
     assert result.confirmed_report_count == 0
+
+    # Stored row has classification=NULL (deferred to classify_null.py).
+    row = conn.execute(
+        "SELECT classification FROM reports WHERE content_sha256 = ?",
+        ("c" * 64,),
+    ).fetchone()
+    assert row is not None
+    assert row["classification"] is None
 
     conn.close()

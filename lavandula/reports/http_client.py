@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import gzip
 import io
-import random
 import time
 import zlib
 from dataclasses import dataclass, field
@@ -35,6 +34,7 @@ import requests
 from requests.cookies import RequestsCookieJar
 
 from . import config
+from . import host_throttle as _host_throttle
 from .logging_utils import sanitize, sanitize_exception
 from .redirect_policy import check_redirect_chain
 from .url_guard import HostPinCache, is_address_allowed
@@ -93,7 +93,6 @@ class ReportsHTTPClient:
     ) -> None:
         self._sleep = sleep
         self._monotonic = monotonic
-        self._throttle_at: dict[str, float] = {}
         self._pin_cache = pin_cache or HostPinCache()
         self._allow_insecure_cleartext = allow_insecure_cleartext
 
@@ -113,21 +112,15 @@ class ReportsHTTPClient:
     def tick_throttle(self, host: str) -> None:
         """Sleep as needed to enforce per-host throttle before the next request.
 
-        Public so tests can exercise AC6 without issuing HTTP.
+        Delegates to the module-level `HostThrottle` singleton so worker
+        threads with per-thread `ReportsHTTPClient` instances still
+        coordinate politeness against the same host. The reservation is
+        made atomically under the singleton's lock; the `sleep` happens
+        here, outside the lock.
         """
-        now = self._monotonic()
-        last = self._throttle_at.get(host)
-        if last is not None:
-            # S311 / B311 OK: jitter is used only to distribute throttle timing
-            # across concurrent clients, not for any security-sensitive purpose.
-            jitter = random.uniform(  # noqa: S311  # nosec B311
-                -config.REQUEST_DELAY_JITTER_SEC,
-                config.REQUEST_DELAY_JITTER_SEC,
-            )
-            wait = last + config.REQUEST_DELAY_SEC + jitter - now
-            if wait > 0:
-                self._sleep(wait)
-        self._throttle_at[host] = self._monotonic()
+        wait = _host_throttle.reserve(host, now=self._monotonic())
+        if wait > 0:
+            self._sleep(wait)
 
     @staticmethod
     def _decompress_stream(

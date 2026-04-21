@@ -2,8 +2,15 @@
 
 This module implements spec `locard/specs/0004-site-crawl-report-catalogue.md`.
 It crawls nonprofit websites for annual/impact PDF reports, archives them
-to content-addressable storage, classifies them via Anthropic Haiku, and
-exposes a `reports_public` SQLite view for downstream consumers.
+to content-addressable storage, classifies them via Anthropic Haiku
+(or the Codex CLI subscription shim), and exposes a `reports_public`
+SQLite view for downstream consumers.
+
+TICK-002 (2026-04-21) parallelized the per-org crawl and split
+classification out of the crawler into a separate tool. The crawler
+writes reports with `classification=NULL`; `classify_null.py` backfills
+classifications and `crawled_orgs.confirmed_report_count` in a parallel
+post-pass. Operators run them back-to-back or as scheduled jobs.
 
 ## Prerequisites
 
@@ -49,21 +56,35 @@ pip install -r requirements.txt -r requirements-dev.txt
 
 ```bash
 export ANTHROPIC_API_KEY=...
+# Stage 1 — parallel crawl (writes rows with classification=NULL).
 python -m lavandula.reports.crawler \
-    --nonprofits-db /path/to/nonprofits.db
+    --nonprofits-db /path/to/nonprofits.db \
+    --max-workers 8
+
+# Stage 2 — classify the NULL rows and backfill confirmed_report_count.
+python -m lavandula.reports.tools.classify_null \
+    --db lavandula/reports/data/reports.db \
+    --max-workers 4
 ```
 
-Exit codes:
+Exit codes (crawler):
 - `0` — completed normally
 - `2` — halt (encryption / TLS / budget)
 - `3` — another instance already holds the flock
 
-Common flags:
+Common crawler flags:
 - `--refresh` — re-process EINs already in `crawled_orgs`.
-- `--retry-null-classifications` — only re-run classifier on rows with
-  `classification IS NULL` from a prior outage.
+- `--max-workers N` — parallel worker count (1-32, default 8; TICK-002).
+  Use `1` for deterministic serial runs during debugging.
 - `--skip-tls-self-test` — ops override. Do NOT use in production.
 - `--skip-encryption-check` — ops override. Do NOT use in production.
+
+Common classify_null flags:
+- `--max-workers N` — parallel classifier threads (default 4).
+  Lower to 2 if Codex CLI rate-limits on a 2-CPU host.
+- `--re-classify` — re-stamp rows that already have a classification
+  (e.g. after changing model). WARNING: overwrites.
+- `--limit N`, `--sha-prefix PFX` — testing helpers.
 
 ## Data layout
 

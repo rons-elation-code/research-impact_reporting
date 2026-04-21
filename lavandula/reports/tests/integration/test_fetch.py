@@ -12,16 +12,25 @@ def test_ac6_throttle_takes_at_least_25s_for_10_requests():
     Runs with a FIXED monotonic clock so the throttle engages on every
     call after the first — tests the throttle's intent, not wall time.
     """
+    from lavandula.reports import host_throttle
     from lavandula.reports.http_client import ReportsHTTPClient
     slept = []
+    # Stateful fake clock: sleeping advances monotonic. The reservation
+    # pattern (TICK-002) requires monotonic to progress alongside sleep.
+    clock = [0.0]
 
     def fake_sleep(seconds):
         slept.append(seconds)
+        clock[0] += seconds
 
+    def fake_monotonic():
+        return clock[0]
+
+    host_throttle.reset_for_testing()
     client = ReportsHTTPClient(
         allow_insecure_cleartext=True,
         sleep=fake_sleep,
-        monotonic=lambda: 0.0,
+        monotonic=fake_monotonic,
     )
     client.tick_throttle("example.org")
     for _ in range(9):
