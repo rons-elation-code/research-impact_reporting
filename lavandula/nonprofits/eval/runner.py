@@ -86,20 +86,33 @@ def _resolver_result_to_decision(
     return url, confidence, outcome, result.reason
 
 
-def _decide_llm(row: EvalRow) -> tuple[str | None, float | None, str, str]:
-    client = select_resolver_client()
-    http_client = make_resolver_http_client()
+def _decide_llm(
+    row: EvalRow,
+    *,
+    llm_client=None,
+    llm_http_client=None,
+) -> tuple[str | None, float | None, str, str]:
+    client = llm_client if llm_client is not None else select_resolver_client()
+    http_client = llm_http_client if llm_http_client is not None else make_resolver_http_client()
     result = client.resolve(_row_to_org_identity(row), http_client)
     return _resolver_result_to_decision(result)
 
 
-def evaluate_row(row: EvalRow, *, strategy: str) -> EvalDecision:
+def evaluate_row(
+    row: EvalRow,
+    *,
+    strategy: str,
+    llm_client=None,
+    llm_http_client=None,
+) -> EvalDecision:
     if strategy == "current":
         predicted_url, confidence, predicted_outcome, reason = _decide_current(row)
     elif strategy == "heuristic":
         predicted_url, confidence, predicted_outcome, reason = _decide_heuristic(row)
     elif strategy == "llm":
-        predicted_url, confidence, predicted_outcome, reason = _decide_llm(row)
+        predicted_url, confidence, predicted_outcome, reason = _decide_llm(
+            row, llm_client=llm_client, llm_http_client=llm_http_client
+        )
     elif strategy == "packet-cheap":
         predicted_url, confidence, predicted_outcome, reason = _decide_unimplemented(
             row, label="packet-cheap"
@@ -193,7 +206,20 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--input-csv and --output-jsonl are required unless --write-template is used")
 
     rows = load_dataset(args.input_csv)
-    decisions = [evaluate_row(row, strategy=args.strategy) for row in rows]
+    llm_client = None
+    llm_http_client = None
+    if args.strategy == "llm":
+        llm_client = select_resolver_client()
+        llm_http_client = make_resolver_http_client()
+    decisions = [
+        evaluate_row(
+            row,
+            strategy=args.strategy,
+            llm_client=llm_client,
+            llm_http_client=llm_http_client,
+        )
+        for row in rows
+    ]
 
     args.output_jsonl.parent.mkdir(parents=True, exist_ok=True)
     with args.output_jsonl.open("w", encoding="utf-8") as handle:

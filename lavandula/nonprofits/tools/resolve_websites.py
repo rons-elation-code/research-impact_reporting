@@ -424,6 +424,9 @@ def _resolve_llm_batch(
         if dry_run:
             print(f"DRY-RUN ein={ein} status={result.status} url={result.url}")
         else:
+            # Ambiguous rows: keep website_url NULL so the crawler doesn't
+            # auto-consume them; the candidate URLs are in website_candidates_json.
+            db_url = result.url if result.status != "ambiguous" else None
             conn.execute(
                 "UPDATE nonprofits_seed SET"
                 " website_url=?,"
@@ -434,7 +437,7 @@ def _resolve_llm_batch(
                 " website_candidates_json=?"
                 " WHERE ein=?",
                 (
-                    result.url,
+                    db_url,
                     result.status,
                     result.confidence,
                     result.method,
