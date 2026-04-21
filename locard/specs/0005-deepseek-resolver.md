@@ -30,8 +30,10 @@ actually belonged to the queried organization.
 2. Eliminate dependency on Brave Search for the resolution step.
 3. Use the richer seed data now available: street address, zipcode, NTEE
    code, subsection code, plus name, city, state, EIN.
-4. Achieve measurably higher resolver precision on the TX eval dataset
-   compared to the current heuristic baseline.
+4. Achieve **≥ 80% precision** on the TX 100-org eval dataset, measured
+   as: (correctly resolved orgs) / (orgs where `resolver_status=resolved`).
+   The current heuristic baseline precision on this dataset is the reference
+   point; the DeepSeek resolver must exceed it.
 5. Integrate into the existing resolver-eval framework so accuracy can be
    validated before production deployment.
 
@@ -56,19 +58,34 @@ The resolver uses a three-phase pipeline per org:
 Ask DeepSeek to propose up to 5 likely official website URLs for the org,
 given: name, EIN, street address, city, state, zipcode, NTEE code.
 The model draws on training knowledge of US nonprofits and reasons about
-likely domain patterns. No external search is used.
+likely domain patterns. Brave Search is explicitly excluded.
+
+If Phase 1 produces zero HTTP-live candidates (all proposed URLs fail
+verification), the resolver marks the org `unresolved` with reason
+`no_live_candidates`. A future spec may add a non-Brave search fallback
+for this long-tail case; that is out of scope here.
 
 **Phase 2 — HTTP verification**  
-For each candidate URL (in ranked order), attempt an HTTP HEAD then GET
-against the homepage. Discard candidates that do not return a 200-class
-response. Capture up to 2000 characters of homepage text for the live
+For each candidate URL (in ranked order), send an HTTP GET with a
+3-second connect timeout and 8-second read timeout. Follow up to 3
+redirects; record the final resolved URL (after redirects) as the
+candidate. Discard candidates that return non-200 responses or exceed
+timeouts. Capture up to 2000 characters of homepage text for live
 candidates.
 
 **Phase 3 — Identity confirmation**  
 Pass the homepage text of each live candidate back to DeepSeek with the
 original org identity (name, address, city, state). Ask the model to
-confirm which URL belongs to the organization, or return `none` if no
-candidate is a match. The model must provide a short reasoning string.
+confirm which URL belongs to the organization, or return `null` if no
+candidate is a confident match. The model must provide a confidence score
+(0.0–1.0) and a short reasoning string.
+
+**`ambiguous` status**: If two or more candidates each receive model
+confidence ≥ 0.6 and are within 0.1 of each other, the resolver sets
+`resolver_status=ambiguous` and stores both URLs in
+`website_candidates_json`. The `website_url` field is set to the
+highest-confidence candidate but should not be used for production crawls
+without human review.
 
 ### Output fields (added to `nonprofits_seed`)
 
@@ -253,8 +270,9 @@ and zipcode (not just name/city/state).
 1. Should Phase 1 use `deepseek-reasoner` (R1) for better domain
    generation, or is `deepseek-chat` (V3) sufficient? V3 is ~4x cheaper.
    Recommend starting with V3 and upgrading only if accuracy is
-   insufficient.
+   insufficient on the eval dataset.
 
-2. Should we add a fallback: if DeepSeek returns no confident match,
-   retry with a broader prompt that includes common domain patterns
-   (`.org`, `.net`, `city + orgname`)?
+2. For the recall gap on obscure/newer orgs where Phase 1 produces zero
+   live candidates: a future spec should add a non-Brave search fallback
+   (e.g., Google Custom Search or DuckDuckGo) as Phase 1.5. Not in scope
+   for this spec.
