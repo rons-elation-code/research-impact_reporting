@@ -2267,3 +2267,20 @@ thread-safe; each worker constructs its own `ReportsHTTPClient`.
 state moves to a `HostThrottle` singleton protected by
 `threading.Lock`. Per-thread clients delegate throttle checks to the
 singleton so politeness is preserved across workers.
+
+### Security fixes from red-team review (TICK-002)
+
+**Host throttle — reservation pattern.** `HostThrottle.reserve(host)`
+returns the sleep duration and updates `last_fetch_time` before
+releasing the lock, so concurrent callers compute correct delays.
+
+**Memory cap — streaming downloads with 50 MB ceiling.** All PDF
+fetches use `stream=True` with size enforced during read. 8 workers ×
+50 MB = 400 MB worst-case buffer.
+
+**Writer thread health.** Main thread monitors writer via `is_alive()`
+and re-raises writer exceptions. Queue `maxsize=256` applies
+backpressure.
+
+**Subprocess cleanup in classify_null.** `subprocess.run(timeout=60)`
+per Codex call; pending subprocesses killed on shutdown.

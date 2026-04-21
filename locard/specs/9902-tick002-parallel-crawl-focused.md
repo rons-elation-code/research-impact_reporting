@@ -138,3 +138,38 @@ the singleton.
 
 6. Backward compatibility: `--max-workers=1` must produce identical
    results to pre-TICK-002 for any seed set. Add a regression test.
+
+### Security fixes from red-team review
+
+**Host throttle — reservation pattern (not check-then-sleep).** The
+`HostThrottle` singleton must claim the next fetch slot *atomically*
+before releasing the lock for the sleep. Implementation:
+
+```python
+def reserve(self, host: str) -> float:
+    """Return sleep duration in seconds. Updates last_fetch_time
+    BEFORE returning so the next caller calculates correctly."""
+    with self._lock:
+        now = time.monotonic()
+        next_allowed = self._last_fetch.get(host, 0.0) + self._min_interval
+        wait = max(0.0, next_allowed - now)
+        self._last_fetch[host] = now + wait  # reserve the slot NOW
+        return wait
+# caller does time.sleep(wait) outside the lock
+```
+
+**Memory cap — streaming downloads with size ceiling.** All PDF fetches
+must use `stream=True` with a hard 50 MB size cap enforced during read.
+Exceeding the cap aborts the fetch and logs a structured error. Applies
+per-thread, so 8 workers × 50 MB = 400 MB worst-case buffer.
+
+**Writer thread health — monitored + bounded queue.** The `queue.Queue`
+has `maxsize=256`. If the writer thread dies, `put()` will eventually
+block workers and the crawler will hang. The main thread must monitor
+the writer via `writer_thread.is_alive()` periodically and abort the
+run if the writer dies. The writer's exception must be re-raised on
+the main thread.
+
+**Subprocess cleanup in classify_null.** Each `codex exec` call must use
+`subprocess.run(timeout=60)`. On `ThreadPoolExecutor.shutdown(wait=False)`,
+pending subprocesses must be killed (not left as zombies).
