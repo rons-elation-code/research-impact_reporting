@@ -20,14 +20,16 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlsplit
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from . import config
 from . import db_writer
 from . import schema
 from . import fetch_pdf
 from . import archive as _archive
-from . import classify as _classify
 from . import budget
 from .candidate_filter import Candidate
+from .db_queue import DBWriter, DBWriterDied
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
 from .logging_utils import sanitize, setup_logging
@@ -229,12 +231,30 @@ def process_org(
     *,
     ein: str,
     website: str,
-    client: ReportsHTTPClient,
-    anthropic_client,
-    conn: sqlite3.Connection,
     archive_dir: Path,
+    db_queue: "DBWriter | None" = None,
+    client: ReportsHTTPClient | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> OrgResult:
-    """Process a single org end-to-end."""
+    """Process a single org end-to-end.
+
+    TICK-002: classification is NO LONGER invoked here. Rows are written
+    with `classification=NULL`; a separate `classify_null.py` pass fills
+    them in afterward.
+
+    Concurrency: in the parallel path `db_queue` is passed, `client` is
+    built per-thread here, and `conn` is unused. In single-worker /
+    legacy paths, a caller-provided `conn` + `client` are used directly
+    (no queue) for backward-compatible behavior.
+    """
+    # Per-thread HTTP client — `requests.Session` is not thread-safe.
+    own_client = client is None
+    if own_client:
+        client = ReportsHTTPClient()
+
+    def _write_fetch(**kwargs):
+        db_writer.record_fetch(conn, db_writer=db_queue, **kwargs)
+
     result = OrgResult(ein=ein)
     seed_etld1 = etld1(urlsplit(website).hostname or "")
 
@@ -248,8 +268,7 @@ def process_org(
         )
         if r.status == "ok" and r.body:
             robots_text = r.body.decode("utf-8", errors="replace")
-        db_writer.record_fetch(
-            conn,
+        _write_fetch(
             ein=ein,
             url_redacted=r.final_url_redacted or website,
             kind="robots",
@@ -262,15 +281,12 @@ def process_org(
         log.warning("robots fetch failed for %s: %s", ein, exc)
 
     def _fetcher(url: str, kind: str) -> tuple[bytes, str]:
-        # TICK-002 Fix 2: retry on network_error/server_error for
-        # homepage/subpage/sitemap fetches only. PDF fetches remain
-        # single-shot.
         import time as _time
         r = None
         for attempt in range(config.RETRY_MAX_ATTEMPTS):
             r = client.get(url, kind=kind, seed_etld1=seed_etld1)
-            db_writer.record_fetch(
-                conn, ein=ein,
+            _write_fetch(
+                ein=ein,
                 url_redacted=r.final_url_redacted or redact_url(url),
                 kind=kind, fetch_status=r.status, status_code=r.http_status,
                 elapsed_ms=r.elapsed_ms, notes=sanitize(r.note),
@@ -282,8 +298,6 @@ def process_org(
             if not retryable:
                 break
             if attempt < config.RETRY_MAX_ATTEMPTS - 1:
-                # Backoff from completion of this attempt. Last
-                # attempt skips the sleep (falls through to loop end).
                 backoff_idx = min(attempt, len(config.RETRY_BACKOFF_SEC) - 1)
                 _time.sleep(config.RETRY_BACKOFF_SEC[backoff_idx])
         return (r.body or b""), r.status
@@ -300,8 +314,7 @@ def process_org(
         outcome = fetch_pdf.download(
             cand.url, client, seed_etld1=seed_etld1, validate_structure=True
         )
-        db_writer.record_fetch(
-            conn,
+        _write_fetch(
             ein=ein,
             url_redacted=outcome.final_url_redacted or redact_url(cand.url),
             kind="pdf-get",
@@ -324,15 +337,8 @@ def process_org(
             log.warning("archive write failed for sha=%s: %s", outcome.content_sha256, exc)
             continue
 
-        # Active-content flags from the raw bytes (cheap, in-parent).
         flags = scan_active_content(outcome.body)
 
-        # First-page text via the in-parent pypdf call — for v1 we trust
-        # the parent's pre-validated PDF (Gemini plan-review HIGH #1) and
-        # invoke the sandbox's payload import IN-PROC here. The sandbox
-        # path via `sandbox.runner.extract_pdf_fields(archive_path)` is
-        # preferred for untrusted-input scenarios; we expose it for
-        # operator override but default to in-parent for v1 throughput.
         first_page_text = ""
         page_count = None
         creator = None
@@ -358,73 +364,13 @@ def process_org(
             extract_status = "server_error"
             extract_note = sanitize(str(exc))
 
-        db_writer.record_fetch(
-            conn,
+        _write_fetch(
             ein=ein,
             url_redacted=outcome.final_url_redacted or redact_url(cand.url),
             kind="extract",
             fetch_status=extract_status,
             notes=extract_note or (f"page_count={page_count}" if page_count is not None else "no_pages_extracted"),
         )
-
-        classification = None
-        classification_confidence = None
-        input_tokens = 0
-        output_tokens = 0
-        error = ""
-        reservation_id: int | None = None
-        if anthropic_client is not None and first_page_text:
-            try:
-                estimated = _classify.estimate_cents(1200, 150)
-                reservation_id = budget.check_and_reserve(
-                    conn,
-                    estimated_cents=estimated,
-                    classifier_model=config.CLASSIFIER_MODEL,
-                )
-            except budget.BudgetExceeded:
-                write_halt(
-                    config.HALT,
-                    "classifier-budget",
-                    "# HALT: classifier budget cap exceeded\n",
-                )
-                raise
-            try:
-                cresult = _classify.classify_first_page(
-                    first_page_text,
-                    client=anthropic_client,
-                    raise_on_error=False,
-                )
-                classification = cresult.classification
-                classification_confidence = cresult.classification_confidence
-                input_tokens = cresult.input_tokens
-                output_tokens = cresult.output_tokens
-                error = cresult.error
-                if classification is None:
-                    db_writer.record_fetch(
-                        conn, ein=ein, url_redacted=outcome.final_url_redacted or "",
-                        kind="classify", fetch_status="classifier_error",
-                        notes=sanitize(error),
-                    )
-                    if reservation_id is not None:
-                        budget.release(conn, reservation_id=reservation_id)
-                        reservation_id = None
-                else:
-                    if reservation_id is not None:
-                        budget.settle(
-                            conn,
-                            reservation_id=reservation_id,
-                            actual_input_tokens=input_tokens,
-                            actual_output_tokens=output_tokens,
-                            sha256_classified=outcome.content_sha256,
-                        )
-                        reservation_id = None
-            except Exception:
-                if reservation_id is not None:
-                    try:
-                        budget.release(conn, reservation_id=reservation_id)
-                    except Exception:  # noqa: BLE001,S110  # nosec B110 — best-effort rollback; outer raise is the signal
-                        pass
-                raise
 
         report_year, report_year_source = infer_report_year(
             source_url=outcome.final_url or cand.url,
@@ -434,6 +380,7 @@ def process_org(
 
         db_writer.upsert_report(
             conn,
+            db_writer=db_queue,
             content_sha256=outcome.content_sha256,
             source_url_redacted=outcome.final_url_redacted or redact_url(cand.url),
             referring_page_url_redacted=redact_url(cand.referring_page_url),
@@ -452,19 +399,18 @@ def process_org(
             pdf_has_launch=flags["pdf_has_launch"],
             pdf_has_embedded=flags["pdf_has_embedded"],
             pdf_has_uri_actions=flags["pdf_has_uri_actions"],
-            classification=classification,
-            classification_confidence=classification_confidence,
+            classification=None,
+            classification_confidence=None,
             classifier_model=config.CLASSIFIER_MODEL,
             classifier_version=config.CLASSIFIER_VERSION,
             report_year=report_year,
             report_year_source=report_year_source,
             extractor_version=config.EXTRACTOR_VERSION,
         )
-        if classification in {"annual", "impact", "hybrid"}:
-            result.confirmed_report_count += 1
 
     db_writer.upsert_crawled_org(
         conn,
+        db_writer=db_queue,
         ein=ein,
         candidate_count=result.candidate_count,
         fetched_count=result.fetched_count,
@@ -502,7 +448,13 @@ def run(argv: list[str] | None = None) -> int:
                         help="(ops only) skip startup TLS self-test")
     parser.add_argument("--skip-encryption-check", action="store_true",
                         help="(ops only) skip encryption-at-rest check")
+    parser.add_argument("--max-workers", type=int, default=8,
+                        help="Per-org parallelism (TICK-002). Min 1, max 32. "
+                             "Default 8. Use 1 for deterministic serial runs.")
     args = parser.parse_args(argv)
+
+    if args.max_workers < 1 or args.max_workers > 32:
+        parser.error("--max-workers must be between 1 and 32")
 
     logger = setup_logging(config.LOGS, name="reports-crawler")
 
@@ -540,24 +492,21 @@ def run(argv: list[str] | None = None) -> int:
                 logger.error("tls self-test failed: %s", exc)
                 return 2
 
-        conn = schema.ensure_db(args.data_dir / "reports.db")
+        db_path = args.data_dir / "reports.db"
+        conn = schema.ensure_db(db_path)
         try:
             # Reconcile any crashed-mid-settle preflight reservations.
             reclaimed = budget.reconcile_stale_reservations(conn)
             if reclaimed:
                 logger.info("reconciled %d stale classifier preflights", reclaimed)
 
-            client = ReportsHTTPClient()
-            try:
-                from .classifier_clients import select_classifier_client
-                anthropic_client = select_classifier_client()
-            except Exception:
-                anthropic_client = None
-
             seeds: Iterable[tuple[str, str]] = []
             if args.nonprofits_db:
                 seeds = fetch_seeds_from_0001(args.nonprofits_db)
 
+            # Pre-filter seeds: skip already-crawled + invalid URLs on the
+            # main thread so workers only receive work they should do.
+            pending: list[tuple[str, str]] = []
             for ein, website in seeds:
                 if should_skip_ein(conn, ein=ein, refresh=args.refresh):
                     continue
@@ -565,20 +514,43 @@ def run(argv: list[str] | None = None) -> int:
                 if not check.ok:
                     logger.warning("skip ein=%s bad seed %r: %s", ein, website, check.reason)
                     continue
-                try:
-                    process_org(
-                        ein=ein,
-                        website=website,
-                        client=client,
-                        anthropic_client=anthropic_client,
-                        conn=conn,
-                        archive_dir=args.archive_dir,
-                    )
-                except budget.BudgetExceeded:
-                    logger.error("classifier budget exhausted; halting")
-                    return 2
-                except Exception as exc:  # noqa: BLE001
-                    logger.exception("ein=%s failed: %s", ein, exc)
+                pending.append((ein, website))
+
+            # Parallel dispatch via single-writer DB queue + worker pool.
+            # The read-only `conn` stays on the main thread; writes flow
+            # through `writer`. `max_workers=1` preserves serial behavior.
+            writer = DBWriter(str(db_path))
+            writer.start()
+            try:
+                with ThreadPoolExecutor(
+                    max_workers=args.max_workers,
+                    thread_name_prefix="lavandula-crawler",
+                ) as pool:
+                    futures = {
+                        pool.submit(
+                            process_org,
+                            ein=ein,
+                            website=website,
+                            archive_dir=args.archive_dir,
+                            db_queue=writer,
+                        ): (ein, website)
+                        for ein, website in pending
+                    }
+                    for fut in as_completed(futures):
+                        ein, website = futures[fut]
+                        if not writer.is_alive():
+                            logger.error("db writer died; aborting run")
+                            for f in futures:
+                                f.cancel()
+                            raise RuntimeError("db writer thread died")
+                        try:
+                            fut.result()
+                        except DBWriterDied:
+                            raise
+                        except Exception as exc:  # noqa: BLE001
+                            logger.exception("ein=%s failed: %s", ein, exc)
+            finally:
+                writer.stop()
         finally:
             conn.close()
 

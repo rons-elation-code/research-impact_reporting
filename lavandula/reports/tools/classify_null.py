@@ -4,9 +4,14 @@ Iterates the `reports` table of an existing reports.db, calls the
 selected classifier backend on each row's `first_page_text`, writes
 the result back in-place.
 
+TICK-002: classification runs in parallel across worker threads.
+`--max-workers N` controls fanout (default 4, safe for Codex CLI
+on a 2-CPU host). Use `--max-workers 1` for deterministic order.
+
 Usage:
     python -m lavandula.reports.tools.classify_null \\
-        --db /tmp/0004-coastal-run/data/reports.db
+        --db /tmp/0004-coastal-run/data/reports.db \\
+        --max-workers 4
 
 Idempotent — re-runs only touch rows still NULL.
 """
@@ -16,6 +21,8 @@ import argparse
 import datetime as dt
 import sqlite3
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from lavandula.reports.classifier_clients import (
@@ -29,22 +36,27 @@ from lavandula.reports.classify import (
 
 
 def _effective_classifier_model(client, result) -> str:
-    """Return a truthful classifier_model string for the audit trail.
-
-    The shim's `messages.create()` call discards the `model` kwarg
-    passed in by `classify.build_anthropic_kwargs()` because Codex
-    CLI uses its own config. Without this override, the DB would
-    record the unused Anthropic model name (claude-haiku-4-5)
-    instead of the actual Codex model that ran.
-    """
+    """Return a truthful classifier_model string for the audit trail."""
     if isinstance(client, CodexSubscriptionClient):
-        # _codex_model may be None when using codex CLI's default
         return f"codex-cli/{client._codex_model or 'default'}"
     return result.classifier_model
 
 
 def iso_now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def _classify_one(client, sha: str, text: str):
+    """Worker-side classify call. Returns (sha, result_or_exc_tuple)."""
+    try:
+        result = classify_first_page(
+            text, client=client, raise_on_error=False
+        )
+        return sha, ("ok", result)
+    except ClassifierError as exc:
+        return sha, ("schema_error", exc)
+    except Exception as exc:  # noqa: BLE001
+        return sha, ("unexpected", exc)
 
 
 def main() -> int:
@@ -58,7 +70,14 @@ def main() -> int:
     ap.add_argument("--re-classify", action="store_true",
                     help="Re-classify rows that already have a classification "
                     "(used to re-stamp with new model). WARNING: overwrites.")
+    ap.add_argument("--max-workers", type=int, default=4,
+                    help="Parallel classifier threads (TICK-002). Default 4. "
+                    "Codex CLI fanout on a 2-CPU host; lower to 2 if "
+                    "rate-limiting is observed. Use 1 for serial.")
     args = ap.parse_args()
+
+    if args.max_workers < 1 or args.max_workers > 32:
+        ap.error("--max-workers must be between 1 and 32")
 
     if not args.db.exists():
         print(f"error: {args.db} not found", file=sys.stderr)
@@ -67,7 +86,6 @@ def main() -> int:
     conn = sqlite3.connect(str(args.db))
     conn.row_factory = sqlite3.Row
 
-    # Select rows needing classification
     null_filter = "" if args.re_classify else "AND classification IS NULL"
     sql = f"""
         SELECT content_sha256, first_page_text
@@ -86,7 +104,7 @@ def main() -> int:
 
     rows = conn.execute(sql, params).fetchall()
     total = len(rows)
-    print(f"classifying {total} rows from {args.db}")
+    print(f"classifying {total} rows from {args.db} (max_workers={args.max_workers})")
     if total == 0:
         return 0
 
@@ -98,57 +116,85 @@ def main() -> int:
     unknown_enum = 0
     low_confidence = 0
     classification_counts: dict[str, int] = {}
+    # DB writes serialized via a lock — single connection, multi-thread callers.
+    db_lock = threading.Lock()
 
-    for i, row in enumerate(rows, 1):
-        sha = row["content_sha256"]
-        text = row["first_page_text"]
-        try:
-            result = classify_first_page(
-                text, client=client, raise_on_error=False
+    def _write_result(sha: str, result) -> None:
+        with db_lock:
+            conn.execute(
+                """UPDATE reports
+                   SET classification=?,
+                       classification_confidence=?,
+                       classifier_model=?,
+                       classifier_version=?,
+                       classified_at=?
+                   WHERE content_sha256=?""",
+                (
+                    result.classification,
+                    result.classification_confidence,
+                    _effective_classifier_model(client, result),
+                    1,
+                    iso_now(),
+                    sha,
+                ),
             )
-        except ClassifierError as exc:
-            # Schema-violation exceptions still propagate here
-            unknown_enum += 1
-            print(f"  [{i:>3}/{total}] sha={sha[:10]}  SCHEMA ERROR: {exc}")
-            continue
-        except Exception as exc:  # noqa: BLE001
-            errs += 1
-            print(f"  [{i:>3}/{total}] sha={sha[:10]}  UNEXPECTED: {type(exc).__name__}: {exc}")
-            continue
+            conn.commit()
 
-        if result.classification is None:
-            errs += 1
-            print(f"  [{i:>3}/{total}] sha={sha[:10]}  NULL (error: {result.error})")
-            continue
+    executor = ThreadPoolExecutor(
+        max_workers=args.max_workers,
+        thread_name_prefix="classify-null",
+    )
+    try:
+        futures = {
+            executor.submit(_classify_one, client, row["content_sha256"], row["first_page_text"]): i
+            for i, row in enumerate(rows, 1)
+        }
+        for fut in as_completed(futures):
+            i = futures[fut]
+            try:
+                sha, (kind, payload) = fut.result()
+            except Exception as exc:  # noqa: BLE001
+                errs += 1
+                print(f"  [{i:>3}/{total}] worker crash: {type(exc).__name__}: {exc}")
+                continue
 
-        # Count by classification
-        classification_counts[result.classification] = \
-            classification_counts.get(result.classification, 0) + 1
-        if result.classification_confidence is not None and \
-                result.classification_confidence < 0.8:
-            low_confidence += 1
+            if kind == "schema_error":
+                unknown_enum += 1
+                print(f"  [{i:>3}/{total}] sha={sha[:10]}  SCHEMA ERROR: {payload}")
+                continue
+            if kind == "unexpected":
+                errs += 1
+                print(f"  [{i:>3}/{total}] sha={sha[:10]}  UNEXPECTED: "
+                      f"{type(payload).__name__}: {payload}")
+                continue
 
-        # Write back with truthful provenance
-        conn.execute(
-            """UPDATE reports
-               SET classification=?,
-                   classification_confidence=?,
-                   classifier_model=?,
-                   classifier_version=?,
-                   classified_at=?
-               WHERE content_sha256=?""",
-            (
-                result.classification,
-                result.classification_confidence,
-                _effective_classifier_model(client, result),
-                1,
-                iso_now(),
-                sha,
-            ),
-        )
-        conn.commit()
-        ok += 1
-        print(f"  [{i:>3}/{total}] sha={sha[:10]}  {result.classification:<12} conf={result.classification_confidence:.2f}")
+            result = payload
+            if result.classification is None:
+                errs += 1
+                print(f"  [{i:>3}/{total}] sha={sha[:10]}  NULL (error: {result.error})")
+                continue
+
+            classification_counts[result.classification] = (
+                classification_counts.get(result.classification, 0) + 1
+            )
+            if (result.classification_confidence is not None
+                    and result.classification_confidence < 0.8):
+                low_confidence += 1
+
+            _write_result(sha, result)
+            ok += 1
+            print(f"  [{i:>3}/{total}] sha={sha[:10]}  "
+                  f"{result.classification:<12} "
+                  f"conf={result.classification_confidence:.2f}")
+    except KeyboardInterrupt:
+        print("\n^C — cancelling pending classifications", file=sys.stderr)
+        executor.shutdown(wait=False, cancel_futures=True)
+        # Kill any in-flight Codex subprocesses spawned by threads.
+        # Best-effort: CodexSubscriptionClient uses subprocess.run(timeout=60),
+        # so orphaned processes cannot outlive the timeout.
+        raise
+    finally:
+        executor.shutdown(wait=True)
 
     print(f"\n=== done ===")
     print(f"  classified ok:   {ok}")
