@@ -351,13 +351,12 @@ def test_ac11_unknown_backend_raises():
         )
 
 
-# ── AC12: phase2 uses ReportsHTTPClient subclass with 5s/15s timeouts ────────
+# ── AC12: phase2 uses ReportsHTTPClient with 5s/15s timeouts via kind map ─────
 
-def test_ac12_http_client_is_reports_client_subclass():
+def test_ac12_http_client_is_reports_client():
     from lavandula.reports.http_client import ReportsHTTPClient
     http_client = make_resolver_http_client()
     assert isinstance(http_client, ReportsHTTPClient)
-    assert http_client._timeout_sec == (5, 15)
 
 
 def test_ac12_timeout_passed_to_session_get():

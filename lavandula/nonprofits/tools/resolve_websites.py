@@ -130,6 +130,11 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
     ]:
         if col not in existing:
             conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
+    conn.execute("DROP VIEW IF EXISTS nonprofits")
+    conn.execute(
+        "CREATE VIEW nonprofits AS"
+        " SELECT ein, website_url, resolver_status FROM nonprofits_seed"
+    )
     conn.commit()
 
 
@@ -424,9 +429,9 @@ def _resolve_llm_batch(
         if dry_run:
             print(f"DRY-RUN ein={ein} status={result.status} url={result.url}")
         else:
-            # Ambiguous rows: keep website_url NULL so the crawler doesn't
-            # auto-consume them; the candidate URLs are in website_candidates_json.
-            db_url = result.url if result.status != "ambiguous" else None
+            # Store the URL as-is for all statuses (including ambiguous) so
+            # the spec's highest-confidence candidate is preserved. The crawler
+            # gates on resolver_status='resolved' via the nonprofits view.
             conn.execute(
                 "UPDATE nonprofits_seed SET"
                 " website_url=?,"
@@ -437,7 +442,7 @@ def _resolve_llm_batch(
                 " website_candidates_json=?"
                 " WHERE ein=?",
                 (
-                    db_url,
+                    result.url,
                     result.status,
                     result.confidence,
                     result.method,

@@ -483,7 +483,8 @@ def fetch_seeds_from_0001(
             (row[0], row[1])
             for row in conn.execute(
                 "SELECT ein, website_url FROM nonprofits "
-                "WHERE website_url IS NOT NULL AND website_url != ''"
+                "WHERE website_url IS NOT NULL AND website_url != '' "
+                "AND (resolver_status IS NULL OR resolver_status IN ('resolved', 'accepted'))"
             )
         ]
     finally:

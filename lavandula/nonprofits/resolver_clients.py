@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
-_RESOLVER_VERIFY_TIMEOUT: tuple[int, int] = (5, 15)  # (connect_sec, read_sec)
 _SSM_PREFIX = "/cloud2.lavandulagroup.com/"
 
 
@@ -90,34 +89,12 @@ def _fetch_api_key(
 def make_resolver_http_client():
     """Create an HTTP client for resolver phase-2 verification.
 
-    Returns a ReportsHTTPClient subclass that enforces (connect=5s, read=15s)
-    timeouts. The parent constructor signature is not modified; timeouts are
-    injected by temporarily overriding config.REQUEST_TIMEOUT_SEC inside the
-    overridden get() method.
+    Returns a plain ReportsHTTPClient with allow_insecure_cleartext=True.
+    The (5s, 15s) timeout for kind='resolver-verify' is applied automatically
+    via the _KIND_TO_TIMEOUT map in lavandula.reports.http_client.
     """
-    from lavandula.reports import config as _reports_config
     from lavandula.reports.http_client import ReportsHTTPClient
-
-    class _ResolverHTTPClient(ReportsHTTPClient):
-        _timeout_sec = _RESOLVER_VERIFY_TIMEOUT
-
-        def __init__(self) -> None:
-            super().__init__(allow_insecure_cleartext=True)
-
-        def get(self, url, *, kind="resolver-verify", seed_etld1=None, extra_headers=None):
-            saved = _reports_config.REQUEST_TIMEOUT_SEC
-            _reports_config.REQUEST_TIMEOUT_SEC = self._timeout_sec
-            try:
-                return super().get(
-                    url,
-                    kind=kind,
-                    seed_etld1=seed_etld1,
-                    extra_headers=extra_headers,
-                )
-            finally:
-                _reports_config.REQUEST_TIMEOUT_SEC = saved
-
-    return _ResolverHTTPClient()
+    return ReportsHTTPClient(allow_insecure_cleartext=True)
 
 
 class OpenAICompatibleResolverClient:
