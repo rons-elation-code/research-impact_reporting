@@ -71,8 +71,7 @@ def _decide_heuristic(row: EvalRow) -> tuple[str | None, float | None, str, str]
 
 
 def _decide_unimplemented(row: EvalRow, *, label: str) -> tuple[str | None, float | None, str, str]:
-    log.warning("strategy %r is a stub; returning ambiguous for ein=%s", label, row.ein)
-    return None, None, "ambiguous", f"{label}_strategy_not_implemented"
+    raise NotImplementedError(f"strategy {label!r} is not yet implemented")
 
 
 def _row_to_org_identity(row: EvalRow) -> OrgIdentity:

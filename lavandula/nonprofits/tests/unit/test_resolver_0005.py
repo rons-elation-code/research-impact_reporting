@@ -449,6 +449,26 @@ def test_phase1_strips_code_fences():
     assert result == ["https://example.org", "https://www.example.com"]
 
 
+def test_phase1_capped_at_two_urls():
+    """Phase 1 output must be capped at 2 URLs regardless of how many the model returns."""
+    client = _make_client()
+    phase1_resp = _mock_llm_response(
+        '["https://a.org", "https://b.org", "https://c.org", "https://d.org"]'
+    )
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://a.org", "confidence": 0.95, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+    fetch = MagicMock()
+    fetch.status = "ok"
+    fetch.body = b"<html>org</html>"
+    fetch.final_url = "https://a.org"
+    http = _mock_http_client(fetch)
+    client.resolve(_ORG, http)
+    # Phase 2 must only have been called for the first 2 URLs
+    assert http.get.call_count == 2
+
+
 # ── Phase 3 robustness ────────────────────────────────────────────────────────
 
 def test_phase3_malformed_json_returns_unresolved():

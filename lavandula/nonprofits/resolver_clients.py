@@ -138,7 +138,7 @@ class OpenAICompatibleResolverClient:
         except Exception as exc:
             log.warning("resolver phase1 LLM call failed: %s", type(exc).__name__)
             return []
-        return _parse_url_list(raw)
+        return _parse_url_list(raw)[:2]
 
     def _phase2_verify(self, urls: list[str], http_client) -> list[dict]:
         results = []
