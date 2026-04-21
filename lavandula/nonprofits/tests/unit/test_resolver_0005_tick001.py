@@ -414,3 +414,60 @@ def test_make_brave_search_fn_returns_callable_from_shared_retry():
     mock_retry.assert_called_once()
     _, call_kwargs = mock_retry.call_args
     assert call_kwargs["key"] == "fake-key"
+
+
+# ── eval runner: llm strategy raises a clear error when Brave key missing ────
+
+def test_eval_llm_strategy_missing_brave_key_raises_config_error():
+    """Codex round-1 review: library callers must get a clear error, not
+    a bare SecretUnavailable, when the Brave key can't be fetched."""
+    from lavandula.common.secrets import SecretUnavailable
+    from lavandula.nonprofits.eval.runner import evaluate_row
+    from lavandula.nonprofits.eval.schema import EvalRow
+    from lavandula.nonprofits.resolver_clients import ConfigError
+
+    row = EvalRow(raw={
+        "ein": "750808774",
+        "name": "Test Org",
+        "address": "",
+        "city": "Dallas",
+        "state": "TX",
+        "zipcode": "",
+        "ntee_code": "",
+        "candidate_results_json": "[]",
+        "gold_official_url": "",
+        "gold_outcome": "accept",
+        "revenue": "",
+        "subsection_code": "",
+        "activity_codes": "",
+        "classification_codes": "",
+        "foundation_code": "",
+        "ruling_date": "",
+        "accounting_period": "",
+        "website_url_current": "",
+        "resolver_status_current": "",
+        "resolver_confidence_current": "",
+        "resolver_method_current": "",
+        "gold_notes": "",
+        "ambiguity_class": "",
+    })
+
+    mock_client = MagicMock()
+    with patch(
+        "lavandula.nonprofits.eval.runner.select_resolver_client",
+        return_value=mock_client,
+    ), patch(
+        "lavandula.nonprofits.eval.runner.make_resolver_http_client",
+        return_value=MagicMock(),
+    ), patch(
+        "lavandula.nonprofits.eval.runner.get_brave_api_key",
+        side_effect=SecretUnavailable("no creds"),
+    ):
+        with pytest.raises(ConfigError) as exc_info:
+            evaluate_row(row, strategy="llm")
+
+    msg = str(exc_info.value)
+    assert "llm_search_fn" in msg
+    assert "BRAVE_API_KEY" in msg or "brave-api-key" in msg
+    # The mock client must not have been called — we failed before phase 1.
+    assert mock_client.resolve.call_count == 0

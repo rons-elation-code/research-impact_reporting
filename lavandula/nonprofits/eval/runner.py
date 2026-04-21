@@ -105,6 +105,27 @@ def _resolver_result_to_decision(
     return url, confidence, outcome, result.reason
 
 
+def _default_llm_search_fn():
+    """Fetch a Brave-backed search_fn with a clear error on failure.
+
+    Called only when the caller did not inject `llm_search_fn`. Converts
+    SecretUnavailable into a ConfigError that names exactly which knobs
+    the caller can set, so library users aren't left debugging a bare
+    'no credentials' trace.
+    """
+    from lavandula.nonprofits.resolver_clients import ConfigError
+    try:
+        brave_key = get_brave_api_key()
+    except SecretUnavailable as exc:
+        raise ConfigError(
+            "llm eval strategy needs a Brave API key — either inject "
+            "`llm_search_fn=...` when calling evaluate_row(), set the "
+            "BRAVE_API_KEY env var, or populate SSM "
+            f"/cloud2.lavandulagroup.com/brave-api-key ({type(exc).__name__})"
+        ) from exc
+    return make_brave_search_fn(brave_key, logger=log)
+
+
 def _decide_llm(
     row: EvalRow,
     *,
@@ -114,9 +135,7 @@ def _decide_llm(
 ) -> tuple[str | None, float | None, str, str]:
     client = llm_client if llm_client is not None else select_resolver_client()
     http_client = llm_http_client if llm_http_client is not None else make_resolver_http_client()
-    search_fn = llm_search_fn if llm_search_fn is not None else make_brave_search_fn(
-        get_brave_api_key(), logger=log
-    )
+    search_fn = llm_search_fn if llm_search_fn is not None else _default_llm_search_fn()
     result = client.resolve(_row_to_org_identity(row), http_client, search_fn=search_fn)
     return _resolver_result_to_decision(result)
 
@@ -237,14 +256,14 @@ def main(argv: list[str] | None = None) -> int:
     llm_http_client = None
     llm_search_fn = None
     if args.strategy == "llm":
+        from lavandula.nonprofits.resolver_clients import ConfigError
         llm_client = select_resolver_client()
         llm_http_client = make_resolver_http_client()
         try:
-            brave_key = get_brave_api_key()
-        except SecretUnavailable as exc:
-            log.error("brave API key unavailable: %s", exc)
+            llm_search_fn = _default_llm_search_fn()
+        except ConfigError as exc:
+            log.error("%s", exc)
             return 1
-        llm_search_fn = make_brave_search_fn(brave_key, logger=log)
     decisions = [
         evaluate_row(
             row,
