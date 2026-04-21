@@ -205,8 +205,8 @@ Organization:
   Address: {address}, {city}, {state} {zipcode}
   NTEE code: {ntee_code}
 
-List up to 5 URLs that are most likely to be this organization's official
-website. Return ONLY a JSON array of URL strings, most likely first.
+Return your single best guess for the official website URL, plus one
+fallback. Return ONLY a JSON array of exactly 2 URL strings, best first.
 Example: ["https://example.org", "https://www.example.com"]
 ```
 
@@ -232,8 +232,8 @@ If none match, return {"url": null, "confidence": 0.0, "reason": "<why>"}
 
 ## Acceptance Criteria
 
-**AC1** — `DeepSeekResolverClient` is importable and instantiates without
-error when `DEEPSEEK_API_KEY` env var is set.
+**AC1** — `OpenAICompatibleResolverClient` is importable and instantiates
+without error when `RESOLVER_LLM_API_KEY` env var is set.
 
 **AC2** — `resolve()` returns a `ResolverResult` with `status=resolved`
 and a non-null URL for a well-known TX nonprofit (e.g., EIN `750808774`,
@@ -242,30 +242,37 @@ United Way of Metropolitan Dallas).
 **AC3** — When the model returns a URL that does not respond to HTTP,
 the resolver marks it `unresolved` rather than returning the dead URL.
 
-**AC4** — When `DEEPSEEK_API_KEY` is not set and SSM is unavailable,
-`DeepSeekResolverClient()` raises a clear `ConfigError` with a message
-naming the missing credential path.
+**AC4** — When `RESOLVER_LLM_API_KEY` is not set and SSM is unavailable,
+`select_resolver_client()` raises a clear `ConfigError` with a message
+naming the missing SSM credential path.
 
 **AC5** — API key is never present in log output, error messages, or
 `resolver_reason` strings.
 
-**AC6** — `resolve_websites.py --resolver deepseek` runs end-to-end on
+**AC6** — `resolve_websites.py --resolver llm` runs end-to-end on
 a single org without error.
 
 **AC6b** — `resolve_websites.py` without `--resolver` flag continues to
 use the existing heuristic resolver (no regression).
 
-**AC7** — The `deepseek` strategy is registered in `eval/runner.py` and
-`runner.evaluate_row(row, strategy="deepseek")` returns a decision object.
+**AC7** — The `llm` strategy is registered in `eval/runner.py` and
+`runner.evaluate_row(row, strategy="llm")` returns a decision object.
 
-**AC8** — All unit tests pass without making real HTTP or DeepSeek API
+**AC8** — All unit tests pass without making real HTTP or LLM API
 calls (fully mocked).
 
-**AC9** — The DeepSeek `openai.OpenAI` client is constructed with only
+**AC9** — The `openai.OpenAI` client is constructed with only
 `api_key` and `base_url` — no ambient env var scanning.
 
 **AC10** — Phase 1 and Phase 3 prompts include the org's street address
 and zipcode (not just name/city/state).
+
+**AC11** — `select_resolver_client()` returns a `qwen`-backed client when
+`RESOLVER_LLM=qwen` is set, and a `deepseek`-backed client when unset or
+`RESOLVER_LLM=deepseek`.
+
+**AC12** — Phase 2 uses `ReportsHTTPClient` with connect=5s / read=15s
+timeouts; raw `requests` calls are not used.
 
 ---
 
