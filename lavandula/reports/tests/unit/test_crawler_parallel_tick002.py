@@ -188,6 +188,52 @@ def test_max_workers_out_of_range_rejected(tmp_path, monkeypatch):
         ])
 
 
+def test_invalid_url_does_not_mask_valid_duplicate(tmp_path, monkeypatch):
+    """Round 7: URL validation must run BEFORE EIN dedupe. Otherwise a
+    seed list of (A, bad-url) followed by (A, good-url) would discard
+    the good duplicate and leave A un-crawled.
+    """
+    db_path = _make_db(tmp_path)
+    seeds = [
+        ("0001", "javascript:alert(1)"),     # invalid — discarded
+        ("0001", "https://good.example.org/"),  # valid — KEPT for 0001
+        ("0002", "https://b.example.org/"),
+    ]
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.fetch_seeds_from_0001",
+        lambda _p: seeds,
+    )
+    calls: list[tuple[str, str]] = []
+    lock = threading.Lock()
+
+    def record_call(*, ein, website, archive_dir, db_queue, **kw):
+        with lock:
+            calls.append((ein, website))
+        return _stub_process_org(
+            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+        )
+
+    monkeypatch.setattr("lavandula.reports.crawler.process_org", record_call)
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.tls_self_test", lambda *a, **k: None
+    )
+
+    rc = crawler.run([
+        "--nonprofits-db", str(tmp_path / "fake.db"),
+        "--data-dir", str(tmp_path),
+        "--archive-dir", str(tmp_path / "raw"),
+        "--max-workers", "1",
+        "--skip-tls-self-test",
+        "--skip-encryption-check",
+    ])
+    assert rc == 0
+    # 0001 crawled with the GOOD url, not the discarded bad one.
+    assert sorted(calls) == [
+        ("0001", "https://good.example.org/"),
+        ("0002", "https://b.example.org/"),
+    ]
+
+
 def test_duplicate_eins_deduped_before_dispatch(tmp_path, monkeypatch):
     """Review round 1: duplicate EINs in the seed list must not race
     into the same crawled_orgs row. Dedup keeps the first occurrence."""

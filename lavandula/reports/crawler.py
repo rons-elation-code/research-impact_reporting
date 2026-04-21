@@ -542,23 +542,30 @@ def run(argv: list[str] | None = None) -> int:
             if args.nonprofits_db:
                 seeds = fetch_seeds_from_0001(args.nonprofits_db)
 
-            # Pre-filter seeds: skip already-crawled + invalid URLs on the
-            # main thread so workers only receive work they should do.
-            # Dedupe by EIN — with parallel dispatch, duplicate EINs in
-            # the seed list would race into the same crawled_orgs row
-            # instead of being deduped by the serial should_skip_ein
-            # check. Keep the first occurrence.
+            # Pre-filter seeds: validate URLs FIRST, then dedupe by EIN,
+            # then skip already-crawled. Doing validation before dedupe
+            # matters: a seed list with EIN A (invalid URL) followed by
+            # EIN A (valid URL) must keep the valid one, not discard it
+            # as a duplicate of the invalid first occurrence.
+            validated: list[tuple[str, str]] = []
+            for ein, website in seeds:
+                check = validate_seed_url(website)
+                if not check.ok:
+                    logger.warning("skip ein=%s bad seed %r: %s", ein, website, check.reason)
+                    continue
+                validated.append((ein, website))
+
+            # Dedupe survivors by EIN — keeping first occurrence. With
+            # parallel dispatch duplicate EINs would race into the same
+            # crawled_orgs row instead of being serialized by
+            # should_skip_ein.
             pending: list[tuple[str, str]] = []
             seen_eins: set[str] = set()
-            for ein, website in seeds:
+            for ein, website in validated:
                 if ein in seen_eins:
                     continue
                 seen_eins.add(ein)
                 if should_skip_ein(conn, ein=ein, refresh=args.refresh):
-                    continue
-                check = validate_seed_url(website)
-                if not check.ok:
-                    logger.warning("skip ein=%s bad seed %r: %s", ein, website, check.reason)
                     continue
                 pending.append((ein, website))
 

@@ -110,8 +110,16 @@ class DBWriter:
 
     def _run(self) -> None:
         try:
-            conn = sqlite3.connect(self._db_path)
+            # Match `schema.connect()`'s PRAGMA setup (WAL, synchronous,
+            # timeout, row_factory) so the writer thread sees the same
+            # DB config as the main thread. Unlike schema.connect we
+            # keep the default (deferred) isolation_level because this
+            # writer relies on `conn.commit()` to end transactions
+            # (one commit per op).
+            conn = sqlite3.connect(self._db_path, timeout=30)
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
         except Exception as exc:
             self._exc = exc
             return

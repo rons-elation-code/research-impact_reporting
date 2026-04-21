@@ -103,6 +103,29 @@ def test_saturation_raises_dbwriter_saturated(tmp_path):
         w.stop()
 
 
+def test_writer_thread_sets_wal_and_synchronous_pragmas(tmp_path):
+    """Round 7: writer-thread conn must match schema.connect()'s PRAGMAs
+    (WAL + synchronous=NORMAL) so it doesn't silently fight the main
+    thread's connection settings."""
+    db = tmp_path / "q.db"
+    _bootstrap_db(db)
+    w = DBWriter(str(db))
+    w.start()
+
+    pragmas = {}
+
+    def snapshot(c):
+        pragmas["journal"] = c.execute("PRAGMA journal_mode").fetchone()[0]
+        pragmas["sync"] = c.execute("PRAGMA synchronous").fetchone()[0]
+
+    w.put(snapshot)
+    w.stop()
+    # journal_mode may return 'wal' regardless of case on some SQLite builds
+    assert pragmas["journal"].lower() == "wal"
+    # synchronous = NORMAL → value 1
+    assert pragmas["sync"] == 1
+
+
 def test_dbwriter_saturated_is_dbwriter_died_subclass():
     """Callers that catch DBWriterDied to abort the run must also
     catch saturation (pipeline failure = abort)."""
