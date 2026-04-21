@@ -28,7 +28,10 @@ actually belonged to the queried organization.
 1. Replace heuristic-only resolver with a model-backed resolver using
    any OpenAI-compatible LLM backend — initially DeepSeek-V3 or Qwen,
    selectable via config.
-2. Eliminate dependency on Brave Search for the resolution step.
+2. Keep Brave Search as the candidate source for Phase 1 — **the LLM
+   reasons over the search results** rather than taking result #1 or
+   scoring strings naively. (This is the fix for the heuristic resolver's
+   real failure: missing reasoning layer over real search results.)
 3. Use the richer seed data now available: street address, zipcode, NTEE
    code, subsection code, plus name, city, state, EIN.
 4. Achieve **≥ 80% precision** on the TX 100-org eval dataset, measured
@@ -55,20 +58,16 @@ actually belonged to the queried organization.
 
 The resolver uses a three-phase pipeline per org:
 
-**Phase 1 — Generate candidates**  
-Ask DeepSeek for exactly **2 URLs**: a primary best guess and one fallback.
-The model must commit to its best answer rather than hedging across a list.
-Given: name, EIN, street address, city, state, zipcode, NTEE code.
-The model draws on training knowledge of US nonprofits and reasons about
-likely domain patterns. Brave Search is explicitly excluded.
+**Phase 1 — Search + LLM pick** (see TICK-001 below for full spec)  
+Query Brave Search with `"{name}" {city} {state}`, take top 10 results,
+pass to the LLM wrapped in `<untrusted_search_results>` tags. The model
+picks exactly 2 URLs it believes are the org's official site, using the
+address/zipcode to disambiguate same-name orgs in different states.
 
-Forcing 2 candidates (not 5) reduces HTTP calls, shrinks the SSRF surface,
-and prevents the model from producing a noise list when it is uncertain.
-
-If Phase 1 produces zero HTTP-live candidates (both URLs fail
-verification), the resolver marks the org `unresolved` with reason
-`no_live_candidates`. A future spec may add a non-Brave search fallback
-for this long-tail case; that is out of scope here.
+Brave is the candidate source. The model is the reasoning layer — it
+looks at real URLs from the web and picks the right one based on org
+identity. If Brave returns zero results, mark `unresolved` with reason
+`no_search_results` (do NOT fall back to model-guessed URLs).
 
 **Phase 2 — HTTP verification**  
 For each candidate URL (in ranked order), use the existing
@@ -278,9 +277,11 @@ timeouts; raw `requests` calls are not used.
 
 ## Traps to Avoid
 
-1. **Do not re-use Brave search results as candidates.** The model
-   generates its own candidates from org identity. Brave results are
-   explicitly excluded from this flow.
+1. **Brave results are the candidate set.** The LLM picks from Brave
+   results — it does NOT generate URLs from training knowledge. If
+   Brave returns zero results, mark `unresolved` and move on. Model-
+   guessing is strictly forbidden (validated on TX 100-org dataset:
+   guessing gave 11% resolved vs. 55% unresolved — worse than heuristic).
 
 2. **Do not log the API key.** SSM fetch errors should say "failed to
    fetch DeepSeek API key from SSM" — not include the key value or the
