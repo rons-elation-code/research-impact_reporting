@@ -156,10 +156,15 @@ If no candidate matches, return all with confidence 0.0.
 `candidates_block` format per candidate:
 ```
 [{n}] {final_url}
-<untrusted_web_content id="{uuid4}">
-{excerpt}
-</untrusted_web_content>
+<untrusted_web_content_{uuid4}>
+{sanitized_excerpt}
+</untrusted_web_content_{uuid4}>
 ```
+
+The UUID appears in **both** opening and closing tags to prevent tag
+injection breakout. Before inserting, strip any occurrence of the string
+`</untrusted_web_content_` from the excerpt (an attacker could embed it
+to break out of the block).
 
 Parse response as JSON list. Validate each entry has `url` (string),
 `confidence` (float 0–1), `reason` (string). On parse failure return
