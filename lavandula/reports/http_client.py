@@ -55,6 +55,7 @@ _KIND_TO_CAP = {
     "pdf-head": config.MAX_TEXT_BYTES,
     "pdf-get": config.MAX_PDF_BYTES,
     "classify": config.MAX_TEXT_BYTES,
+    "resolver-verify": config.MAX_TEXT_BYTES,
 }
 
 
@@ -85,12 +86,14 @@ class ReportsHTTPClient:
         monotonic: Callable[[], float] = time.monotonic,
         pin_cache: HostPinCache | None = None,
         allow_insecure_cleartext: bool = False,
+        timeout_sec: float | tuple[float, float] | None = None,
     ) -> None:
         self._sleep = sleep
         self._monotonic = monotonic
         self._throttle_at: dict[str, float] = {}
         self._pin_cache = pin_cache or HostPinCache()
         self._allow_insecure_cleartext = allow_insecure_cleartext
+        self._timeout_sec = timeout_sec
 
         self.session = requests.Session()
         # User-Agent + Accept-Encoding set as defaults on the Session per
@@ -261,12 +264,17 @@ class ReportsHTTPClient:
             if extra_headers:
                 headers.update(extra_headers)
             self.session.cookies = RequestsCookieJar()
+            _timeout = (
+                self._timeout_sec
+                if self._timeout_sec is not None
+                else config.REQUEST_TIMEOUT_SEC
+            )
             try:
                 resp = self.session.get(
                     current_url,
                     allow_redirects=False,
                     stream=True,
-                    timeout=config.REQUEST_TIMEOUT_SEC,
+                    timeout=_timeout,
                     headers=headers,
                     verify=True,
                 )
@@ -409,11 +417,16 @@ class ReportsHTTPClient:
         parsed = urlsplit(url)
         host = parsed.hostname or ""
         self.tick_throttle(host)
+        _timeout = (
+            self._timeout_sec
+            if self._timeout_sec is not None
+            else config.REQUEST_TIMEOUT_SEC
+        )
         try:
             resp = self.session.head(
                 url,
                 allow_redirects=False,
-                timeout=config.REQUEST_TIMEOUT_SEC,
+                timeout=_timeout,
                 verify=True,
             )
         except requests.RequestException as exc:

@@ -379,6 +379,73 @@ def resolve_batch(
 _DEFAULT_DB = Path(__file__).parent.parent / "data" / "seeds.db"
 
 
+def _resolve_llm_batch(
+    conn: sqlite3.Connection,
+    *,
+    max_orgs: int,
+    dry_run: bool,
+) -> None:
+    """Resolve orgs using the LLM-backed resolver (Spec 0005)."""
+    from lavandula.nonprofits.resolver_clients import (
+        OrgIdentity,
+        make_resolver_http_client,
+        select_resolver_client,
+    )
+
+    _apply_migrations(conn)
+    client = select_resolver_client()
+    http_client = make_resolver_http_client()
+
+    rows = conn.execute(
+        "SELECT ein, name, address, city, state, zipcode, ntee_code"
+        " FROM nonprofits_seed WHERE website_url IS NULL"
+        + (" LIMIT ?" if max_orgs > 0 else ""),
+        (max_orgs,) if max_orgs > 0 else (),
+    ).fetchall()
+
+    for ein, name, address, city, state, zipcode, ntee_code in rows:
+        org = OrgIdentity(
+            ein=ein,
+            name=name or "",
+            address=address or None,
+            city=city or "",
+            state=state or "",
+            zipcode=zipcode or None,
+            ntee_code=ntee_code or None,
+        )
+        result = client.resolve(org, http_client)
+        log.info(
+            "org ein=%s name=%s status=%s url=%s",
+            ein,
+            (name or "")[:40],
+            result.status,
+            result.url,
+        )
+        if dry_run:
+            print(f"DRY-RUN ein={ein} status={result.status} url={result.url}")
+        else:
+            conn.execute(
+                "UPDATE nonprofits_seed SET"
+                " website_url=?,"
+                " resolver_status=?,"
+                " resolver_confidence=?,"
+                " resolver_method=?,"
+                " resolver_reason=?,"
+                " website_candidates_json=?"
+                " WHERE ein=?",
+                (
+                    result.url,
+                    result.status,
+                    result.confidence,
+                    result.method,
+                    result.reason,
+                    json.dumps(result.candidates),
+                    ein,
+                ),
+            )
+            conn.commit()
+
+
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="resolve_websites",
@@ -410,6 +477,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print chosen URLs without writing to DB",
     )
+    p.add_argument(
+        "--resolver",
+        choices=("heuristic", "llm"),
+        default="heuristic",
+        help="Resolution strategy: 'heuristic' (default) or 'llm' (DeepSeek/Qwen)",
+    )
+    p.add_argument(
+        "--max-orgs",
+        type=int,
+        default=50,
+        metavar="N",
+        help="Max orgs to process per run when --resolver llm (default: 50)",
+    )
     return p
 
 
@@ -425,23 +505,29 @@ def main(argv: list[str] | None = None) -> None:
     if args.limit < 0:
         parser.error("--limit must be >= 0")
 
-    try:
-        key = get_brave_api_key()
-    except SecretUnavailable as exc:
-        log.error("brave API key unavailable: %s", exc)
-        sys.exit(1)
-
     conn = sqlite3.connect(str(args.db))
-    min_sleep = 1.0 / args.qps
     try:
-        resolve_batch(
-            conn,
-            key=key,
-            limit=args.limit,
-            min_sleep=min_sleep,
-            dry_run=args.dry_run,
-            log=log,
-        )
+        if args.resolver == "llm":
+            _resolve_llm_batch(
+                conn,
+                max_orgs=args.max_orgs,
+                dry_run=args.dry_run,
+            )
+        else:
+            try:
+                key = get_brave_api_key()
+            except SecretUnavailable as exc:
+                log.error("brave API key unavailable: %s", exc)
+                sys.exit(1)
+            min_sleep = 1.0 / args.qps
+            resolve_batch(
+                conn,
+                key=key,
+                limit=args.limit,
+                min_sleep=min_sleep,
+                dry_run=args.dry_run,
+                log=log,
+            )
     finally:
         conn.close()
 

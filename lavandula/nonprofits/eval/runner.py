@@ -8,6 +8,12 @@ from pathlib import Path
 
 from lavandula.nonprofits.eval.schema import EvalRow, load_dataset, write_template
 from lavandula.nonprofits.tools.resolve_websites import _pick_best
+from lavandula.nonprofits.resolver_clients import (
+    OrgIdentity,
+    ResolverResult,
+    make_resolver_http_client,
+    select_resolver_client,
+)
 
 
 @dataclass
@@ -54,11 +60,46 @@ def _decide_unimplemented(row: EvalRow, *, label: str) -> tuple[str | None, floa
     return None, None, "ambiguous", f"{label}_strategy_not_implemented"
 
 
+def _row_to_org_identity(row: EvalRow) -> OrgIdentity:
+    return OrgIdentity(
+        ein=row.ein,
+        name=row.name,
+        address=row.raw.get("address") or None,
+        city=row.city or "",
+        state=row.state or "",
+        zipcode=row.raw.get("zipcode") or None,
+        ntee_code=row.raw.get("ntee_code") or None,
+    )
+
+
+def _resolver_result_to_decision(
+    result: ResolverResult,
+) -> tuple[str | None, float | None, str, str]:
+    url = result.url
+    confidence = result.confidence if result.confidence > 0 else None
+    if result.status == "resolved":
+        outcome = "accept"
+    elif result.status == "ambiguous":
+        outcome = "ambiguous"
+    else:
+        outcome = "reject"
+    return url, confidence, outcome, result.reason
+
+
+def _decide_llm(row: EvalRow) -> tuple[str | None, float | None, str, str]:
+    client = select_resolver_client()
+    http_client = make_resolver_http_client()
+    result = client.resolve(_row_to_org_identity(row), http_client)
+    return _resolver_result_to_decision(result)
+
+
 def evaluate_row(row: EvalRow, *, strategy: str) -> EvalDecision:
     if strategy == "current":
         predicted_url, confidence, predicted_outcome, reason = _decide_current(row)
     elif strategy == "heuristic":
         predicted_url, confidence, predicted_outcome, reason = _decide_heuristic(row)
+    elif strategy == "llm":
+        predicted_url, confidence, predicted_outcome, reason = _decide_llm(row)
     elif strategy == "packet-cheap":
         predicted_url, confidence, predicted_outcome, reason = _decide_unimplemented(
             row, label="packet-cheap"
@@ -128,7 +169,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-jsonl", type=Path, help="Write per-row decisions here.")
     parser.add_argument(
         "--strategy",
-        choices=("current", "heuristic", "packet-cheap", "two-cheap-consensus", "frontier-arbitrated"),
+        choices=("current", "heuristic", "llm", "packet-cheap", "two-cheap-consensus", "frontier-arbitrated"),
         default="heuristic",
     )
     parser.add_argument(
