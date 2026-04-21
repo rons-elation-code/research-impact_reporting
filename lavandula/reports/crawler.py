@@ -36,6 +36,7 @@ from .redirect_policy import etld1
 from .robots import RobotsCache
 from .url_guard import is_address_allowed
 from .url_redact import redact_url
+from .year_extract import infer_report_year
 
 
 log = logging.getLogger("lavandula.reports.crawler")
@@ -337,6 +338,8 @@ def process_org(
         creator = None
         producer = None
         creation_date = None
+        extract_status = "ok"
+        extract_note = ""
         try:
             import io as _io
             from pypdf import PdfReader as _PdfReader
@@ -351,8 +354,18 @@ def process_org(
                 meta.get("/CreationDate") if isinstance(meta, dict)
                 else getattr(meta, "creation_date_raw", None)
             )
-        except Exception:  # noqa: BLE001,S110  # nosec B110 — malformed metadata tolerated; first-page text may still be available
-            pass
+        except Exception as exc:  # noqa: BLE001
+            extract_status = "server_error"
+            extract_note = sanitize(str(exc))
+
+        db_writer.record_fetch(
+            conn,
+            ein=ein,
+            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+            kind="extract",
+            fetch_status=extract_status,
+            notes=extract_note or (f"page_count={page_count}" if page_count is not None else "no_pages_extracted"),
+        )
 
         classification = None
         classification_confidence = None
@@ -413,6 +426,12 @@ def process_org(
                         pass
                 raise
 
+        report_year, report_year_source = infer_report_year(
+            source_url=outcome.final_url or cand.url,
+            first_page_text=first_page_text or None,
+            pdf_creation_date=str(creation_date) if creation_date else None,
+        )
+
         db_writer.upsert_report(
             conn,
             content_sha256=outcome.content_sha256,
@@ -437,11 +456,11 @@ def process_org(
             classification_confidence=classification_confidence,
             classifier_model=config.CLASSIFIER_MODEL,
             classifier_version=config.CLASSIFIER_VERSION,
-            report_year=None,
-            report_year_source=None,
+            report_year=report_year,
+            report_year_source=report_year_source,
             extractor_version=config.EXTRACTOR_VERSION,
         )
-        if classification is not None:
+        if classification in {"annual", "impact", "hybrid"}:
             result.confirmed_report_count += 1
 
     db_writer.upsert_crawled_org(
@@ -464,7 +483,8 @@ def fetch_seeds_from_0001(
             (row[0], row[1])
             for row in conn.execute(
                 "SELECT ein, website_url FROM nonprofits "
-                "WHERE website_url IS NOT NULL AND website_url != ''"
+                "WHERE website_url IS NOT NULL AND website_url != '' "
+                "AND (resolver_status IS NULL OR resolver_status IN ('resolved', 'accepted'))"
             )
         ]
     finally:

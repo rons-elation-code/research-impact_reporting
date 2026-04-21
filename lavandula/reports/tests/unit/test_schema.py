@@ -78,6 +78,21 @@ def test_reports_public_excludes_unverified_attribution_AC12_3(tmp_reports_db):
     assert rows == []
 
 
+def test_reports_public_excludes_not_a_report(tmp_reports_db):
+    conn = tmp_reports_db
+    from lavandula.reports.schema import insert_raw_report_for_test
+    insert_raw_report_for_test(
+        conn,
+        content_sha256="e" * 64,
+        source_org_ein="000000005",
+        attribution_confidence="own_domain",
+        classification="not_a_report",
+        classification_confidence=0.99,
+    )
+    rows = list(conn.execute("SELECT content_sha256 FROM reports_public"))
+    assert rows == []
+
+
 def test_reports_public_includes_clean_row(tmp_reports_db):
     conn = tmp_reports_db
     from lavandula.reports.schema import insert_raw_report_for_test

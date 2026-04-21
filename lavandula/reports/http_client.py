@@ -55,6 +55,11 @@ _KIND_TO_CAP = {
     "pdf-head": config.MAX_TEXT_BYTES,
     "pdf-get": config.MAX_PDF_BYTES,
     "classify": config.MAX_TEXT_BYTES,
+    "resolver-verify": config.MAX_TEXT_BYTES,
+}
+
+_KIND_TO_TIMEOUT: dict[str, float | tuple[float, float]] = {
+    "resolver-verify": (5, 15),
 }
 
 
@@ -266,7 +271,7 @@ class ReportsHTTPClient:
                     current_url,
                     allow_redirects=False,
                     stream=True,
-                    timeout=config.REQUEST_TIMEOUT_SEC,
+                    timeout=_KIND_TO_TIMEOUT.get(kind, config.REQUEST_TIMEOUT_SEC),
                     headers=headers,
                     verify=True,
                 )

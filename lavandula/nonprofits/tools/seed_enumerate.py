@@ -34,6 +34,8 @@ log = logging.getLogger(__name__)
 class OrgDetail:
     revenue: int | None
     ntee_code: str | None
+    address: str | None
+    zipcode: str | None
     subsection_code: int | None
     activity_codes: str | None
     classification_codes: str | None
@@ -80,8 +82,10 @@ SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS nonprofits_seed (
   ein                     TEXT PRIMARY KEY,
   name                    TEXT,
+  address                 TEXT,
   city                    TEXT,
   state                   TEXT,
+  zipcode                 TEXT,
   ntee_code               TEXT,
   revenue                 INTEGER,
   website_url             TEXT,
@@ -90,7 +94,7 @@ CREATE TABLE IF NOT EXISTS nonprofits_seed (
   run_id                  TEXT
 );
 CREATE VIEW IF NOT EXISTS nonprofits AS
-  SELECT ein, website_url FROM nonprofits_seed;
+  SELECT ein, website_url, resolver_status FROM nonprofits_seed;
 CREATE TABLE IF NOT EXISTS runs (
   run_id           TEXT PRIMARY KEY,
   started_at       TEXT,
@@ -134,12 +138,19 @@ def _apply_migrations(conn: sqlite3.Connection) -> None:
     if "notes" not in existing_seed:
         conn.execute("ALTER TABLE nonprofits_seed ADD COLUMN notes TEXT DEFAULT NULL")
     for col, typedef in [
+        ("address", "TEXT DEFAULT NULL"),
+        ("zipcode", "TEXT DEFAULT NULL"),
         ("subsection_code", "INTEGER DEFAULT NULL"),
         ("activity_codes", "TEXT DEFAULT NULL"),
         ("classification_codes", "TEXT DEFAULT NULL"),
         ("foundation_code", "INTEGER DEFAULT NULL"),
         ("ruling_date", "TEXT DEFAULT NULL"),
         ("accounting_period", "INTEGER DEFAULT NULL"),
+        ("resolver_status", "TEXT DEFAULT NULL"),
+        ("resolver_confidence", "REAL DEFAULT NULL"),
+        ("resolver_method", "TEXT DEFAULT NULL"),
+        ("resolver_reason", "TEXT DEFAULT NULL"),
+        ("website_candidates_json", "TEXT DEFAULT NULL"),
     ]:
         if col not in existing_seed:
             conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
@@ -307,6 +318,8 @@ def _fetch_org_revenue(
     return OrgDetail(
         revenue=_to_int(filings[0]["totrevenue"]) if filings else None,
         ntee_code=_to_str(org.get("ntee_code")),
+        address=_to_str(org.get("address")),
+        zipcode=_to_str(org.get("zipcode")),
         subsection_code=_to_int(org.get("subsection_code")),
         activity_codes=_to_str(org.get("activity_codes")),
         classification_codes=_to_str(org.get("classification_codes")),
@@ -463,21 +476,29 @@ def enumerate_new_orgs(
                     city: str | None = (o.get("city") or None)
                     if city:
                         city = city[:200]
+                    address: str | None = detail.address
+                    if address:
+                        address = address[:200]
+                    zipcode: str | None = detail.zipcode
+                    if zipcode:
+                        zipcode = zipcode[:20]
                     ntee_code: str | None = (detail.ntee_code or o.get("ntee_code") or None)
                     if ntee_code:
                         ntee_code = ntee_code[:6]
                     conn.execute(
                         "INSERT OR IGNORE INTO nonprofits_seed"
-                        " (ein, name, city, state, ntee_code, revenue,"
+                        " (ein, name, address, city, state, zipcode, ntee_code, revenue,"
                         "  subsection_code, activity_codes, classification_codes,"
                         "  foundation_code, ruling_date, accounting_period,"
                         "  website_url, website_candidates_json, discovered_at, run_id)"
-                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
+                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
                         (
                             ein,
                             name,
+                            address,
                             city,
                             o.get("state") or state,
+                            zipcode,
                             ntee_code,
                             detail.revenue,
                             detail.subsection_code,

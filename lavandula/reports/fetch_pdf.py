@@ -7,15 +7,16 @@ Codex red-team-plan — some hosts don't support HEAD.
 The GET path verifies the first 8 bytes start with `%PDF-1.` (tolerating
 a UTF-8 BOM) BEFORE handing bytes to the sandbox. A cheap
 structural-validity check via pypdf (Gemini plan-review HIGH #1) runs
-in the parent process BEFORE the heavier sandbox, with a 2-second
-wall-time cap via signal.alarm.
+in an isolated subprocess BEFORE the heavier sandbox, with a 2-second
+wall-time cap enforced by the parent process.
 """
 from __future__ import annotations
 
 import hashlib
 import io
 import logging
-import signal
+import multiprocessing
+import queue
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,7 @@ _log = logging.getLogger(__name__)
 
 _BOM = b"\xef\xbb\xbf"
 _PDF_HEADER = b"%PDF-1."
+_STRUCTURE_TIMEOUT_SEC = 2.0
 
 
 def is_pdf_magic(data: bytes) -> bool:
@@ -52,28 +54,8 @@ class DownloadOutcome:
     body: bytes | None = None
 
 
-def _validate_pdf_structure(pdf_bytes: bytes) -> tuple[bool, str]:
-    """Cheap structural-validity check (Gemini plan-review HIGH #1).
-
-    Runs in the parent with a 2-second alarm. pypdf is imported lazily
-    so the happy path of a healthy fetch doesn't pay for it if the
-    caller wants to skip structure validation (e.g., testing).
-
-    Returns (ok, note). On any parser exception or timeout the PDF is
-    considered malformed and NOT written to archive.
-    """
-
-    def _alarm_handler(signum, frame):
-        raise TimeoutError("pdf structure check exceeded 2s")
-
-    try:
-        signal.signal(signal.SIGALRM, _alarm_handler)
-        signal.alarm(2)
-    except (OSError, ValueError):
-        # Non-main thread or platform lacks SIGALRM — skip the timeout
-        # protection; the outer sandbox bounds the worst case.
-        pass
-
+def _validate_pdf_structure_inner(pdf_bytes: bytes) -> tuple[bool, str]:
+    """Actual parser call, intended to run in an isolated subprocess."""
     try:
         from pypdf import PdfReader
         from pypdf.errors import PdfReadError
@@ -82,18 +64,54 @@ def _validate_pdf_structure(pdf_bytes: bytes) -> tuple[bool, str]:
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))
         _ = len(reader.pages)
-    except TimeoutError:
-        return False, "pdf_structure_timeout"
     except PdfReadError as exc:
         return False, f"pdf_malformed:{type(exc).__name__}"
     except Exception as exc:  # noqa: BLE001
         return False, f"pdf_malformed:{type(exc).__name__}"
-    finally:
-        try:
-            signal.alarm(0)
-        except (OSError, ValueError):
-            pass
     return True, ""
+
+
+def _validate_pdf_structure_worker(
+    pdf_bytes: bytes,
+    result_q: "multiprocessing.queues.Queue[tuple[bool, str]]",
+) -> None:
+    """Run the structure check in a subprocess and ship back the result."""
+    try:
+        result_q.put(_validate_pdf_structure_inner(pdf_bytes))
+    except Exception as exc:  # noqa: BLE001
+        result_q.put((False, f"pdf_malformed:{type(exc).__name__}"))
+
+
+def _validate_pdf_structure(pdf_bytes: bytes) -> tuple[bool, str]:
+    """Cheap structural-validity check (Gemini plan-review HIGH #1).
+
+    Runs in an isolated subprocess with a hard parent-enforced timeout
+    so malformed PDFs cannot leak timer state into the main crawler.
+    Returns (ok, note). On any parser exception, worker crash, or
+    timeout the PDF is considered malformed and NOT written to archive.
+    """
+    ctx = multiprocessing.get_context("spawn")
+    result_q = ctx.Queue(maxsize=1)
+    proc = ctx.Process(
+        target=_validate_pdf_structure_worker,
+        args=(pdf_bytes, result_q),
+        daemon=True,
+    )
+    proc.start()
+    proc.join(_STRUCTURE_TIMEOUT_SEC)
+
+    if proc.is_alive():
+        proc.terminate()
+        proc.join(1.0)
+        if proc.is_alive():
+            proc.kill()
+            proc.join(1.0)
+        return False, "pdf_structure_timeout"
+
+    try:
+        return result_q.get_nowait()
+    except queue.Empty:
+        return False, "pdf_structure_worker_failed"
 
 
 def _head_or_skip(client, url: str) -> tuple[bool, str]:

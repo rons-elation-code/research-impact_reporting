@@ -31,6 +31,8 @@ def _propublica_org_response(
     *,
     totrevenue: int = 5_000_000,
     ntee_code: str = "A20",
+    address: str = "431 18th St NW",
+    zipcode: str = "20006-3008",
     subsection_code: int = 3,
     activity_codes: str = "041000000",
     classification_codes: str = "1000",
@@ -41,6 +43,8 @@ def _propublica_org_response(
     return {
         "organization": {
             "ntee_code": ntee_code,
+            "address": address,
+            "zipcode": zipcode,
             "subsection_code": subsection_code,
             "activity_codes": activity_codes,
             "classification_codes": classification_codes,
@@ -66,6 +70,8 @@ def test_new_columns_exist():
     conn = _in_memory_db()
     cols = _columns(conn)
     for col in (
+        "address",
+        "zipcode",
         "subsection_code",
         "activity_codes",
         "classification_codes",
@@ -100,6 +106,8 @@ def test_fetch_org_revenue_returns_orgdetail():
     assert isinstance(detail, se.OrgDetail)
     assert detail.revenue == 5_000_000
     assert detail.ntee_code == "A20"
+    assert detail.address == "431 18th St NW"
+    assert detail.zipcode == "20006-3008"
     assert detail.subsection_code == 3
     assert detail.activity_codes == "041000000"
     assert detail.classification_codes == "1000"
@@ -153,6 +161,56 @@ def test_accounting_period_stored():
     ).fetchone()
     assert row is not None, "Row not inserted"
     assert row[0] == 6
+
+
+def test_address_and_zipcode_stored():
+    conn = _in_memory_db()
+    search = _search_page(["123456789"], ntee="A", state="MA")
+    org_detail = _propublica_org_response(
+        address="100 Main St Ste 200",
+        zipcode="02108-1234",
+        totrevenue=5_000_000,
+    )
+
+    call_count = {"n": 0}
+
+    def fake_urlopen(req, timeout=30):
+        cm = MagicMock()
+        cm.__enter__ = lambda s: s
+        cm.__exit__ = MagicMock(return_value=False)
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            cm.read = lambda n=-1: json.dumps(search).encode()
+        else:
+            cm.read = lambda n=-1: json.dumps(org_detail).encode()
+        return cm
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen), \
+         patch("time.sleep"):
+        run_id = "testrun003"
+        conn.execute(
+            "INSERT INTO runs(run_id, started_at, filters_json, found_count) VALUES (?,?,?,0)",
+            (run_id, se.iso_now(), json.dumps({})),
+        )
+        conn.commit()
+        se.enumerate_new_orgs(
+            conn,
+            target=1,
+            states=["MA"],
+            ntee_majors=["A"],
+            rev_min=1_000_000,
+            rev_max=30_000_000,
+            run_id=run_id,
+            cursor={},
+            fail_counter={"count": 0},
+        )
+
+    row = conn.execute(
+        "SELECT address, zipcode FROM nonprofits_seed WHERE ein='123456789'"
+    ).fetchone()
+    assert row is not None
+    assert row[0] == "100 Main St Ste 200"
+    assert row[1] == "02108-1234"
 
 
 # ── AC4: None return from _fetch_org_revenue → row skipped, no crash ──────────
@@ -227,6 +285,8 @@ def test_malformed_fields():
         detail = se._fetch_org_revenue("987654321", fail_counter={"count": 0})
 
     assert detail is not None
+    assert detail.address is None
+    assert detail.zipcode is None
     assert detail.subsection_code is None
     assert detail.activity_codes is None
     assert detail.foundation_code is None
