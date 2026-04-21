@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import signal
 import sqlite3
+import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -33,6 +35,72 @@ from lavandula.reports.classify import (
     ClassifierError,
     classify_first_page,
 )
+
+
+# --- Subprocess tracking (TICK-002 Ctrl-C cleanup) ---------------------
+#
+# The default `subprocess.run` blocks the worker thread for up to 60s
+# on each `codex exec`. `ThreadPoolExecutor.shutdown(cancel_futures=True)`
+# only stops *pending* futures — it cannot interrupt an in-flight
+# subprocess. Without explicit kill, Ctrl-C leaves up to N orphan
+# codex processes running until they hit the 60s timeout.
+#
+# We inject a tracking runner into `CodexSubscriptionClient` that
+# records each active Popen. On Ctrl-C, `kill_active_subprocesses()`
+# terminates them so shutdown is prompt.
+
+_ACTIVE_PROCS: set[subprocess.Popen] = set()
+_ACTIVE_LOCK = threading.Lock()
+
+
+def _tracking_subprocess_run(
+    cmd,
+    *,
+    input=None,
+    capture_output=False,
+    timeout=None,
+    text=False,
+    check=False,
+    env=None,
+    **kwargs,
+):
+    """Drop-in replacement for subprocess.run that tracks active Popens."""
+    stdin = subprocess.PIPE if input is not None else None
+    stdout = subprocess.PIPE if capture_output else None
+    stderr = subprocess.PIPE if capture_output else None
+    proc = subprocess.Popen(
+        cmd, stdin=stdin, stdout=stdout, stderr=stderr,
+        text=text, env=env, **kwargs,
+    )
+    with _ACTIVE_LOCK:
+        _ACTIVE_PROCS.add(proc)
+    try:
+        out, err = proc.communicate(input=input, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise
+    finally:
+        with _ACTIVE_LOCK:
+            _ACTIVE_PROCS.discard(proc)
+    cp = subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+    if check and proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd, out, err)
+    return cp
+
+
+def kill_active_subprocesses() -> int:
+    """Terminate any tracked in-flight Codex subprocesses. Returns count."""
+    with _ACTIVE_LOCK:
+        procs = list(_ACTIVE_PROCS)
+    n = 0
+    for p in procs:
+        try:
+            p.kill()
+            n += 1
+        except Exception:  # noqa: BLE001
+            pass
+    return n
 
 
 def _effective_classifier_model(client, result) -> str:
@@ -109,6 +177,9 @@ def main() -> int:
         return 0
 
     client = select_classifier_client()
+    # Inject the tracking runner so Ctrl-C can kill in-flight codex procs.
+    if isinstance(client, CodexSubscriptionClient):
+        client._runner = _tracking_subprocess_run
     print(f"client: {type(client).__name__}\n")
 
     ok = 0
@@ -144,6 +215,7 @@ def main() -> int:
         max_workers=args.max_workers,
         thread_name_prefix="classify-null",
     )
+    interrupted = False
     try:
         futures = {
             executor.submit(_classify_one, client, row["content_sha256"], row["first_page_text"]): i
@@ -187,13 +259,18 @@ def main() -> int:
                   f"{result.classification:<12} "
                   f"conf={result.classification_confidence:.2f}")
     except KeyboardInterrupt:
+        # Interrupt path: cancel pending futures AND kill any in-flight
+        # codex subprocesses. Do NOT wait for them — they're gone.
+        interrupted = True
         print("\n^C — cancelling pending classifications", file=sys.stderr)
         executor.shutdown(wait=False, cancel_futures=True)
-        # Kill any in-flight Codex subprocesses spawned by threads.
-        # Best-effort: CodexSubscriptionClient uses subprocess.run(timeout=60),
-        # so orphaned processes cannot outlive the timeout.
+        killed = kill_active_subprocesses()
+        if killed:
+            print(f"killed {killed} in-flight codex subprocess(es)",
+                  file=sys.stderr)
         raise
-    finally:
+    else:
+        # Normal completion: drain the (already-drained) pool cleanly.
         executor.shutdown(wait=True)
 
     print(f"\n=== done ===")

@@ -188,6 +188,48 @@ def test_max_workers_out_of_range_rejected(tmp_path, monkeypatch):
         ])
 
 
+def test_duplicate_eins_deduped_before_dispatch(tmp_path, monkeypatch):
+    """Review round 1: duplicate EINs in the seed list must not race
+    into the same crawled_orgs row. Dedup keeps the first occurrence."""
+    db_path = _make_db(tmp_path)
+    seeds = [
+        ("0001", "https://a.org/"),
+        ("0001", "https://a-dup.org/"),  # duplicate
+        ("0002", "https://b.org/"),
+        ("0001", "https://a-dup2.org/"),  # duplicate
+    ]
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.fetch_seeds_from_0001",
+        lambda _p: seeds,
+    )
+    calls: list[tuple[str, str]] = []
+    lock = threading.Lock()
+
+    def record_call(*, ein, website, archive_dir, db_queue, **kw):
+        with lock:
+            calls.append((ein, website))
+        return _stub_process_org(
+            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+        )
+
+    monkeypatch.setattr("lavandula.reports.crawler.process_org", record_call)
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.tls_self_test", lambda *a, **k: None
+    )
+
+    rc = crawler.run([
+        "--nonprofits-db", str(tmp_path / "fake.db"),
+        "--data-dir", str(tmp_path),
+        "--archive-dir", str(tmp_path / "raw"),
+        "--max-workers", "4",
+        "--skip-tls-self-test",
+        "--skip-encryption-check",
+    ])
+    assert rc == 0
+    # Only one call per unique EIN; "0001" kept at the first website.
+    assert sorted(calls) == [("0001", "https://a.org/"), ("0002", "https://b.org/")]
+
+
 def test_writer_death_aborts_run(tmp_path, monkeypatch):
     """If the DB writer dies mid-run, the crawler returns nonzero/raises."""
     db_path = _make_db(tmp_path)

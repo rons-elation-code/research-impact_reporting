@@ -218,6 +218,10 @@ class OrgResult:
     ein: str
     candidate_count: int = 0
     fetched_count: int = 0
+    # TICK-002: classification is deferred out of the crawler, so this
+    # always stays 0 at crawl time. Downstream catalogue/reporting should
+    # derive the real count from the `reports` table once classify_null
+    # has run, not from `crawled_orgs.confirmed_report_count`.
     confirmed_report_count: int = 0
 
 
@@ -506,8 +510,16 @@ def run(argv: list[str] | None = None) -> int:
 
             # Pre-filter seeds: skip already-crawled + invalid URLs on the
             # main thread so workers only receive work they should do.
+            # Dedupe by EIN — with parallel dispatch, duplicate EINs in
+            # the seed list would race into the same crawled_orgs row
+            # instead of being deduped by the serial should_skip_ein
+            # check. Keep the first occurrence.
             pending: list[tuple[str, str]] = []
+            seen_eins: set[str] = set()
             for ein, website in seeds:
+                if ein in seen_eins:
+                    continue
+                seen_eins.add(ein)
                 if should_skip_ein(conn, ein=ein, refresh=args.refresh):
                     continue
                 check = validate_seed_url(website)
