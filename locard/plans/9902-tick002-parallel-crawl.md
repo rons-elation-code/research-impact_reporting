@@ -84,19 +84,21 @@ Expose `MAX_PDF_BYTES = 50 * 1024 * 1024` as a module constant.
 
 ## Step 4 — New file: `lavandula/reports/db_queue.py`
 
+The queue carries **callables**, not raw SQL. `upsert_report` and
+`upsert_crawled_org` do read-then-write logic that can't be reduced to a
+single statement, so workers submit a callable that takes a `conn`
+argument and performs the full logic on the writer thread.
+
 ```python
-from dataclasses import dataclass
-from queue import Queue
+from queue import Queue, Empty
 from threading import Thread, Event
+from typing import Callable
 import sqlite3
 
-@dataclass
-class WriteOp:
-    sql: str
-    params: tuple
+WriteOp = Callable[[sqlite3.Connection], None]
 
 class DBWriter:
-    """Single-thread SQLite writer fed by a bounded Queue."""
+    """Single-thread SQLite writer fed by a bounded Queue of callables."""
     def __init__(self, db_path: str, maxsize: int = 256): ...
     def start(self) -> None: ...
     def put(self, op: WriteOp, timeout: float = 30.0) -> None: ...
@@ -107,15 +109,15 @@ class DBWriter:
 
 Internal loop:
 ```python
-conn = sqlite3.connect(self.db_path)
+self._conn = sqlite3.connect(self.db_path)
 while not self._stop.is_set() or not self._q.empty():
     try:
         op = self._q.get(timeout=0.5)
     except Empty:
         continue
     try:
-        conn.execute(op.sql, op.params)
-        conn.commit()
+        op(self._conn)       # existing db_writer functions use conn.execute
+        self._conn.commit()  # one commit per op — matches current behavior
     except Exception as exc:
         self._exc = exc
         self._stop.set()
@@ -130,8 +132,29 @@ On `stop()`, join the thread and re-raise `self._exc` if set.
 
 Every public write function (`record_fetch`, `upsert_crawled_org`,
 `upsert_report`, `record_deletion`) grows an optional `db_writer` kwarg.
-If provided, writes go through the queue (`db_writer.put(WriteOp(...))`);
-if `None`, writes go direct (preserves single-threaded use).
+
+**Preserve the existing function body** — don't rewrite the SQL logic.
+Just wrap the whole body as a closure that runs against a passed-in
+`conn`, and if `db_writer` is provided, submit the closure to the queue.
+
+Example for `upsert_report`:
+```python
+def upsert_report(conn, *, db_writer=None, **kwargs):
+    def _do(target_conn):
+        existing = target_conn.execute(...)  # unchanged logic
+        ...
+        target_conn.execute(INSERT_OR_UPDATE_SQL, ...)
+    if db_writer is not None:
+        db_writer.put(_do)
+    else:
+        _do(conn)
+        conn.commit()
+```
+
+All existing multi-statement semantics (SELECT-then-INSERT, row
+counting, attribution ranking) stay on the writer thread intact.
+`lastrowid` and return values remain `None` — no current caller relies
+on them, but verify per-function before touching.
 
 ---
 
