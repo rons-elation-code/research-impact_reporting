@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlsplit
 
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import config
@@ -231,6 +232,39 @@ def _pick_discovered_via(c: Candidate) -> str:
     return c.discovered_via
 
 
+# Per-thread HTTP client storage (TICK-002 round-2 review).
+#
+# `requests.Session` is not thread-safe, so each worker thread gets
+# its own `ReportsHTTPClient`. We use `threading.local()` + a registry
+# so the client is created once per thread (not once per org) and
+# explicitly closed at run-end to avoid socket/TLS leaks.
+
+_thread_local = threading.local()
+_thread_clients: list[ReportsHTTPClient] = []
+_thread_clients_lock = threading.Lock()
+
+
+def _get_thread_client() -> ReportsHTTPClient:
+    c = getattr(_thread_local, "client", None)
+    if c is None:
+        c = ReportsHTTPClient()
+        _thread_local.client = c
+        with _thread_clients_lock:
+            _thread_clients.append(c)
+    return c
+
+
+def _close_thread_clients() -> None:
+    """Close all per-thread HTTP clients opened during the run."""
+    with _thread_clients_lock:
+        for c in _thread_clients:
+            try:
+                c.session.close()
+            except Exception:  # noqa: BLE001
+                pass
+        _thread_clients.clear()
+
+
 def process_org(
     *,
     ein: str,
@@ -246,15 +280,16 @@ def process_org(
     with `classification=NULL`; a separate `classify_null.py` pass fills
     them in afterward.
 
-    Concurrency: in the parallel path `db_queue` is passed, `client` is
-    built per-thread here, and `conn` is unused. In single-worker /
-    legacy paths, a caller-provided `conn` + `client` are used directly
-    (no queue) for backward-compatible behavior.
+    Concurrency:
+      - parallel path: `db_queue` is passed, `client` is left `None`,
+        and the function fetches the per-thread cached client
+        (one `ReportsHTTPClient` per worker thread, reused across
+        orgs). Clients are closed at end-of-run.
+      - legacy/serial path: a caller-provided `conn` + `client` are
+        used directly (no queue).
     """
-    # Per-thread HTTP client — `requests.Session` is not thread-safe.
-    own_client = client is None
-    if own_client:
-        client = ReportsHTTPClient()
+    if client is None:
+        client = _get_thread_client()
 
     def _write_fetch(**kwargs):
         db_writer.record_fetch(conn, db_writer=db_queue, **kwargs)
@@ -563,6 +598,7 @@ def run(argv: list[str] | None = None) -> int:
                             logger.exception("ein=%s failed: %s", ein, exc)
             finally:
                 writer.stop()
+                _close_thread_clients()
         finally:
             conn.close()
 

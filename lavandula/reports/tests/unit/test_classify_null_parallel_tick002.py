@@ -88,6 +88,104 @@ def test_ac4_classify_null_runs_in_parallel(tmp_path, monkeypatch):
     assert n == 8
 
 
+def test_backfills_confirmed_report_count_per_ein(tmp_path, monkeypatch):
+    """Review round 2: after classification, crawled_orgs.confirmed_report_count
+    must equal COUNT(*) of reports with classification in
+    (annual, impact, hybrid) per source_org_ein.
+    """
+    from lavandula.reports.tools import classify_null
+
+    db = tmp_path / "reports.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute("""
+        CREATE TABLE reports (
+          content_sha256 TEXT PRIMARY KEY,
+          source_org_ein TEXT,
+          first_page_text TEXT,
+          archived_at TEXT,
+          classification TEXT,
+          classification_confidence REAL,
+          classifier_model TEXT,
+          classifier_version INTEGER,
+          classified_at TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE crawled_orgs (
+          ein TEXT PRIMARY KEY,
+          confirmed_report_count INTEGER DEFAULT 0
+        )
+    """)
+    conn.execute("INSERT INTO crawled_orgs (ein, confirmed_report_count) VALUES ('ein-001', 0)")
+    conn.execute("INSERT INTO crawled_orgs (ein, confirmed_report_count) VALUES ('ein-002', 0)")
+    # Three reports for ein-001 (two will be classified as report types);
+    # one for ein-002 (will be classified "other", not counted).
+    for i, (ein, sha) in enumerate([
+        ("ein-001", "a" * 64),
+        ("ein-001", "b" * 64),
+        ("ein-001", "c" * 64),
+        ("ein-002", "d" * 64),
+    ]):
+        conn.execute(
+            "INSERT INTO reports (content_sha256, source_org_ein, first_page_text, archived_at) "
+            "VALUES (?, ?, ?, ?)",
+            (sha, ein, "text", f"2026-01-0{i+1}T00:00:00"),
+        )
+    conn.commit()
+    conn.close()
+
+    # Assign classifications deterministically per sha.
+    calls = {}
+
+    class _Result:
+        def __init__(self, cls, conf):
+            self.classification = cls
+            self.classification_confidence = conf
+            self.classifier_model = "fake"
+            self.error = ""
+
+    results_by_sha = {
+        "a" * 64: _Result("annual", 0.9),
+        "b" * 64: _Result("impact", 0.9),
+        "c" * 64: _Result("other", 0.9),
+        "d" * 64: _Result("other", 0.9),
+    }
+
+    def fake_classify(text, *, client, raise_on_error):
+        # Map via the text — but we stored "text" for all, so use call order.
+        # Safer: inspect the stored sha by checking which hasn't been returned.
+        # Use a round-robin index captured via closure.
+        if not calls:
+            calls["order"] = list(results_by_sha.values())
+        return calls["order"].pop(0)
+
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.classify_first_page",
+        fake_classify,
+    )
+    monkeypatch.setattr(
+        "lavandula.reports.tools.classify_null.select_classifier_client",
+        lambda: object(),
+    )
+    monkeypatch.setattr(sys, "argv", [
+        "classify_null", "--db", str(db), "--max-workers", "1",
+    ])
+    rc = classify_null.main()
+    assert rc == 0
+
+    conn = sqlite3.connect(str(db))
+    conn.row_factory = sqlite3.Row
+    row1 = conn.execute(
+        "SELECT confirmed_report_count FROM crawled_orgs WHERE ein='ein-001'"
+    ).fetchone()
+    row2 = conn.execute(
+        "SELECT confirmed_report_count FROM crawled_orgs WHERE ein='ein-002'"
+    ).fetchone()
+    conn.close()
+    assert row1["confirmed_report_count"] == 2  # annual + impact
+    assert row2["confirmed_report_count"] == 0  # "other" is not a report
+
+
 def test_keyboard_interrupt_cancels_and_kills_subprocesses(tmp_path, monkeypatch):
     """Review round 1: Ctrl-C must cancel pending futures AND kill
     in-flight codex subprocesses — the previous `finally: shutdown(wait=True)`

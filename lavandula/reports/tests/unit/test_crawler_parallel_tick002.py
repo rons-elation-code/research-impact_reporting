@@ -230,6 +230,92 @@ def test_duplicate_eins_deduped_before_dispatch(tmp_path, monkeypatch):
     assert sorted(calls) == [("0001", "https://a.org/"), ("0002", "https://b.org/")]
 
 
+def test_http_client_reused_per_thread_not_per_org(tmp_path, monkeypatch):
+    """Review round 2: ReportsHTTPClient must be created once per worker
+    thread (threading.local) and reused across orgs on that thread, not
+    recreated per org."""
+    db_path = _make_db(tmp_path)
+    seeds = [(f"{i:09d}", f"https://example{i}.org/") for i in range(10)]
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.fetch_seeds_from_0001",
+        lambda _p: seeds,
+    )
+
+    # Track client creation per thread.
+    clients_by_thread: dict[str, list[int]] = {}
+    lock = threading.Lock()
+
+    from lavandula.reports import crawler as _crawler
+    real_get = _crawler._get_thread_client
+
+    def tracking_get():
+        c = real_get()
+        tname = threading.current_thread().name
+        with lock:
+            clients_by_thread.setdefault(tname, []).append(id(c))
+        return c
+
+    monkeypatch.setattr(_crawler, "_get_thread_client", tracking_get)
+
+    def stub(*, ein, website, archive_dir, db_queue, client=None, conn=None, **kw):
+        # Force the per-thread path
+        if client is None:
+            client = tracking_get()
+        return _stub_process_org(
+            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+        )
+
+    monkeypatch.setattr("lavandula.reports.crawler.process_org", stub)
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.tls_self_test", lambda *a, **k: None
+    )
+
+    rc = crawler.run([
+        "--nonprofits-db", str(tmp_path / "fake.db"),
+        "--data-dir", str(tmp_path),
+        "--archive-dir", str(tmp_path / "raw"),
+        "--max-workers", "3",
+        "--skip-tls-self-test",
+        "--skip-encryption-check",
+    ])
+    assert rc == 0
+
+    # Each thread saw the same client id every time it called get.
+    for tname, ids in clients_by_thread.items():
+        assert len(set(ids)) == 1, (tname, ids)
+    # At least 2 threads were used (real parallelism).
+    assert len(clients_by_thread) >= 2
+
+
+def test_close_thread_clients_closes_sessions():
+    """_close_thread_clients must call session.close() on every tracked
+    client so sockets/TLS state aren't leaked."""
+    from lavandula.reports import crawler as _crawler
+
+    # Reset registry before test
+    with _crawler._thread_clients_lock:
+        _crawler._thread_clients.clear()
+
+    closed = []
+
+    class FakeSession:
+        def close(self):
+            closed.append(True)
+
+    class FakeClient:
+        def __init__(self):
+            self.session = FakeSession()
+
+    c1, c2 = FakeClient(), FakeClient()
+    with _crawler._thread_clients_lock:
+        _crawler._thread_clients.extend([c1, c2])
+
+    _crawler._close_thread_clients()
+    assert len(closed) == 2
+    with _crawler._thread_clients_lock:
+        assert _crawler._thread_clients == []
+
+
 def test_writer_death_aborts_run(tmp_path, monkeypatch):
     """If the DB writer dies mid-run, the crawler returns nonzero/raises."""
     db_path = _make_db(tmp_path)

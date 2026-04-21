@@ -273,6 +273,29 @@ def main() -> int:
         # Normal completion: drain the (already-drained) pool cleanly.
         executor.shutdown(wait=True)
 
+    # Backfill crawled_orgs.confirmed_report_count from the now-classified
+    # reports table. TICK-002 deferred classification out of the crawler
+    # so the column is written as 0 at crawl time; this restores the
+    # invariant that `confirmed_report_count` reflects the current
+    # annual/impact/hybrid count per EIN.
+    try:
+        with db_lock:
+            conn.execute(
+                """
+                UPDATE crawled_orgs
+                   SET confirmed_report_count = (
+                     SELECT COUNT(*) FROM reports
+                      WHERE reports.source_org_ein = crawled_orgs.ein
+                        AND reports.classification IN ('annual', 'impact', 'hybrid')
+                   )
+                """
+            )
+            conn.commit()
+        print(f"\nbackfilled crawled_orgs.confirmed_report_count")
+    except sqlite3.Error as exc:
+        print(f"\nwarning: confirmed_report_count backfill failed: {exc}",
+              file=sys.stderr)
+
     print(f"\n=== done ===")
     print(f"  classified ok:   {ok}")
     print(f"  null (errors):   {errs}")
