@@ -22,6 +22,7 @@ import pytest
 from lavandula.nonprofits.resolver_clients import (
     OpenAICompatibleResolverClient,
     OrgIdentity,
+    _normalize_url_for_match,
 )
 
 
@@ -414,6 +415,254 @@ def test_make_brave_search_fn_returns_callable_from_shared_retry():
     mock_retry.assert_called_once()
     _, call_kwargs = mock_retry.call_args
     assert call_kwargs["key"] == "fake-key"
+
+
+# ── Round 2: URL normalization for LLM ↔ Brave membership check ───────────────
+
+def test_normalize_url_strips_trailing_slash():
+    assert _normalize_url_for_match("https://example.org/") == "https://example.org"
+    assert _normalize_url_for_match("https://example.org") == "https://example.org"
+    # Preserve internal trailing slash stripping too.
+    assert _normalize_url_for_match("https://example.org/about/") == "https://example.org/about"
+
+
+def test_normalize_url_strips_www_prefix():
+    assert _normalize_url_for_match("https://www.example.org") == "https://example.org"
+    assert _normalize_url_for_match("https://example.org") == "https://example.org"
+    # www inside a subdomain must not be touched.
+    assert _normalize_url_for_match("https://www.sub.example.org") == "https://sub.example.org"
+    assert _normalize_url_for_match("https://foowww.example.org") == "https://foowww.example.org"
+
+
+def test_normalize_url_lowercases_host_and_scheme():
+    assert _normalize_url_for_match("HTTPS://EXAMPLE.ORG/PATH") == "https://example.org/PATH"
+
+
+def test_normalize_url_drops_query_and_fragment():
+    assert (
+        _normalize_url_for_match("https://example.org/page?x=1#frag")
+        == "https://example.org/page"
+    )
+
+
+def test_normalize_url_unparseable_returns_none():
+    assert _normalize_url_for_match("") is None
+    assert _normalize_url_for_match("not a url") is None
+    assert _normalize_url_for_match(None) is None  # type: ignore[arg-type]
+
+
+def test_phase1_accepts_trailing_slash_variant():
+    """Brave returns 'https://example.org/'; model writes 'https://example.org'.
+    Both should be treated as the same candidate."""
+    client = _make_client()
+    phase1_resp = _mock_llm_response('["https://example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org/", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+
+    def search_fn(_q):
+        return _brave_response([
+            {"url": "https://example.org/", "title": "T", "description": "S"},
+        ]), None
+
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org/")
+
+    result = client.resolve(_ORG, http, search_fn=search_fn)
+
+    assert result.status == "resolved"
+    # Phase 2 must have been called with Brave's canonical form (trailing slash),
+    # not the model's rewritten form.
+    fetched = [c.args[0] for c in http.get.call_args_list]
+    assert fetched == ["https://example.org/"]
+
+
+def test_phase1_accepts_www_variant():
+    """Brave returns 'https://example.org'; model writes 'https://www.example.org'."""
+    client = _make_client()
+    phase1_resp = _mock_llm_response('["https://www.example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+
+    def search_fn(_q):
+        return _brave_response([
+            {"url": "https://example.org", "title": "T", "description": "S"},
+        ]), None
+
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org")
+
+    result = client.resolve(_ORG, http, search_fn=search_fn)
+
+    assert result.status == "resolved"
+    fetched = [c.args[0] for c in http.get.call_args_list]
+    # Brave's URL — not the model's www-prefixed variant — hits Phase 2.
+    assert fetched == ["https://example.org"]
+
+
+def test_phase1_accepts_www_brave_with_bare_model_pick():
+    """Symmetric case: Brave has www.example.org, model picks example.org."""
+    client = _make_client()
+    phase1_resp = _mock_llm_response('["https://example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://www.example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+
+    def search_fn(_q):
+        return _brave_response([
+            {"url": "https://www.example.org", "title": "T", "description": "S"},
+        ]), None
+
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://www.example.org")
+
+    result = client.resolve(_ORG, http, search_fn=search_fn)
+
+    assert result.status == "resolved"
+    fetched = [c.args[0] for c in http.get.call_args_list]
+    assert fetched == ["https://www.example.org"]
+
+
+def test_phase1_dedup_by_normalized_form():
+    """If the model picks both 'example.org' and 'www.example.org', they
+    collapse to the same Brave entry — only one Phase 2 fetch."""
+    client = _make_client()
+    phase1_resp = _mock_llm_response(
+        '["https://example.org", "https://www.example.org/"]'
+    )
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+
+    def search_fn(_q):
+        return _brave_response([
+            {"url": "https://example.org", "title": "T", "description": "S"},
+        ]), None
+
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org")
+
+    client.resolve(_ORG, http, search_fn=search_fn)
+    assert http.get.call_count == 1
+
+
+# ── Round 2: backward-compatible resolve(org, http_client) signature ─────────
+
+def test_resolve_backward_compatible_without_search_fn_kwarg():
+    """resolve() must still accept just (org, http_client) — search_fn is
+    lazily built from the SSM Brave key. Codex round-2 review."""
+    from lavandula.nonprofits import resolver_clients as rc
+
+    client = _make_client()
+    phase1_resp = _mock_llm_response('["https://example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+
+    stub_search = MagicMock(return_value=(
+        _brave_response([
+            {"url": "https://example.org", "title": "T", "description": "S"},
+        ]),
+        None,
+    ))
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org")
+
+    with patch.object(rc, "_lazy_default_search_fn", return_value=stub_search):
+        # No search_fn kwarg — the client must still work.
+        result = client.resolve(_ORG, http)
+
+    assert result.status == "resolved"
+    assert stub_search.call_count >= 1
+
+
+def test_resolve_constructor_bound_search_fn_is_used():
+    """search_fn supplied to __init__ is reused on every resolve() call."""
+    shared_search = MagicMock(return_value=(
+        _brave_response([
+            {"url": "https://example.org", "title": "T", "description": "S"},
+        ]),
+        None,
+    ))
+
+    with patch("openai.OpenAI"):
+        client = OpenAICompatibleResolverClient(
+            base_url="https://api.deepseek.com",
+            model="deepseek-chat",
+            api_key=_FAKE_KEY,
+            method="deepseek-v1",
+            search_fn=shared_search,
+        )
+
+    phase1_resp = _mock_llm_response('["https://example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org")
+
+    # No per-call search_fn — must use the one from __init__.
+    result = client.resolve(_ORG, http)
+
+    assert result.status == "resolved"
+    shared_search.assert_called()
+
+
+def test_resolve_per_call_search_fn_overrides_constructor_bound():
+    """An explicit per-call search_fn wins over the one set in __init__."""
+    ctor_search = MagicMock(return_value=(_brave_response([]), None))
+    call_search = MagicMock(return_value=(
+        _brave_response([
+            {"url": "https://example.org", "title": "T", "description": "S"},
+        ]),
+        None,
+    ))
+
+    with patch("openai.OpenAI"):
+        client = OpenAICompatibleResolverClient(
+            base_url="https://api.deepseek.com",
+            model="deepseek-chat",
+            api_key=_FAKE_KEY,
+            method="deepseek-v1",
+            search_fn=ctor_search,
+        )
+    phase1_resp = _mock_llm_response('["https://example.org"]')
+    phase3_resp = _mock_llm_response(
+        '[{"url": "https://example.org", "confidence": 0.9, "reason": "match"}]'
+    )
+    client._client.chat.completions.create.side_effect = [phase1_resp, phase3_resp]
+    http = MagicMock()
+    http.get.return_value = _ok_fetch("https://example.org")
+
+    client.resolve(_ORG, http, search_fn=call_search)
+
+    assert call_search.call_count >= 1
+    assert ctor_search.call_count == 0
+
+
+def test_lazy_default_search_fn_raises_config_error_on_missing_key():
+    from lavandula.common.secrets import SecretUnavailable
+    from lavandula.nonprofits.resolver_clients import (
+        ConfigError,
+        _lazy_default_search_fn,
+    )
+
+    with patch(
+        "lavandula.common.secrets.get_brave_api_key",
+        side_effect=SecretUnavailable("no creds"),
+    ):
+        with pytest.raises(ConfigError) as exc_info:
+            _lazy_default_search_fn()
+    msg = str(exc_info.value)
+    assert "search_fn" in msg
+    assert "BRAVE_API_KEY" in msg or "brave-api-key" in msg
 
 
 # ── eval runner: llm strategy raises a clear error when Brave key missing ────

@@ -12,6 +12,7 @@ import logging
 import os
 import uuid
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 log = logging.getLogger(__name__)
 
@@ -101,27 +102,45 @@ class OpenAICompatibleResolverClient:
     """LLM-backed resolver using any OpenAI-compatible API."""
 
     def __init__(
-        self, *, base_url: str, model: str, api_key: str, method: str
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str,
+        method: str,
+        search_fn=None,
     ) -> None:
         import openai
         self._model = model
         self._method = method
         self._client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        # Optional default Brave search function. Callers that want to
+        # share a single pre-bound callable across many resolve() calls
+        # (e.g. the CLI and eval runner) can pass it at construction time
+        # instead of on every resolve() invocation. Can also be overridden
+        # per-call via the `search_fn` kwarg on resolve().
+        self._search_fn = search_fn
 
     def resolve(
         self,
         org: OrgIdentity,
         http_client,
         *,
-        search_fn,
+        search_fn=None,
     ) -> ResolverResult:
         """Run the full 3-phase pipeline.
 
         search_fn: Callable[[str], tuple[dict | None, str | None]]. Takes a
         Brave query string and returns (response_dict_or_None, error_note_or_None).
-        The caller pre-binds the API key and retry logic. Tests inject mocks.
+        If omitted, falls back to the `search_fn` supplied at construction
+        time; if that is also None, a Brave-backed default is lazily built
+        from the shared SSM key. A clear ConfigError is raised if that key
+        can't be fetched.
         """
-        urls, phase1_error = self._phase1_search_and_pick(org, search_fn)
+        effective_search_fn = search_fn or self._search_fn
+        if effective_search_fn is None:
+            effective_search_fn = _lazy_default_search_fn()
+        urls, phase1_error = self._phase1_search_and_pick(org, effective_search_fn)
         if phase1_error is not None:
             return ResolverResult(
                 url=None,
@@ -174,8 +193,19 @@ class OpenAICompatibleResolverClient:
             return [], "no_search_results"
 
         top_results = results[:10]
-        brave_urls = [r.get("url") for r in top_results if isinstance(r.get("url"), str)]
-        brave_url_set = set(brave_urls)
+
+        # Build a lookup keyed by the normalized form of each Brave URL.
+        # When the LLM returns a URL it saw in the search results, we
+        # normalize it the same way and look up the corresponding Brave
+        # URL — which is what gets sent to Phase 2. That way, scheme /
+        # trailing-slash / www-prefix differences between what the LLM
+        # wrote and what Brave actually returned don't drop the candidate.
+        brave_by_norm: dict[str, str] = {}
+        for r in top_results:
+            u = r.get("url")
+            norm = _normalize_url_for_match(u) if isinstance(u, str) else None
+            if norm and norm not in brave_by_norm:
+                brave_by_norm[norm] = u
 
         tag_id = uuid.uuid4().hex
         prompt = _build_phase1_prompt(org, top_results, tag_id)
@@ -194,9 +224,16 @@ class OpenAICompatibleResolverClient:
 
         chosen = _parse_url_list(raw)
         valid: list[str] = []
+        seen_norms: set[str] = set()
         for u in chosen:
-            if u in brave_url_set and u not in valid:
-                valid.append(u)
+            norm = _normalize_url_for_match(u)
+            if norm is None or norm in seen_norms:
+                continue
+            brave_url = brave_by_norm.get(norm)
+            if brave_url is None:
+                continue
+            valid.append(brave_url)
+            seen_norms.add(norm)
             if len(valid) >= 2:
                 break
         return valid, None
@@ -295,6 +332,42 @@ class OpenAICompatibleResolverClient:
             )
 
         return _evaluate_phase3_response(raw, live, all_candidates, self._method)
+
+
+def _normalize_url_for_match(url: str) -> str | None:
+    """Normalize a URL for LLM-pick ↔ Brave-result membership comparison.
+
+    The LLM often rewrites URLs it sees in search results (drops trailing
+    slash, adds/removes `www.`, upper/lowercases the host). A strict
+    string match would throw away those valid picks and crater recall,
+    which is the specific failure TICK-001 exists to prevent.
+
+    Normalization:
+      * scheme and host lowercased
+      * leading `www.` stripped
+      * trailing `/` on path stripped (but '/' alone becomes '')
+      * query and fragment dropped
+
+    Returns None for URLs that cannot be parsed into scheme+host.
+    """
+    if not isinstance(url, str) or not url:
+        return None
+    try:
+        parts = urlsplit(url)
+    except Exception:
+        return None
+    scheme = (parts.scheme or "").lower()
+    host = (parts.hostname or "").lower()
+    if not scheme or not host:
+        return None
+    if host.startswith("www."):
+        host = host[4:]
+    path = parts.path or ""
+    if path == "/":
+        path = ""
+    else:
+        path = path.rstrip("/")
+    return f"{scheme}://{host}{path}"
 
 
 def _sanitize_for_tag(text: str, tag_id: str) -> str:
@@ -553,3 +626,23 @@ def make_brave_search_fn(brave_key: str, *, logger: logging.Logger | None = None
         return _search_with_retry(query, key=brave_key, log=_log)
 
     return _search
+
+
+def _lazy_default_search_fn():
+    """Build a Brave-backed search_fn from the shared SSM key.
+
+    Raises ConfigError (not SecretUnavailable) so callers of the
+    backward-compatible `resolve(org, http_client)` signature get a
+    single exception type that names the recovery knobs.
+    """
+    from lavandula.common.secrets import SecretUnavailable, get_brave_api_key
+    try:
+        brave_key = get_brave_api_key()
+    except SecretUnavailable as exc:
+        raise ConfigError(
+            "resolver phase 1 needs a Brave API key — either pass "
+            "`search_fn=...` to resolve() or OpenAICompatibleResolverClient(), "
+            "set the BRAVE_API_KEY env var, or populate SSM "
+            f"/cloud2.lavandulagroup.com/brave-api-key ({type(exc).__name__})"
+        ) from exc
+    return make_brave_search_fn(brave_key)
