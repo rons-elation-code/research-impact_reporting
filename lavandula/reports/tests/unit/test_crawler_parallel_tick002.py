@@ -316,6 +316,122 @@ def test_close_thread_clients_closes_sessions():
         assert _crawler._thread_clients == []
 
 
+def test_queue_saturation_aborts_run(tmp_path, monkeypatch):
+    """Round 5: DBWriterSaturated (queue.Full from a slow writer) must
+    propagate up through crawler.run(), not be swallowed as a per-org
+    failure."""
+    from lavandula.reports.db_queue import DBWriterSaturated
+
+    db_path = _make_db(tmp_path)
+    seeds = [(f"{i:09d}", f"https://example{i}.org/") for i in range(3)]
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.fetch_seeds_from_0001",
+        lambda _p: seeds,
+    )
+
+    def saturate(*, ein, website, archive_dir, db_queue, **kw):
+        raise DBWriterSaturated("simulated saturation")
+
+    monkeypatch.setattr("lavandula.reports.crawler.process_org", saturate)
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.tls_self_test", lambda *a, **k: None
+    )
+
+    with pytest.raises(DBWriterSaturated):
+        crawler.run([
+            "--nonprofits-db", str(tmp_path / "fake.db"),
+            "--data-dir", str(tmp_path),
+            "--archive-dir", str(tmp_path / "raw"),
+            "--max-workers", "2",
+            "--skip-tls-self-test",
+            "--skip-encryption-check",
+        ])
+
+
+def test_max_workers_1_is_deterministic_and_equivalent(tmp_path, monkeypatch):
+    """Round 5 / AC7: --max-workers=1 produces deterministic, serialized
+    execution equivalent to the pre-TICK-002 serial loop. Two runs on
+    identical seed lists produce identical crawled_orgs rows (modulo
+    timestamps)."""
+    seeds = [
+        ("0001", "https://a.example.org/"),
+        ("0002", "https://b.example.org/"),
+        ("0003", "https://c.example.org/"),
+    ]
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.fetch_seeds_from_0001",
+        lambda _p: seeds,
+    )
+    monkeypatch.setattr(
+        "lavandula.reports.crawler.tls_self_test", lambda *a, **k: None
+    )
+
+    call_order: list[str] = []
+    lock = threading.Lock()
+
+    def record_order(*, ein, website, archive_dir, db_queue, **kw):
+        with lock:
+            call_order.append(ein)
+        return _stub_process_org(
+            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+        )
+
+    monkeypatch.setattr("lavandula.reports.crawler.process_org", record_order)
+
+    # Run A
+    dir_a = tmp_path / "a"
+    dir_a.mkdir()
+    _make_db(dir_a)
+    call_order.clear()
+    rc_a = crawler.run([
+        "--nonprofits-db", str(tmp_path / "fake.db"),
+        "--data-dir", str(dir_a),
+        "--archive-dir", str(dir_a / "raw"),
+        "--max-workers", "1",
+        "--skip-tls-self-test",
+        "--skip-encryption-check",
+    ])
+    order_a = list(call_order)
+
+    # Run B
+    dir_b = tmp_path / "b"
+    dir_b.mkdir()
+    _make_db(dir_b)
+    call_order.clear()
+    rc_b = crawler.run([
+        "--nonprofits-db", str(tmp_path / "fake.db"),
+        "--data-dir", str(dir_b),
+        "--archive-dir", str(dir_b / "raw"),
+        "--max-workers", "1",
+        "--skip-tls-self-test",
+        "--skip-encryption-check",
+    ])
+    order_b = list(call_order)
+
+    assert rc_a == 0 and rc_b == 0
+    # Deterministic: process_org called in seed order.
+    assert order_a == ["0001", "0002", "0003"]
+    assert order_a == order_b
+
+    # Equivalent DB state: same EINs in crawled_orgs, same columns
+    # (modulo first_crawled_at / last_crawled_at which are wall-time).
+    def rows_sans_timestamps(db_path):
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        out = []
+        for row in conn.execute(
+            "SELECT ein, candidate_count, fetched_count, "
+            "confirmed_report_count FROM crawled_orgs ORDER BY ein"
+        ):
+            out.append(tuple(row))
+        conn.close()
+        return out
+
+    assert rows_sans_timestamps(dir_a / "reports.db") == rows_sans_timestamps(
+        dir_b / "reports.db"
+    )
+
+
 def test_writer_death_aborts_run(tmp_path, monkeypatch):
     """If the DB writer dies mid-run, the crawler returns nonzero/raises."""
     db_path = _make_db(tmp_path)

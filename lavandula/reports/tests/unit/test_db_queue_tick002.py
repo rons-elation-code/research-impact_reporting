@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from lavandula.reports.db_queue import DBWriter, DBWriterDied
+from lavandula.reports.db_queue import DBWriter, DBWriterDied, DBWriterSaturated
 
 
 def _bootstrap_db(path):
@@ -75,6 +75,38 @@ def test_bounded_queue_applies_backpressure(tmp_path):
     finally:
         gate.set()
         w.stop()
+
+
+def test_saturation_raises_dbwriter_saturated(tmp_path):
+    """Round 5: a full queue on a live-but-slow writer must raise
+    DBWriterSaturated, not ordinary queue.Full — so callers that
+    `except DBWriterDied` correctly abort the run on saturation."""
+    db = tmp_path / "q.db"
+    _bootstrap_db(db)
+    w = DBWriter(str(db), maxsize=1)
+
+    gate = threading.Event()
+
+    def slow(_conn):
+        gate.wait(timeout=2.0)
+
+    w.start()
+    try:
+        # Block the writer with a gated op, fill the 1-slot queue.
+        w.put(slow)
+        w.put(lambda c: c.execute("INSERT INTO t (val) VALUES ('x')"))
+        with pytest.raises(DBWriterSaturated):
+            w.put(lambda c: c.execute("INSERT INTO t (val) VALUES ('y')"),
+                  timeout=0.1)
+    finally:
+        gate.set()
+        w.stop()
+
+
+def test_dbwriter_saturated_is_dbwriter_died_subclass():
+    """Callers that catch DBWriterDied to abort the run must also
+    catch saturation (pipeline failure = abort)."""
+    assert issubclass(DBWriterSaturated, DBWriterDied)
 
 
 def test_put_after_writer_death_raises(tmp_path):

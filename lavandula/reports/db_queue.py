@@ -32,6 +32,17 @@ class DBWriterDied(RuntimeError):
     to submit more work. Callers should abort the run."""
 
 
+class DBWriterSaturated(DBWriterDied):
+    """Raised when `put(timeout=...)` could not enqueue a write within
+    the timeout and the writer is still alive but not draining fast
+    enough. This is a pipeline-level failure (slow disk, runaway
+    fanout): the run MUST abort rather than dropping writes.
+
+    Subclasses DBWriterDied so callers that `except DBWriterDied` to
+    abort on writer failure also abort on saturation.
+    """
+
+
 class DBWriter:
     """Owns a single SQLite connection on a single thread.
 
@@ -89,7 +100,11 @@ class DBWriter:
             # Check one more time in case the writer died while we waited
             if self._thread is not None and not self._thread.is_alive():
                 raise DBWriterDied("DB writer thread died while queue was full") from exc
-            raise
+            # Writer is alive but queue is full for `timeout` seconds —
+            # pipeline saturated. Abort the run rather than drop writes.
+            raise DBWriterSaturated(
+                f"DB writer queue full for {timeout}s — pipeline saturated"
+            ) from exc
 
     # -- internal ---------------------------------------------------------
 
@@ -126,4 +141,4 @@ class DBWriter:
                 pass
 
 
-__all__ = ["DBWriter", "DBWriterDied", "WriteOp"]
+__all__ = ["DBWriter", "DBWriterDied", "DBWriterSaturated", "WriteOp"]
