@@ -160,11 +160,24 @@ projects:
     dependencies: ["0001"]
     tags: [lavandula-core, reports, catalogue, crawler]
     notes: "Replaces 0002 + 0003. Spec approved 2026-04-19 after 3 review rounds (CRITICAL progression 4 → 0 → 1 → 0). Plan approved 2026-04-19 after 1 review round (0 CRITICAL; all HIGH addressed in 9b752b5). 8 phases, 39 ACs. Phases 0-6 built 2026-04-19 (TDD scaffolding + schema/HTTP/SSRF + discovery + fetch/archive + sandbox + classifier + orchestration). All 138 AC tests green. Phase 7 live-validation pending. TICK-001 v3 approved 2026-04-19 after 3 revisions (Codex REQUEST_CHANGES → v2 → v3) + Gemini APPROVE. Relaxed PDF filter on report-anchor subpages. Implementation in progress."
+
+  - id: "0005"
+    title: "DeepSeek-Backed Nonprofit Website Resolver"
+    summary: "Replace Brave Search + heuristic resolver with a model-backed three-phase pipeline: DeepSeek/Qwen generates 2 candidate URLs, SSRF-hardened HTTP verifies them, model confirms identity from homepage content. Supports DeepSeek-V3 and Qwen via OpenAI-compatible client, selected by RESOLVER_LLM env var."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0005-deepseek-resolver.md
+      plan: locard/plans/0005-deepseek-resolver.md
+      review: null
+    dependencies: ["0001"]
+    tags: [lavandula-core, resolver, llm, deepseek, qwen]
+    notes: "Spec approved 2026-04-21 after 2 review rounds + red-team (2 CRITICAL fixed: SSRF + indirect prompt injection). Plan approved 2026-04-21 after 1 review round + red-team (tag breakout HIGH fixed). Builder spawned 2026-04-21."
 ```
 
 ## Next Available Number
 
-**0005** - Reserve this number for your next project
+**0006** - Reserve this number for your next project
 
 ---
 
