@@ -10,6 +10,9 @@ website-resolution strategies before they are trusted in the crawl.
 - `runner.py`
   Executes one resolver strategy against a labeled dataset and emits
   JSONL per-row decisions plus a compact summary.
+- `premark.py`
+  Writes a copy of the dataset with obvious junk current URLs
+  pre-marked as likely `reject` rows.
 
 ## Dataset shape
 
@@ -71,3 +74,10 @@ python -m lavandula.nonprofits.eval.runner \
   --strategy heuristic
 ```
 
+Pre-mark obvious junk domains:
+
+```bash
+python -m lavandula.nonprofits.eval.premark \
+  --input-csv /tmp/resolver_eval_dataset_prefilled.csv \
+  --output-csv /tmp/resolver_eval_dataset_premarked.csv
+```
