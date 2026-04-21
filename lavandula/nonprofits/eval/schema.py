@@ -71,8 +71,13 @@ class EvalRow:
         if not blob:
             return []
         data = json.loads(blob)
+        if isinstance(data, dict):
+            web = data.get("web") or {}
+            data = web.get("results") or []
         if not isinstance(data, list):
-            raise ValueError("candidate_results_json must decode to a JSON list")
+            raise ValueError(
+                "candidate_results_json must decode to a JSON list or Brave response object"
+            )
         for item in data:
             if not isinstance(item, dict):
                 raise ValueError("candidate_results_json entries must be JSON objects")
@@ -115,4 +120,3 @@ def write_template(path: Path | str) -> None:
     with out.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(DATASET_COLUMNS))
         writer.writeheader()
-
