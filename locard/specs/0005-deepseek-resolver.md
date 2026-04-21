@@ -55,12 +55,16 @@ actually belonged to the queried organization.
 The resolver uses a three-phase pipeline per org:
 
 **Phase 1 — Generate candidates**  
-Ask DeepSeek to propose up to 5 likely official website URLs for the org,
-given: name, EIN, street address, city, state, zipcode, NTEE code.
+Ask DeepSeek for exactly **2 URLs**: a primary best guess and one fallback.
+The model must commit to its best answer rather than hedging across a list.
+Given: name, EIN, street address, city, state, zipcode, NTEE code.
 The model draws on training knowledge of US nonprofits and reasons about
 likely domain patterns. Brave Search is explicitly excluded.
 
-If Phase 1 produces zero HTTP-live candidates (all proposed URLs fail
+Forcing 2 candidates (not 5) reduces HTTP calls, shrinks the SSRF surface,
+and prevents the model from producing a noise list when it is uncertain.
+
+If Phase 1 produces zero HTTP-live candidates (both URLs fail
 verification), the resolver marks the org `unresolved` with reason
 `no_live_candidates`. A future spec may add a non-Brave search fallback
 for this long-tail case; that is out of scope here.
@@ -71,7 +75,12 @@ For each candidate URL (in ranked order), use the existing
 This client already enforces:
 - RFC 1918 / private IP range blocking (prevents SSRF to `169.254.169.254`, `10.*`, `192.168.*`, etc.)
 - DNS re-validation after each redirect
-- Connect timeout 3s, read timeout 8s, max 3 redirects
+- Connect timeout 5s, read timeout 15s, max 3 redirects
+
+The longer timeouts reflect the reality that nonprofit websites are often
+on shared/cheap hosting with slow first-byte times. The 3s/8s values used
+elsewhere in the pipeline are too aggressive for a one-time resolution
+check where a false "dead domain" rejection is costly.
 
 Record the final resolved URL after redirects as the candidate. Discard
 candidates that return non-200 responses, exceed timeouts, or are blocked
