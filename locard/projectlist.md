@@ -164,7 +164,7 @@ projects:
   - id: "0005"
     title: "DeepSeek-Backed Nonprofit Website Resolver"
     summary: "Replace Brave Search + heuristic resolver with a model-backed three-phase pipeline: DeepSeek/Qwen generates 2 candidate URLs, SSRF-hardened HTTP verifies them, model confirms identity from homepage content. Supports DeepSeek-V3 and Qwen via OpenAI-compatible client, selected by RESOLVER_LLM env var."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0005-deepseek-resolver.md
@@ -172,7 +172,7 @@ projects:
       review: null
     dependencies: ["0001"]
     tags: [lavandula-core, resolver, llm, deepseek, qwen]
-    notes: "Spec approved 2026-04-21 after 2 review rounds + red-team (2 CRITICAL fixed: SSRF + indirect prompt injection). Plan approved 2026-04-21 after 1 review round + red-team (tag breakout HIGH fixed). Builder spawned 2026-04-21."
+    notes: "Spec approved 2026-04-21 after 2 review rounds + red-team (2 CRITICAL fixed: SSRF + indirect prompt injection). Plan approved 2026-04-21 after 1 review round + red-team (tag breakout HIGH fixed). Builder spawned 2026-04-21. PR #1 merged 2026-04-21 after 8 review rounds. Precision gate (≥80% on TX 100-org dataset) deferred — must run before --resolver llm used on production seeds."
 ```
 
 ## Next Available Number
