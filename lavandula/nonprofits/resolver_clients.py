@@ -149,25 +149,33 @@ class OpenAICompatibleResolverClient:
                 log.warning(
                     "resolver phase2 fetch error for url: %s", type(exc).__name__
                 )
-                results.append(
-                    {"url": url, "final_url": url, "live": False, "excerpt": ""}
-                )
+                results.append({
+                    "url": url,
+                    "final_url": url,
+                    "live": False,
+                    "excerpt": "",
+                    "http_only": url.startswith("http://"),
+                })
                 continue
 
+            final_url = fetch.final_url or url
+            http_only = final_url.startswith("http://")
             if fetch.status == "ok" and fetch.body:
                 excerpt = fetch.body.decode("utf-8", errors="replace")[:2000]
                 results.append({
                     "url": url,
-                    "final_url": fetch.final_url or url,
+                    "final_url": final_url,
                     "live": True,
                     "excerpt": excerpt,
+                    "http_only": http_only,
                 })
             else:
                 results.append({
                     "url": url,
-                    "final_url": fetch.final_url or url,
+                    "final_url": final_url,
                     "live": False,
                     "excerpt": "",
+                    "http_only": http_only,
                 })
         return results
 
@@ -321,17 +329,21 @@ def _evaluate_phase3_response(
 
     # Reject any entry whose URL the model hallucinated — only URLs that
     # were verified in Phase 2 may be returned as resolved (Codex review).
-    def _get_verified_final_url(scored_url: str) -> str | None:
+    def _get_verified_candidate(scored_url: str) -> dict | None:
         for c in live:
             if c.get("url") == scored_url or c.get("final_url") == scored_url:
-                return c["final_url"]
+                return c
         return None  # not in verified Phase 2 set — discard
 
-    verified_entries = [
-        {**e, "_final_url": _get_verified_final_url(e["url"])}
-        for e in entries
-        if _get_verified_final_url(e["url"]) is not None
-    ]
+    verified_entries = []
+    for e in entries:
+        cand = _get_verified_candidate(e["url"])
+        if cand is None:
+            continue
+        conf = e["confidence"]
+        if cand.get("http_only"):
+            conf = max(0.0, conf - 0.05)
+        verified_entries.append({**e, "confidence": conf, "_final_url": cand["final_url"]})
 
     if not verified_entries:
         return ResolverResult(
