@@ -26,7 +26,8 @@ actually belonged to the queried organization.
 ## Goals
 
 1. Replace heuristic-only resolver with a model-backed resolver using
-   DeepSeek-V3 (`deepseek-chat`) via the DeepSeek OpenAI-compatible API.
+   any OpenAI-compatible LLM backend — initially DeepSeek-V3 or Qwen,
+   selectable via config.
 2. Eliminate dependency on Brave Search for the resolution step.
 3. Use the richer seed data now available: street address, zipcode, NTEE
    code, subsection code, plus name, city, state, EIN.
@@ -126,29 +127,36 @@ without human review.
 
 These columns already exist in the schema. No migration needed.
 
+### Backend selection
+
+The resolver LLM backend is selected via `RESOLVER_LLM` env var:
+
+| Value | Model | Base URL |
+|-------|-------|----------|
+| `deepseek` (default) | `deepseek-chat` | `https://api.deepseek.com` |
+| `qwen` | `qwen-plus` | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` |
+
+Both use the `openai.OpenAI` SDK — only `base_url`, `model`, and `api_key` differ.
+
 ### API key sourcing
 
-The DeepSeek API key is read from SSM at path:
+Keys are read from SSM at construction time via `boto3.ssm`:
 
-```
-/cloud2.lavandulagroup.com/lavandula/deepseek/api_key
-```
+- DeepSeek: `/cloud2.lavandulagroup.com/lavandula/deepseek/api_key`
+- Qwen: `/cloud2.lavandulagroup.com/lavandula/qwen/api_key`
 
-The key is fetched once at client construction time using `boto3.ssm`.
-It is never written to env vars, logs, or error messages.
+Keys are never written to env vars, logs, or error messages.
 
 ### Env var override for testing
 
-If `DEEPSEEK_API_KEY` is set in the environment it is used directly,
-bypassing SSM. This allows unit tests to inject a fake key without
-needing AWS access.
+If `RESOLVER_LLM_API_KEY` is set it is used directly, bypassing SSM.
+This allows unit tests to inject a fake key without AWS access.
 
 ### Sandbox isolation
 
-The DeepSeek client is instantiated with only the API key — no ambient
-credential scanning. The `openai.OpenAI` constructor receives
-`api_key=key` and `base_url="https://api.deepseek.com"` explicitly.
-No other env vars are passed to the HTTP client.
+The client is instantiated with only `api_key` and `base_url` — no
+ambient env var scanning. No other credentials are passed to the HTTP
+client.
 
 ---
 
@@ -157,9 +165,12 @@ No other env vars are passed to the HTTP client.
 ### New file: `lavandula/nonprofits/resolver_clients.py`
 
 ```python
-class DeepSeekResolverClient:
-    def __init__(self, *, api_key: str | None = None): ...
+class OpenAICompatibleResolverClient:
+    def __init__(self, *, base_url: str, model: str, api_key: str): ...
     def resolve(self, org: OrgIdentity) -> ResolverResult: ...
+
+def select_resolver_client() -> OpenAICompatibleResolverClient:
+    """Read RESOLVER_LLM env var, fetch key from SSM, return client."""
 ```
 
 `OrgIdentity` is a dataclass holding:
