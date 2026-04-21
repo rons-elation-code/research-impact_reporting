@@ -139,22 +139,17 @@ def test_ac3_dead_url_unresolved():
 
 # ── AC4: no key → ConfigError naming SSM path ────────────────────────────────
 
-def test_ac4_no_key_raises_config_error(monkeypatch):
-    monkeypatch.delenv("RESOLVER_LLM_API_KEY", raising=False)
-    with patch("boto3.client") as mock_boto3:
-        mock_boto3.side_effect = Exception("no credentials")
+def test_ac4_no_key_raises_config_error():
+    from lavandula.common.secrets import SecretUnavailable
+    with patch("lavandula.common.secrets.get_secret", side_effect=SecretUnavailable("no creds")):
         with pytest.raises(ConfigError) as exc_info:
-            select_resolver_client(
-                env={"RESOLVER_LLM": "deepseek"}
-            )
+            select_resolver_client(env={"RESOLVER_LLM": "deepseek"})
     assert "/cloud2.lavandulagroup.com/lavandula/deepseek/api_key" in str(exc_info.value)
 
 
-def test_ac4_ssm_returns_empty_raises_config_error():
-    with patch("boto3.client") as mock_boto3:
-        ssm_mock = MagicMock()
-        ssm_mock.get_parameter.return_value = {"Parameter": {"Value": ""}}
-        mock_boto3.return_value = ssm_mock
+def test_ac4_ssm_unavailable_raises_config_error():
+    from lavandula.common.secrets import SecretUnavailable
+    with patch("lavandula.common.secrets.get_secret", side_effect=SecretUnavailable("empty value")):
         with pytest.raises(ConfigError) as exc_info:
             _fetch_api_key(
                 "/cloud2.lavandulagroup.com/lavandula/deepseek/api_key",
@@ -356,32 +351,25 @@ def test_ac11_unknown_backend_raises():
         )
 
 
-# ── AC12: phase2 uses ReportsHTTPClient with 5s/15s timeouts ─────────────────
+# ── AC12: phase2 uses ReportsHTTPClient subclass with 5s/15s timeouts ────────
 
-def test_ac12_http_client_timeouts():
-    with patch("lavandula.reports.http_client.ReportsHTTPClient.__init__", return_value=None) as mock_init:
-        # The make_resolver_http_client will set _timeout_sec; check via direct construction
-        pass
-    http_client = make_resolver_http_client()
+def test_ac12_http_client_is_reports_client_subclass():
     from lavandula.reports.http_client import ReportsHTTPClient
+    http_client = make_resolver_http_client()
     assert isinstance(http_client, ReportsHTTPClient)
     assert http_client._timeout_sec == (5, 15)
 
 
 def test_ac12_timeout_passed_to_session_get():
-    """Verify that session.get is called with the configured timeout."""
-    from lavandula.reports.http_client import ReportsHTTPClient
-    client_http = ReportsHTTPClient(
-        timeout_sec=(5, 15),
-        allow_insecure_cleartext=True,
-    )
-    with patch.object(client_http.session, "get") as mock_get:
+    """Verify that the wrapped session.get is called with (5, 15) timeout."""
+    http_client = make_resolver_http_client()
+    with patch.object(http_client.session, "get") as mock_get:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.headers = {"Content-Encoding": "identity"}
         mock_resp.raw.read.return_value = b""
         mock_get.return_value = mock_resp
-        result = client_http.get("https://example.org", kind="resolver-verify")
+        http_client.get("https://example.org", kind="resolver-verify")
     mock_get.assert_called_once()
     _, call_kwargs = mock_get.call_args
     assert call_kwargs["timeout"] == (5, 15)
@@ -536,3 +524,32 @@ def test_env_var_overrides_ssm():
         env={"RESOLVER_LLM_API_KEY": "env-override-key"},
     )
     assert key == "env-override-key"
+
+
+# ── Phase 3 URL must be in Phase 2 verified set (Codex round-3) ───────────────
+
+def test_phase3_hallucinated_url_rejected():
+    """Model returns a URL that was not in Phase 2 verified candidates → unresolved."""
+    live = [
+        {"url": "https://verified.org", "final_url": "https://verified.org", "live": True, "excerpt": ""},
+    ]
+    raw = json.dumps([
+        {"url": "https://hallucinated-new.org", "confidence": 0.95, "reason": "injected"},
+    ])
+    result = _evaluate_phase3_response(raw, live, live, "deepseek-v1")
+    assert result.status == "unresolved"
+    assert result.reason == "phase3_no_verified_urls"
+    assert result.url is None
+
+
+def test_phase3_accepts_verified_url():
+    """Model returns a URL that matches Phase 2 final_url → resolved."""
+    live = [
+        {"url": "https://original.org", "final_url": "https://redirected.org", "live": True, "excerpt": ""},
+    ]
+    raw = json.dumps([
+        {"url": "https://original.org", "confidence": 0.90, "reason": "match"},
+    ])
+    result = _evaluate_phase3_response(raw, live, live, "deepseek-v1")
+    assert result.status == "resolved"
+    assert result.url == "https://redirected.org"

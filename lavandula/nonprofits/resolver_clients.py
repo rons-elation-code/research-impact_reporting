@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 log = logging.getLogger(__name__)
 
 _RESOLVER_VERIFY_TIMEOUT: tuple[int, int] = (5, 15)  # (connect_sec, read_sec)
+_SSM_PREFIX = "/cloud2.lavandulagroup.com/"
 
 
 class ConfigError(RuntimeError):
@@ -62,32 +63,61 @@ _BACKENDS: dict[str, dict] = {
 def _fetch_api_key(
     ssm_path: str, *, env: dict[str, str] | None = None
 ) -> str:
-    """Fetch API key from env var or SSM. Logs exception type only on failure."""
+    """Fetch API key from env var or shared SSM utility.
+
+    Checks RESOLVER_LLM_API_KEY first (spec-mandated test override).
+    Falls back to lavandula.common.secrets.get_secret() for SSM access,
+    which provides LRU caching and standardised SecretUnavailable handling.
+    Raises ConfigError (not SecretUnavailable) so callers have a single
+    exception type to handle.
+    """
+    from lavandula.common.secrets import SecretUnavailable, get_secret
+
     _env = env if env is not None else dict(os.environ)
     override = _env.get("RESOLVER_LLM_API_KEY")
     if override:
         return override
+
+    short_name = ssm_path[len(_SSM_PREFIX):] if ssm_path.startswith(_SSM_PREFIX) else ssm_path
     try:
-        import boto3
-        ssm = boto3.client("ssm", region_name="us-east-1")
-        resp = ssm.get_parameter(Name=ssm_path, WithDecryption=True)
-    except Exception as exc:
+        return get_secret(short_name)
+    except SecretUnavailable as exc:
         raise ConfigError(
             f"failed to fetch API key from SSM path {ssm_path!r}: {type(exc).__name__}"
         ) from exc
-    value = (resp.get("Parameter") or {}).get("Value")
-    if not value:
-        raise ConfigError(f"empty API key from SSM path {ssm_path!r}")
-    return value
 
 
 def make_resolver_http_client():
-    """Create a ReportsHTTPClient configured for resolver phase-2 verification."""
+    """Create an HTTP client for resolver phase-2 verification.
+
+    Returns a ReportsHTTPClient subclass that enforces (connect=5s, read=15s)
+    timeouts. The parent constructor signature is not modified; timeouts are
+    injected by temporarily overriding config.REQUEST_TIMEOUT_SEC inside the
+    overridden get() method.
+    """
+    from lavandula.reports import config as _reports_config
     from lavandula.reports.http_client import ReportsHTTPClient
-    return ReportsHTTPClient(
-        timeout_sec=_RESOLVER_VERIFY_TIMEOUT,
-        allow_insecure_cleartext=True,
-    )
+
+    class _ResolverHTTPClient(ReportsHTTPClient):
+        _timeout_sec = _RESOLVER_VERIFY_TIMEOUT
+
+        def __init__(self) -> None:
+            super().__init__(allow_insecure_cleartext=True)
+
+        def get(self, url, *, kind="resolver-verify", seed_etld1=None, extra_headers=None):
+            saved = _reports_config.REQUEST_TIMEOUT_SEC
+            _reports_config.REQUEST_TIMEOUT_SEC = self._timeout_sec
+            try:
+                return super().get(
+                    url,
+                    kind=kind,
+                    seed_etld1=seed_etld1,
+                    extra_headers=extra_headers,
+                )
+            finally:
+                _reports_config.REQUEST_TIMEOUT_SEC = saved
+
+    return _ResolverHTTPClient()
 
 
 class OpenAICompatibleResolverClient:
@@ -312,17 +342,34 @@ def _evaluate_phase3_response(
             candidates=all_candidates,
         )
 
-    entries.sort(key=lambda e: e["confidence"], reverse=True)
-    best = entries[0]
-    second_conf = entries[1]["confidence"] if len(entries) > 1 else 0.0
-
-    def _get_final_url(scored_url: str) -> str:
+    # Reject any entry whose URL the model hallucinated — only URLs that
+    # were verified in Phase 2 may be returned as resolved (Codex review).
+    def _get_verified_final_url(scored_url: str) -> str | None:
         for c in live:
             if c.get("url") == scored_url or c.get("final_url") == scored_url:
                 return c["final_url"]
-        return scored_url
+        return None  # not in verified Phase 2 set — discard
 
-    best_final_url = _get_final_url(best["url"])
+    verified_entries = [
+        {**e, "_final_url": _get_verified_final_url(e["url"])}
+        for e in entries
+        if _get_verified_final_url(e["url"]) is not None
+    ]
+
+    if not verified_entries:
+        return ResolverResult(
+            url=None,
+            status="unresolved",
+            confidence=0.0,
+            method=method,
+            reason="phase3_no_verified_urls",
+            candidates=all_candidates,
+        )
+
+    verified_entries.sort(key=lambda e: e["confidence"], reverse=True)
+    best = verified_entries[0]
+    second_conf = verified_entries[1]["confidence"] if len(verified_entries) > 1 else 0.0
+    best_final_url: str = best["_final_url"]
 
     # Ambiguous: two candidates both ≥0.6, top two scores within 0.1
     if (
