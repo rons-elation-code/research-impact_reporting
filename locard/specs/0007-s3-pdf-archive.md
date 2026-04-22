@@ -363,10 +363,20 @@ classification. *Offline test: grep-based assertion that
 classify_null never imports `s3_archive`.*
 
 **AC13** — The S3 object **key basename** (the portion after the
-final `/`) matches `^[a-f0-9]{64}\.pdf$`. The key as a whole may
-include a prefix: full key `^([^/]+/)*[a-f0-9]{64}\.pdf$`. Defensive
-length check rejects any computed sha256 that isn't 64 hex chars.
-*Offline test.*
+final `/`) matches the regex:
+
+```
+^[a-f0-9]{64}\.pdf$
+```
+
+The key as a whole may include a prefix; the full-key regex is:
+
+```
+^([^/]+/)*[a-f0-9]{64}\.pdf$
+```
+
+Defensive length check rejects any computed sha256 that isn't 64 hex
+chars. *Offline test.*
 
 **AC14** — `S3Archive.put()` never sets an `ACL` parameter on the PUT
 call. Objects inherit bucket default ACL (private). *Offline test:
