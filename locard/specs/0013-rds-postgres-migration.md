@@ -136,27 +136,24 @@ provisioning time if needed):
 first provisioning):
 
 ```sql
-CREATE DATABASE lavandula
-    WITH ENCODING = 'UTF8' LC_COLLATE = 'en_US.UTF-8';
+-- Database already exists: lava_prod1 (shared with future Amazon order data).
+-- Schema: lava_impact (research data scope; future orders in a separate schema)
 
--- Roles
-CREATE ROLE lavandula_admin LOGIN;   -- DDL + migrations + backups
-CREATE ROLE lavandula_app   LOGIN;   -- CRUD on app tables (crawler, dashboard)
-CREATE ROLE lavandula_ro    LOGIN;   -- SELECT only (extraction, gallery)
+CREATE ROLE app_user1 LOGIN;    -- CRUD on lava_impact (crawler, dashboard)
+CREATE ROLE ro_user1  LOGIN;    -- SELECT only (extraction, gallery)
 
 -- IAM authentication: RDS-provided role that IAM-authenticated users inherit
-GRANT rds_iam TO lavandula_app;
-GRANT rds_iam TO lavandula_ro;
--- lavandula_admin keeps password auth (offline DDL); can optionally also have rds_iam
+GRANT rds_iam TO app_user1;
+GRANT rds_iam TO ro_user1;
+-- postgres (master) uses password auth only for initial migrations; no rds_iam grant
 
--- Schemas
-\c lavandula
-CREATE SCHEMA lavandula AUTHORIZATION lavandula_admin;
-GRANT USAGE ON SCHEMA lavandula TO lavandula_app, lavandula_ro;
-ALTER DEFAULT PRIVILEGES FOR ROLE lavandula_admin IN SCHEMA lavandula
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO lavandula_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE lavandula_admin IN SCHEMA lavandula
-    GRANT SELECT ON TABLES TO lavandula_ro;
+\c lava_prod1
+CREATE SCHEMA lava_impact AUTHORIZATION postgres;
+GRANT USAGE ON SCHEMA lava_impact TO app_user1, ro_user1;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA lava_impact
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_user1;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA lava_impact
+    GRANT SELECT ON TABLES TO ro_user1;
 ```
 
 This gives us three clean roles with least-privilege separation:
@@ -166,16 +163,17 @@ and other write paths, `ro` is for future extraction/gallery readers.
 **Connection parameters stored in SSM**:
 
 ```
-/cloud2.lavandulagroup.com/lavandula/rds/endpoint   → dbhost.us-east-1.rds.amazonaws.com
-/cloud2.lavandulagroup.com/lavandula/rds/port       → 5432
-/cloud2.lavandulagroup.com/lavandula/rds/database   → lavandula
-/cloud2.lavandulagroup.com/lavandula/rds/app_user   → lavandula_app
-/cloud2.lavandulagroup.com/lavandula/rds/ro_user    → lavandula_ro
+/cloud2.lavandulagroup.com/rds-endpoint  → lava-1.czahqlvmtyh8.us-east-1.rds.amazonaws.com
+/cloud2.lavandulagroup.com/rds-port      → 5432
+/cloud2.lavandulagroup.com/rds-database  → lava_prod1
+/cloud2.lavandulagroup.com/rds-schema    → lava_impact
+/cloud2.lavandulagroup.com/rds-app-user  → app_user1
+/cloud2.lavandulagroup.com/rds-ro-user   → ro_user1
 ```
 
-Credentials for `lavandula_admin` (password auth for DDL work) live in
-`/cloud2.lavandulagroup.com/lavandula/rds/admin_password` as
-SecureString. `app` and `ro` roles use IAM auth — no password stored.
+Runtime uses IAM auth only — no password stored. Master user
+(`postgres`) password exists only as a temporary SSM entry during
+initial DDL work and is deleted post-setup.
 
 ### Phase 1 — Python connection adapter
 
@@ -425,7 +423,7 @@ Postgres 16.x, IAM auth enabled, deletion protection on.
 role's security group on port 5432.
 
 **AC3** — Database `lavandula` exists with schema `lavandula`.
-Three roles (`lavandula_admin`, `lavandula_app`, `lavandula_ro`)
+Three roles (`postgres`, `app_user1`, `ro_user1`)
 exist with the permission grants specified in Design.
 
 **AC4** — SSM parameters populated for endpoint/port/database/users.
@@ -448,7 +446,7 @@ use, not an exception.
 **AC8** — The `do_connect` event correctly injects password from
 the token manager; no password is passed via the URL or env.
 
-**AC9** — `make_ro_engine()` connects as `lavandula_ro` and is
+**AC9** — `make_ro_engine()` connects as `ro_user1` and is
 denied INSERT on any table (verified by a negative test).
 
 ### Phase 2 — Backfill
@@ -494,7 +492,7 @@ from RDS; query results match SQLite for the same filter.
    must be non-fatal for the SQLite path. A temporary RDS outage
    should not stop the crawler.
 
-6. **Don't grant `lavandula_ro` any INSERT/UPDATE/DELETE.** The whole
+6. **Don't grant `ro_user1` any INSERT/UPDATE/DELETE.** The whole
    point of the role is that it's *provably* read-only at the DB
    layer, not just by convention.
 
@@ -524,7 +522,7 @@ from RDS; query results match SQLite for the same filter.
   contents (currently same as SQLite contents — not sensitive), the
   EC2 IAM role that issues tokens.
 - **Actors**: Compromised EC2 host (could extract IAM role credentials
-  and connect as `lavandula_app`); misconfigured security group
+  and connect as `app_user1`); misconfigured security group
   (could expose RDS to the internet).
 
 ### Mitigations
@@ -546,7 +544,7 @@ from RDS; query results match SQLite for the same filter.
 
 ### Residual risks
 
-- **EC2 host compromise** → attacker connects as `lavandula_app`, can
+- **EC2 host compromise** → attacker connects as `app_user1`, can
   read/write all app tables. Mitigations: the existing EC2 hardening
   + short-lived IAM tokens + RDS doesn't contain user PII.
 - **Admin password leak** → DDL-level compromise. Mitigations:
