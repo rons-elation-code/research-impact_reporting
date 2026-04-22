@@ -163,12 +163,23 @@ def fingerprint_diff(manifest_args: dict, current_args: Any,
 
 # ── concurrent-run lock ─────────────────────────────────────────────────────
 
+LOCK_FILENAME = "run.lock"
+
+
 @contextlib.contextmanager
 def locked(manifest_path: Path):
-    """Advisory flock on the manifest file for the duration of a run."""
+    """Advisory flock on a sentinel lock file for the duration of a run.
+
+    The lock is held on `{run-dir}/run.lock` — NOT on the manifest itself.
+    Manifest writes use atomic tmp + rename, which replaces the inode.
+    Flocking the manifest would leave the held fd pointing at an orphan
+    inode, allowing a concurrent runner to flock the new inode and
+    silently defeat the guard (spec AC15).
+    """
     manifest_path = Path(manifest_path)
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    fh = open(manifest_path, "a+")
+    lock_path = manifest_path.parent / LOCK_FILENAME
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "a+")
     try:
         try:
             fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

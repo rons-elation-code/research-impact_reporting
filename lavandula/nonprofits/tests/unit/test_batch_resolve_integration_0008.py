@@ -303,6 +303,100 @@ def test_resume_without_filter_args_rehydrates_from_manifest(
     assert args2.model == "haiku"
 
 
+# ── Round-2 fix: explicit CLI on resume must trigger fingerprint error ───
+
+def test_resume_with_explicit_cli_change_triggers_mismatch(
+    tmp_path: Path, capsys,
+) -> None:
+    """Round-2 #3 — operator-supplied CLI flags must NOT be silently
+    overwritten by the manifest; they must surface as fingerprint diffs.
+    """
+    db = tmp_path / "s.db"
+    _make_db(db, n=1)
+    # Original run: state=TX
+    args = _parse(["--db", str(db), "--state", "TX", "--batch-size", "1",
+                   "--parallelism", "1", "--yes"])
+    rc = br.run(args, agent_runner_factory=lambda: FakeAgentRunner())
+    assert rc == 0
+    run_dir = next((tmp_path / "agent-results").iterdir())
+
+    # Resume but explicitly pass a DIFFERENT --state.
+    args2 = _parse(["--resume", str(run_dir), "--state", "MA",
+                    "--parallelism", "1", "--yes"])
+    rc2 = br.run(args2, agent_runner_factory=lambda: FakeAgentRunner())
+    assert rc2 == 2
+    err = capsys.readouterr().err
+    assert "fingerprint differs" in err
+    assert "state" in err
+
+
+# ── Round-2 fix: partial batch stays partial after ingest, retries on resume ─
+
+def test_partial_batch_state_preserved_for_resume_retry(tmp_path: Path) -> None:
+    """Round-2 #1 — after ingesting a partial batch, state must remain
+    'partial' so --resume spawns a continuation for missing EINs.
+    """
+    db = tmp_path / "s.db"
+    _make_db(db, n=2)
+
+    class FirstOrgOnly:
+        def run(self, inv: AgentInvocation) -> AgentResult:
+            orgs = [json.loads(l) for l in inv.input_path.read_text().splitlines() if l.strip()]
+            with open(inv.output_path, "w") as f:
+                if orgs:
+                    f.write(json.dumps({
+                        "ein": orgs[0]["ein"],
+                        "url": f"https://first-{orgs[0]['ein']}.org",
+                        "confidence": "high",
+                        "reasoning": "first only",
+                    }) + "\n")
+            return AgentResult(inv.batch_id, "partial",
+                               min(1, len(orgs)), len(orgs), None)
+
+    args = _parse(["--db", str(db), "--batch-size", "2", "--parallelism", "1",
+                   "--yes"])
+    rc = br.run(args, agent_runner_factory=lambda: FirstOrgOnly())
+    assert rc == 0
+
+    run_dir = next((tmp_path / "agent-results").iterdir())
+    manifest = RunManifest.load(run_dir / "RUN_MANIFEST.json")
+    # The batch covered 2 orgs; only 1 was emitted. State must stay 'partial'.
+    assert len(manifest.batches) == 1
+    assert manifest.batches[0].state == "partial", (
+        f"expected 'partial' but got {manifest.batches[0].state!r} — "
+        "resume would skip this batch and never retry the missing EIN"
+    )
+
+
+# ── Round-2 fix: flock is held on a dedicated sentinel, not the manifest ──
+
+def test_flock_survives_manifest_atomic_rename(tmp_path: Path) -> None:
+    """Round-2 #2 — flock must be on a sentinel file that is never
+    renamed, otherwise a concurrent runner silently acquires a fresh lock.
+    """
+    from lavandula.nonprofits.batch_manifest import (
+        locked, RunManifest, RunnerLockedError, LOCK_FILENAME,
+    )
+    run_dir = tmp_path / "run-x"
+    run_dir.mkdir()
+    manifest_path = run_dir / "RUN_MANIFEST.json"
+
+    with locked(manifest_path):
+        # First runner holds the lock. Simulate a manifest save (atomic
+        # tmp + rename replaces the manifest's inode).
+        m = RunManifest(run_id="x", started_at="t", fingerprint="f"*16,
+                        args={}, total_orgs=0, batches=[])
+        m.save(manifest_path)
+        m.save(manifest_path)
+        # After two renames, a second runner must STILL be blocked.
+        with pytest.raises(RunnerLockedError):
+            with locked(manifest_path):
+                pass
+
+    # Sanity: the sentinel lives on a stable inode, not the manifest itself.
+    assert (run_dir / LOCK_FILENAME).exists()
+
+
 # ── Run-log contains all the expected event kinds ────────────────────────
 
 def test_run_log_records_key_events(tmp_path: Path) -> None:

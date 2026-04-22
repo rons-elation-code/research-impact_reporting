@@ -83,26 +83,37 @@ UPDATE nonprofits_seed
 
 # ── argv ────────────────────────────────────────────────────────────────────
 
+# Sentinel marking "operator did not pass this flag". Using a distinct
+# object (not None / not a default value) lets us tell --max-orgs 500
+# on the CLI apart from "not supplied at all" on resume.
+_UNSET = object()
+
+
 def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="batch_resolve",
         description="Agent-based URL resolver for nonprofit seeds.",
     )
-    ap.add_argument("--db", help="Path to seeds.db (required unless --resume)")
+    ap.add_argument("--db", default=_UNSET,
+                    help="Path to seeds.db (required unless --resume)")
     ap.add_argument("--resume", help="Resume a prior run directory")
-    ap.add_argument("--state", help="State filter, comma-separated (e.g. NY,MA)")
-    ap.add_argument("--ntee-major", dest="ntee_major",
+    ap.add_argument("--state", default=_UNSET,
+                    help="State filter, comma-separated (e.g. NY,MA)")
+    ap.add_argument("--ntee-major", dest="ntee_major", default=_UNSET,
                     help="NTEE major letter filter, comma-separated")
-    ap.add_argument("--revenue-min", dest="revenue_min", type=int)
-    ap.add_argument("--revenue-max", dest="revenue_max", type=int)
+    ap.add_argument("--revenue-min", dest="revenue_min", type=int,
+                    default=_UNSET)
+    ap.add_argument("--revenue-max", dest="revenue_max", type=int,
+                    default=_UNSET)
     ap.add_argument("--max-orgs", dest="max_orgs", type=int,
-                    default=DEFAULT_MAX_ORGS)
+                    default=_UNSET)
     ap.add_argument("--batch-size", dest="batch_size", type=int,
-                    default=DEFAULT_BATCH_SIZE)
+                    default=_UNSET)
     ap.add_argument("--parallelism", type=int, default=DEFAULT_PARALLELISM)
     ap.add_argument("--model", choices=("haiku", "opus", "sonnet"),
-                    default="haiku")
-    ap.add_argument("--re-resolve", dest="re_resolve", action="store_true")
+                    default=_UNSET)
+    ap.add_argument("--re-resolve", dest="re_resolve",
+                    action="store_const", const=True, default=_UNSET)
     ap.add_argument("--dry-run", dest="dry_run", action="store_true")
     ap.add_argument("--results-dir", dest="results_dir")
     ap.add_argument("--agent-timeout-per-org", dest="agent_timeout_per_org",
@@ -112,30 +123,71 @@ def _build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _apply_cli_defaults(args: argparse.Namespace) -> None:
+    """Replace _UNSET sentinels with the real defaults for a fresh run.
+
+    Only called after resume-rehydration (if any), so explicit CLI values
+    take precedence over manifest values which take precedence over
+    hard-coded defaults.
+    """
+    if args.db is _UNSET:
+        args.db = None
+    if args.state is _UNSET:
+        args.state = None
+    if args.ntee_major is _UNSET:
+        args.ntee_major = None
+    if args.revenue_min is _UNSET:
+        args.revenue_min = None
+    if args.revenue_max is _UNSET:
+        args.revenue_max = None
+    if args.max_orgs is _UNSET:
+        args.max_orgs = DEFAULT_MAX_ORGS
+    if args.batch_size is _UNSET:
+        args.batch_size = DEFAULT_BATCH_SIZE
+    if args.model is _UNSET:
+        args.model = "haiku"
+    if args.re_resolve is _UNSET:
+        args.re_resolve = False
+
+
 def _validate_args(parser: argparse.ArgumentParser,
                    args: argparse.Namespace) -> None:
-    if not args.resume and not args.db:
+    """Validate CLI-supplied constraints that don't depend on manifest state.
+
+    Only checks fields the operator actually passed on the CLI. Values
+    sourced later from the manifest have already been validated by the
+    original run's argparse.
+    """
+    if not args.resume and args.db is _UNSET:
         parser.error("--db is required unless --resume is given")
-    if args.batch_size < 1 or args.batch_size > MAX_BATCH_SIZE:
-        parser.error(f"batch-size must be 1..{MAX_BATCH_SIZE}")
+    if args.batch_size is not _UNSET:
+        if args.batch_size < 1 or args.batch_size > MAX_BATCH_SIZE:
+            parser.error(f"batch-size must be 1..{MAX_BATCH_SIZE}")
     if args.parallelism < 1 or args.parallelism > MAX_PARALLELISM:
         parser.error(f"parallelism must be 1..{MAX_PARALLELISM}")
-    if args.max_orgs < 1:
+    if args.max_orgs is not _UNSET and args.max_orgs < 1:
         parser.error("max-orgs must be >= 1")
     if args.agent_timeout_per_org < 1:
         parser.error("agent-timeout-per-org must be >= 1")
 
 
-def _parse_csv(v: str | None) -> list[str] | None:
-    if not v:
+def _parse_csv(v: Any) -> list[str] | None:
+    if v is None:
         return None
+    if isinstance(v, list):
+        # Already rehydrated from manifest.
+        out = [str(x).strip().upper() for x in v if str(x).strip()]
+        return out or None
     out = [x.strip().upper() for x in v.split(",") if x.strip()]
     return out or None
 
 
 def _normalize_filters(args: argparse.Namespace) -> None:
-    args.state = _parse_csv(args.state)
-    args.ntee_major = _parse_csv(args.ntee_major)
+    """Normalize operator-supplied CSV filters. Preserves _UNSET sentinels."""
+    if args.state is not _UNSET:
+        args.state = _parse_csv(args.state)
+    if args.ntee_major is not _UNSET:
+        args.ntee_major = _parse_csv(args.ntee_major)
 
 
 # ── work selection ──────────────────────────────────────────────────────────
@@ -478,23 +530,30 @@ def _build_initial_manifest(args: argparse.Namespace,
 
 def _apply_manifest_args(args: argparse.Namespace,
                          manifest_args: dict) -> None:
-    """On resume, rehydrate filter args from the manifest.
+    """On resume, rehydrate filter args that the operator did NOT supply.
 
-    Any field the operator explicitly changes at resume time would cause
-    a fingerprint mismatch (aborting the resume), so there is no risk of
-    silently overriding a user-intended change — the mismatch check
-    follows immediately and names the differing fields.
+    Operator-supplied CLI values survive unchanged and flow into the
+    subsequent fingerprint check — any true mismatch with the manifest
+    must surface as an explicit error (AC14), not be silently masked.
     """
-    if not args.db:
-        args.db = manifest_args.get("db_path_canonical", "") or args.db
-    args.state = list(manifest_args.get("state") or []) or None
-    args.ntee_major = list(manifest_args.get("ntee_major") or []) or None
-    args.revenue_min = manifest_args.get("revenue_min")
-    args.revenue_max = manifest_args.get("revenue_max")
-    args.max_orgs = manifest_args.get("max_orgs", args.max_orgs)
-    args.batch_size = manifest_args.get("batch_size", args.batch_size)
-    args.model = manifest_args.get("model", args.model)
-    args.re_resolve = bool(manifest_args.get("re_resolve", args.re_resolve))
+    if args.db is _UNSET:
+        args.db = manifest_args.get("db_path_canonical", "") or None
+    if args.state is _UNSET:
+        args.state = list(manifest_args.get("state") or []) or None
+    if args.ntee_major is _UNSET:
+        args.ntee_major = list(manifest_args.get("ntee_major") or []) or None
+    if args.revenue_min is _UNSET:
+        args.revenue_min = manifest_args.get("revenue_min")
+    if args.revenue_max is _UNSET:
+        args.revenue_max = manifest_args.get("revenue_max")
+    if args.max_orgs is _UNSET:
+        args.max_orgs = manifest_args.get("max_orgs", DEFAULT_MAX_ORGS)
+    if args.batch_size is _UNSET:
+        args.batch_size = manifest_args.get("batch_size", DEFAULT_BATCH_SIZE)
+    if args.model is _UNSET:
+        args.model = manifest_args.get("model", "haiku")
+    if args.re_resolve is _UNSET:
+        args.re_resolve = bool(manifest_args.get("re_resolve", False))
 
 
 def _manifest_args(args: argparse.Namespace) -> dict:
@@ -605,8 +664,6 @@ def run(args: argparse.Namespace, *,
         agent_runner_factory: Any = None,
         ) -> int:
     """Core orchestration. Returns an exit code."""
-    _normalize_filters(args)
-
     # ── resume path ──────────────────────────────────────────────────────
     if args.resume:
         run_dir = Path(args.resume).resolve()
@@ -617,10 +674,12 @@ def run(args: argparse.Namespace, *,
             print(f"error: {exc}", file=sys.stderr)
             return 2
 
-        # Rehydrate filter args from manifest so the operator does not
-        # need to re-type them. Only fields the operator passed explicitly
-        # on resume override the manifest — argparse defaults do not.
+        # Rehydrate from manifest ONLY fields the operator did not supply
+        # on the CLI. Any explicit operator value stays as-is so that
+        # fingerprint_diff() can surface a real mismatch per AC14.
+        _normalize_filters(args)
         _apply_manifest_args(args, manifest.args)
+        _apply_cli_defaults(args)
 
         diff = fingerprint_diff(manifest.args, args, PROMPT_VERSION)
         if diff:
@@ -636,6 +695,8 @@ def run(args: argparse.Namespace, *,
                   file=sys.stderr)
             return 0
     else:
+        _apply_cli_defaults(args)
+        _normalize_filters(args)
         if not args.db:
             print("error: --db is required", file=sys.stderr)
             return 2
@@ -922,6 +983,7 @@ def _ingest_single_batch(*, batch: BatchState, engine: Engine,
         warn=lambda msg, **kw: event_log.emit("warning", message=msg,
                                               batch_id=batch.id, context=kw),
     )
+    pre_state = batch.state
     try:
         written, skipped = ingest_rows(
             engine, parsed, model=model, re_resolve=re_resolve,
@@ -937,6 +999,18 @@ def _ingest_single_batch(*, batch: BatchState, engine: Engine,
     ingest_stats["rows_written"] += written
     ingest_stats["rows_skipped"] += skipped
     ingest_stats["rows_by_conf"].extend(r["confidence"] for r in parsed.values())
+
+    # AC3: a partial batch stays `partial` even after its completed subset
+    # has been ingested — so that resume spawns a continuation for the
+    # missing EINs. Only a full-coverage batch advances to `ingested`.
+    if pre_state == "partial" and set(parsed.keys()) != input_eins:
+        # Partial remains partial; the DB has the rows we produced, and
+        # ingest_rows() is idempotent on resume (skips already-resolved).
+        manifest.save(manifest_path)
+        event_log.emit("batch_ingested", batch_id=batch.id,
+                       rows_written=written, rows_skipped=skipped,
+                       remaining_state="partial")
+        return
 
     batch.state = "ingested"
     manifest.save(manifest_path)
