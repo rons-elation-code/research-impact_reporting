@@ -57,6 +57,36 @@ def _db_shas(conn: sqlite3.Connection) -> set[str]:
     }
 
 
+def _fetch_log_attribution(
+    conn: sqlite3.Connection, sha: str
+) -> tuple[str, str] | None:
+    """Look up the authoritative EIN + redacted URL for `sha` in fetch_log.
+
+    Content-addressed dedup means two orgs can publish the same bytes;
+    the latest S3 PUT's user-metadata wins on the object but that isn't
+    authoritative for attribution. fetch_log is crawler-written and
+    per-attempt, so it captures the seeding org accurately. This is the
+    precedence the reconciler follows:
+
+        fetch_log (latest pdf-get row with sha in notes) → S3 metadata
+
+    Returns (ein, url_redacted) or None if the sha is not in fetch_log.
+    """
+    row = conn.execute(
+        """
+        SELECT ein, url_redacted FROM fetch_log
+         WHERE kind = 'pdf-get'
+           AND notes LIKE ?
+         ORDER BY id DESC
+         LIMIT 1
+        """,
+        (f"%sha={sha}%",),
+    ).fetchone()
+    if row is None or not row[0]:
+        return None
+    return row[0], row[1]
+
+
 def _valid_metadata(md: dict) -> tuple[bool, dict, str]:
     """Validate S3 user-metadata from head_object. Returns (ok, clean, reason).
 
@@ -152,31 +182,64 @@ def reconcile(
             head = client.head_object(Bucket=bucket, Key=key)
             md = head.get("Metadata", {}) or {}
             ok, clean, reason = _valid_metadata(md)
-            if not ok:
+            size = head.get("ContentLength", 0)
+
+            # Attribution precedence (round-3 review): fetch_log is
+            # authoritative for EIN + source URL because two orgs that
+            # publish identical bytes share one S3 key — the latest PUT's
+            # metadata is not reliably "the right owner." Only fall back
+            # to S3 metadata if the sha isn't in fetch_log at all.
+            fl = _fetch_log_attribution(conn, sha)
+            ein: str | None = None
+            source_redacted: str | None = None
+            fetched_at = ""
+            source_tag = ""
+
+            if fl is not None:
+                fl_ein, fl_url = fl
+                ein = fl_ein
+                source_redacted = fl_url  # already redacted in fetch_log
+                source_tag = "fetch_log"
+                if ok and clean["ein"] != fl_ein:
+                    log.warning(
+                        "RECONCILE_MISMATCH sha=%s fetch_log_ein=%s "
+                        "s3_metadata_ein=%s (using fetch_log)",
+                        sha, fl_ein, clean["ein"],
+                    )
+                if ok:
+                    fetched_at = clean["fetched_at"]
+            elif ok:
+                log.warning(
+                    "RECONCILE_S3_ONLY sha=%s (no fetch_log entry; "
+                    "using S3 metadata — best-effort)",
+                    sha,
+                )
+                ein = clean["ein"]
+                source_redacted = redact_url(clean["source_url"])
+                fetched_at = clean["fetched_at"]
+                source_tag = "s3_metadata"
+            else:
                 print(f"ORPHAN_INVALID_METADATA sha={sha} reason={reason}")
                 continue
-            size = head.get("ContentLength", 0)
-            # Use the crawler's canonical redaction so reconciler-inserted
-            # rows look identical to crawler-written ones.
-            redacted = redact_url(clean["source_url"])
+
             if apply:
                 _insert_orphan_row(
                     conn,
                     sha=sha,
-                    ein=clean["ein"],
-                    source_url=redacted,
-                    fetched_at=clean["fetched_at"],
+                    ein=ein,
+                    source_url=source_redacted,
+                    fetched_at=fetched_at,
                     file_size_bytes=size,
                 )
                 conn.commit()
                 print(
-                    f"ORPHAN_APPLIED sha={sha} ein={clean['ein']} "
-                    f"source={redacted}"
+                    f"ORPHAN_APPLIED sha={sha} ein={ein} "
+                    f"source={source_redacted} attribution={source_tag}"
                 )
             else:
                 print(
-                    f"ORPHAN sha={sha} ein={clean['ein']} "
-                    f"source={redacted}"
+                    f"ORPHAN sha={sha} ein={ein} "
+                    f"source={source_redacted} attribution={source_tag}"
                 )
 
         missing = db_shas - s3_shas

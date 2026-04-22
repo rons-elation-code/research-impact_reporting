@@ -139,6 +139,137 @@ def test_reconciler_redacts_source_url_matching_crawler(env, tmp_path):
     assert "SECRET" not in stored
 
 
+def test_fetch_log_attribution_beats_s3_metadata(env, tmp_path, caplog):
+    """Round-3 review: content-addressed dedup means two orgs can share
+    one S3 key. fetch_log is per-attempt and crawler-written, so it's
+    authoritative for attribution. Verify the reconciler prefers the
+    fetch_log EIN when S3 metadata disagrees, and warns about the
+    mismatch."""
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        # Simulate: orgA's PUT succeeds and fetch_log records it; later
+        # orgB publishes identical bytes and the latest PUT's metadata
+        # carries orgB's EIN. The reconciler should pick orgA from
+        # fetch_log.
+        arch.put(SHA, PDF, {
+            "source-url": "https://orgB.example/same-bytes.pdf",
+            "ein": "222222222",
+            "crawl-run-id": "runB",
+            "fetched-at": "2026-04-22T16:30:05Z",
+        })
+        db = tmp_path / "reports.db"
+        conn = schema.ensure_db(db)
+        # Seed a pdf-get fetch_log entry that references this sha
+        # (same format the crawler writes on archive_put_failed, reused
+        # here to seed an attribution source for the test).
+        conn.execute(
+            """INSERT INTO fetch_log
+                 (ein, url_redacted, kind, fetch_status, fetched_at, notes)
+               VALUES (?, ?, 'pdf-get', 'server_error', ?, ?)""",
+            (
+                "111111111",
+                "https://orgA.example/report.pdf",
+                "2026-04-22T16:29:00Z",
+                f"archive_put_failed:TransientError sha={SHA}",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        import logging
+        caplog.set_level(logging.WARNING)
+        reconcile_s3.reconcile(
+            db_path=str(db),
+            uri=f"s3://{BUCKET}/pdfs",
+            apply=True,
+            client=client,
+        )
+
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        row = conn.execute(
+            "SELECT source_org_ein, source_url_redacted "
+            "FROM reports WHERE content_sha256=?", (SHA,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    # fetch_log (orgA) wins, not S3 metadata (orgB).
+    assert row[0] == "111111111"
+    assert row[1] == "https://orgA.example/report.pdf"
+    # Mismatch was logged.
+    assert any("RECONCILE_MISMATCH" in r.getMessage() for r in caplog.records)
+
+
+def test_fetch_log_attribution_agreement_no_warn(env, tmp_path, caplog):
+    """When fetch_log and S3 metadata agree, no mismatch warning."""
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        arch.put(SHA, PDF, {
+            "source-url": "https://a.example/r.pdf",
+            "ein": "111111111",
+            "crawl-run-id": "r1",
+            "fetched-at": "2026-04-22T16:30:05Z",
+        })
+        db = tmp_path / "reports.db"
+        conn = schema.ensure_db(db)
+        conn.execute(
+            """INSERT INTO fetch_log
+                 (ein, url_redacted, kind, fetch_status, fetched_at, notes)
+               VALUES (?, ?, 'pdf-get', 'server_error', ?, ?)""",
+            (
+                "111111111",
+                "https://a.example/r.pdf",
+                "2026-04-22T16:29:00Z",
+                f"archive_put_failed:X sha={SHA}",
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        import logging
+        caplog.set_level(logging.WARNING)
+        reconcile_s3.reconcile(
+            db_path=str(db),
+            uri=f"s3://{BUCKET}/pdfs",
+            apply=True,
+            client=client,
+        )
+    assert not any("RECONCILE_MISMATCH" in r.getMessage() for r in caplog.records)
+
+
+def test_s3_only_fallback_warns(env, tmp_path, caplog):
+    """No fetch_log entry → fall back to S3 metadata with a WARNING."""
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        arch.put(SHA, PDF, {
+            "source-url": "https://orphan.example/r.pdf",
+            "ein": "999999999",
+            "crawl-run-id": "rX",
+            "fetched-at": "2026-04-22T16:30:05Z",
+        })
+        db = tmp_path / "reports.db"
+        conn = schema.ensure_db(db)
+        conn.close()
+
+        import logging
+        caplog.set_level(logging.WARNING)
+        reconcile_s3.reconcile(
+            db_path=str(db),
+            uri=f"s3://{BUCKET}/pdfs",
+            apply=False,
+            client=client,
+        )
+    assert any("RECONCILE_S3_ONLY" in r.getMessage() for r in caplog.records)
+
+
 def test_ac16_invalid_metadata_skipped(env, tmp_path, capsys):
     with mock_aws():
         client = boto3.client("s3", region_name=REGION)

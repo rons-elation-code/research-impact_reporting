@@ -183,15 +183,20 @@ class S3Archive:
 
     def startup_probe(self) -> None:
         configured_region = getattr(self._client.meta, "region_name", None)
-        if not configured_region:
-            raise ArchiveSetupError(
-                "no AWS region configured; pass --s3-region or set AWS_REGION"
-            )
 
+        # Round-3 review: do NOT hard-fail on missing configured_region.
+        # IMDS-only deployments can yield credentials without populating
+        # region_name; head_bucket's response header gives us the working
+        # region as a fallback. We only fail with "no region configured"
+        # if BOTH sources yield nothing.
         try:
             resp = self._client.head_bucket(Bucket=self.bucket)
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
+            headers = (
+                exc.response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
+            )
+            actual = headers.get("x-amz-bucket-region")
             if code in ("404", "NoSuchBucket"):
                 raise ArchiveSetupError(
                     f"bucket {self.bucket} does not exist"
@@ -200,15 +205,23 @@ class S3Archive:
                 raise ArchiveSetupError(
                     f"no permission to access bucket {self.bucket}"
                 ) from exc
-            # Region-mismatch surfaces here as a 301 with x-amz-bucket-region.
-            headers = (
-                exc.response.get("ResponseMetadata", {}).get("HTTPHeaders", {})
-            )
-            actual = headers.get("x-amz-bucket-region")
-            if actual and actual != configured_region:
+            if actual and configured_region and actual != configured_region:
                 raise ArchiveSetupError(
                     f"bucket {self.bucket} is in region {actual}; "
                     f"client configured for {configured_region}"
+                ) from exc
+            if actual and not configured_region:
+                # No client region, but the bucket told us where it is.
+                # Soft success — log and return.
+                log.info(
+                    "s3_bucket_region_resolved_from_head bucket=%s region=%s",
+                    self.bucket, actual,
+                )
+                return
+            if not configured_region and not actual:
+                raise ArchiveSetupError(
+                    "no AWS region configured; pass --s3-region or "
+                    "set AWS_REGION"
                 ) from exc
             raise ArchiveSetupError(
                 f"head_bucket failed: {code or exc}"
@@ -220,10 +233,16 @@ class S3Archive:
 
         headers = resp.get("ResponseMetadata", {}).get("HTTPHeaders", {})
         actual_region = headers.get("x-amz-bucket-region")
-        if actual_region and actual_region != configured_region:
+        if actual_region and configured_region and \
+                actual_region != configured_region:
             raise ArchiveSetupError(
                 f"bucket {self.bucket} is in region {actual_region}; "
                 f"client configured for {configured_region}"
+            )
+        if not configured_region and not actual_region:
+            raise ArchiveSetupError(
+                "no AWS region configured; pass --s3-region or "
+                "set AWS_REGION"
             )
 
         # Defense-in-depth: warn if versioning is off. Missing permission

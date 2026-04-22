@@ -108,21 +108,60 @@ def test_ac5_oversize_rejected(moto_s3, monkeypatch):
 # AC7 — startup probe variants
 # ---------------------------------------------------------------------
 
-def test_ac7_no_region_raises():
-    # Use a mock client with region_name=None; the probe must refuse
-    # without even attempting head_bucket.
-    class _FakeMeta:
+def test_startup_probe_soft_region_from_head_bucket(s3_env):
+    """Round-3 review: client region_name=None should NOT hard-fail if
+    head_bucket returns x-amz-bucket-region. Soft success path."""
+    client = boto3.client("s3", region_name=REGION)
+    stubber = Stubber(client)
+    stubber.add_response(
+        "head_bucket",
+        {"ResponseMetadata": {"HTTPHeaders": {"x-amz-bucket-region": "us-east-1"}}},
+        {"Bucket": "b"},
+    )
+    # Lie about region_name: present as None via a shim.
+    class _Meta:
         region_name = None
+        events = client.meta.events
 
-    class _FakeClient:
-        meta = _FakeMeta()
+    class _Shim:
+        meta = _Meta()
 
-        def head_bucket(self, **_):  # pragma: no cover — should not reach
-            raise AssertionError("head_bucket should not be called")
+        def head_bucket(self, **kw):
+            return client.head_bucket(**kw)
 
-    arch = s3a.S3Archive("any-bucket", "pdfs", client=_FakeClient())
-    with pytest.raises(s3a.ArchiveSetupError, match="no AWS region"):
-        arch.startup_probe()
+        def get_bucket_versioning(self, **kw):
+            from botocore.exceptions import ClientError as CE
+            raise CE({"Error": {"Code": "AccessDenied"}}, "GetBucketVersioning")
+
+    with stubber:
+        arch = s3a.S3Archive("b", "pdfs", client=_Shim())
+        arch.startup_probe()  # does not raise
+
+
+def test_startup_probe_raises_when_neither_region_source(s3_env):
+    """If region_name is None AND head_bucket returns no region header
+    on error, we still raise the 'no region' ArchiveSetupError."""
+    client = boto3.client("s3", region_name=REGION)
+    stubber = Stubber(client)
+    stubber.add_client_error(
+        "head_bucket",
+        service_error_code="SomeOtherError",
+        http_status_code=500,
+    )
+    class _Meta:
+        region_name = None
+        events = client.meta.events
+
+    class _Shim:
+        meta = _Meta()
+
+        def head_bucket(self, **kw):
+            return client.head_bucket(**kw)
+
+    with stubber:
+        arch = s3a.S3Archive("b", "pdfs", client=_Shim())
+        with pytest.raises(s3a.ArchiveSetupError, match="no AWS region"):
+            arch.startup_probe()
 
 
 def test_ac7_bucket_not_found_raises(moto_s3):
