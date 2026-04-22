@@ -98,17 +98,48 @@ SQL file.
 
 New schema changes are versioned SQL files (`002_*.sql`,
 `003_*.sql`, ...), applied via pgAdmin or psql. A `schema_version`
-row is inserted at the end of each, which the Python adapter can
-check at startup via:
+row is inserted at the end of each.
+
+**Startup check — required for every production CLI entrypoint**:
 
 ```python
 def assert_schema_at_least(engine, min_version: int) -> None:
-    v = engine.execute(text(
-        "SELECT MAX(version) FROM lava_impact.schema_version"
-    )).scalar()
-    if v < min_version:
-        raise RuntimeError(f"Schema at v{v}; code expects v{min_version}+")
+    """Called at the top of main() for every production entrypoint.
+    Hard-fails with exit 2 if schema is too old OR schema_version
+    table is absent."""
+    try:
+        with engine.connect() as conn:
+            v = conn.execute(text(
+                "SELECT MAX(version) FROM lava_impact.schema_version"
+            )).scalar()
+    except Exception as exc:
+        raise SystemExit(
+            f"schema_version table missing or unreadable: {exc}. "
+            "Apply migrations from lavandula/migrations/rds/ before running."
+        ) from exc
+    if v is None or v < min_version:
+        raise SystemExit(
+            f"schema at v{v}; code expects v{min_version}+. "
+            "Apply newer migrations from lavandula/migrations/rds/."
+        )
 ```
+
+**Which entrypoints call it**:
+- `seed_enumerate.main()`
+- `resolve_websites.main()`
+- `batch_resolve.main()`
+- `crawler.run()`
+- `classify_null.main()`
+- `reconcile_s3.main()`
+- `backfill_rds.main()`
+
+Each uses a `MIN_SCHEMA_VERSION` module-level constant declaring what
+version the code was written against. Post-this-spec, `MIN_SCHEMA_VERSION = 2`
+(after the attribution_rank migration lands).
+
+**Drift detection**: the check is schema-version-only. If an operator
+manually altered the schema, we won't catch that. Out of scope; use
+pg_dump diff if you need to detect.
 
 ### Removing DBWriter queue
 
@@ -170,23 +201,50 @@ ON CONFLICT (content_sha256) DO UPDATE SET
 A small helper function `attribution_rank(TEXT) RETURNS INTEGER` gets
 added to the schema via a new migration `002_attribution_helper.sql`.
 
-### Budget ledger atomicity
+### Budget ledger atomicity (rewrite — `SELECT FOR UPDATE` is wrong for this)
 
-`check_and_reserve` / `settle` / `release` need atomic reserve-then-
-deduct semantics. SQLite relied on single-writer serialization. In
-Postgres:
+SQLite relied on single-writer serialization to make reserve-then-
+deduct atomic. The Postgres equivalent isn't `SELECT FOR UPDATE`
+(locking SUM'd rows doesn't prevent concurrent inserts into the
+same table). The correct pattern is a **transaction-scoped advisory
+lock**, which serializes only this critical section and releases
+automatically at commit/rollback:
 
-```sql
--- inside a single transaction:
-SELECT SUM(cents_spent) FROM lava_impact.budget_ledger FOR UPDATE;
--- compute remaining budget
-INSERT INTO lava_impact.budget_ledger (...) VALUES (...);
--- commit
+```python
+def check_and_reserve(engine, cents: int, cap_cents: int, ...) -> bool:
+    BUDGET_LOCK_KEY = 0xB0DGE7  # arbitrary constant; all budget ops use it
+    with engine.begin() as conn:
+        conn.execute(text("SELECT pg_advisory_xact_lock(:k)"),
+                     {"k": BUDGET_LOCK_KEY})
+        spent = conn.execute(text(
+            "SELECT COALESCE(SUM(cents_spent), 0) FROM lava_impact.budget_ledger"
+        )).scalar()
+        if spent + cents > cap_cents:
+            return False
+        conn.execute(text(
+            "INSERT INTO lava_impact.budget_ledger "
+            "(at_timestamp, classifier_model, sha256_classified, "
+            " input_tokens, output_tokens, cents_spent, notes) "
+            "VALUES (:ts, :model, :sha, :in, :out, :cents, :notes)"
+        ), {...})
+        return True
+    # advisory lock released at transaction end
 ```
 
-The `FOR UPDATE` row-locking inside a transaction gives us the same
-atomicity the SQLite single-writer pattern did, without requiring a
-queue.
+**Why this works**:
+- `pg_advisory_xact_lock` serializes all callers who use the same
+  key, regardless of which rows exist.
+- Lock auto-releases at transaction end (commit or rollback) — no
+  explicit unlock needed, no leak on crash.
+- Empty-ledger case handled via `COALESCE(SUM, 0)`.
+- Isolation level: **READ COMMITTED** (Postgres default) is sufficient
+  because the advisory lock gives us mutual exclusion.
+
+`settle` and `release` use the same pattern. `release` is simple
+DELETE + INSERT; `settle` is INSERT with actual-cost; both wrap in
+`pg_advisory_xact_lock`.
+
+**Concurrency test required**: AC15 below.
 
 ### Dual-write code deletion
 
@@ -197,30 +255,60 @@ Delete:
 - `verify_dual_write.py` from `lavandula/common/tools/`
 - Phase 3 test files: `test_rds_db_writer_0013p3.py`, `test_db_writer_dual_0013p3.py`, `test_verify_dual_write_0013p3.py`
 
-### Test migration
+### Test migration (mandatory rules — not builder discretion)
 
-Unit tests currently use `sqlite3.connect(":memory:")` or tempfile
-SQLite DBs. Two paths:
+Two categories, explicit rule per category:
 
-- **Path A (preferred for new tests)**: use `testing.postgresql` or a
-  docker-compose-provided Postgres in CI. Local dev: developers run a
-  local Postgres container.
-- **Path B (pragmatic)**: keep SQLAlchemy engine tests dialect-
-  agnostic where the test surface doesn't exercise dialect-specific
-  features. Those tests use in-memory SQLite as a test-only optimization
-  and still pass on Postgres in CI.
+**Category A — Tests for Postgres-specific features** (REQUIRED to
+hit Postgres): anything that exercises `ON CONFLICT`, `pg_advisory_lock`,
+`RETURNING`, `BIGSERIAL`, `attribution_rank()` helper, or concurrent
+write semantics. These MUST use `testing.postgresql` (spawns a local
+Postgres per-test) or a docker-compose-provided Postgres in CI.
+In-memory SQLite is NOT acceptable for these tests — the dialects
+differ exactly where the test proves behavior.
 
-For this spec, most tests migrate to Path B to minimize disruption. A
-future spec can move to Path A if/when we have a CI Postgres fixture.
+**Category B — Tests for dialect-agnostic code** (may use in-memory
+SQLite via the SQLAlchemy engine): plain parameterized SELECT /
+INSERT / UPDATE / DELETE against simple columns. The engine URL is
+a test fixture; the test code doesn't care.
+
+Specific mandatory Postgres fixtures:
+- `test_db_writer_upsert_report_merge_logic` — exercises `attribution_rank()`
+  CASE expression. Category A.
+- `test_budget_reserve_concurrent_callers` — AC15. Category A.
+- `test_schema_version_check_fails_when_stale` — Category A (needs
+  real `schema_version` table + lava_impact schema).
+- `test_crawler_parallel_write_no_deadlock` — 8 threads writing
+  concurrently to `crawled_orgs`/`reports`/`fetch_log`. Category A.
+- Everything else in `tests/unit/` currently passing with
+  `sqlite3.connect(":memory:")` — migrate to SQLAlchemy engine
+  with SQLite URL (Category B).
+
+CI configuration: a docker-compose service or a pytest fixture that
+spawns `testing.postgresql` for Category A tests. Dev machines need
+the same. Fixture auto-applies `001_initial_schema.sql` +
+`002_attribution_helper.sql` before each test.
 
 ---
 
 ## Acceptance Criteria
 
 **AC1** — No production module imports `sqlite3` directly. Verified by
-grep gate in CI: `grep -rn "^import sqlite3\|^from sqlite3" lavandula/
---include='*.py' | grep -v tests/ | grep -v backfill_rds.py` returns
-zero lines.
+grep gate in CI. Exactly two files are permitted to retain
+`import sqlite3`:
+- `lavandula/common/tools/backfill_rds.py` (reads SQLite source files)
+- Test helpers under `tests/` directories (dev-time dialect-agnostic tests)
+
+The grep gate:
+```bash
+grep -rn "^import sqlite3\|^from sqlite3" lavandula/ --include='*.py' \
+  | grep -v '^lavandula/common/tools/backfill_rds\.py:' \
+  | grep -v '/tests/'
+# Must return zero lines; non-zero → CI fail
+```
+
+No "deprecated but tolerated" module path is allowed. If a module has
+any production write it must migrate entirely.
 
 **AC2** — `lavandula/reports/db_queue.py` is deleted.
 
@@ -330,6 +418,74 @@ Threat model stays the same as Phase 1.
 5. Resume normal operations.
 
 ---
+
+## Rollout / cutover contract
+
+1. **No concurrent production writes during migration window.** Before
+   spawning the builder, the architect ensures no pipeline is
+   actively writing to `lava_impact` tables. RDS is currently
+   truncated (as of 2026-04-22 22:11 UTC); no writes are happening
+   until the migration merges.
+2. **Legacy SQLite files remain at their current paths as read-only
+   artifacts.** Builder does NOT delete or modify them. Post-merge
+   backfill reads from them to restore production state.
+3. **CLI flag `--nonprofits-db` is REMOVED** (not deprecated-with-
+   warning). Builder deletes it from argparse for every tool.
+   Anyone running the old flag gets argparse's standard "unknown
+   argument" error. No silent fallback.
+4. **Legacy jobs**: any cron or script referencing the old tools must
+   be caught by the architect post-merge. Out of scope for the builder.
+5. **Preconditions for resuming production** (the architect verifies
+   all of these before running the post-merge backfill):
+   - All unit + integration tests green on master
+   - `schema_version` shows v2+ in RDS
+   - The 15-org end-to-end test passed (AC7-AC10)
+   - pg_dump backup from before truncate exists locally
+6. **`db_queue.py` deletion safety**: builder must audit existing
+   callers of `DBWriter.put()` before deletion. If any closure
+   relied on SQLite-level write ordering beyond simple durability,
+   flag to architect for review. At architect's reading of the code:
+   no current closure has ordering dependencies beyond "commit before
+   we say we wrote." Safe to delete.
+7. **AC7-AC11 are manual verification steps**, not automated CI gates.
+   They run from the EC2 host with live RDS + S3. The builder's PR
+   does not need to demonstrate them; the architect executes them
+   post-merge. The builder's automated test suite (Category A Postgres
+   + Category B SQLite) is the CI gate.
+
+## Security Considerations (expanded)
+
+Threat model is materially the same as Phase 1 (RDS adapter), but the
+surface area of writes changes. Specific requirements preserved or
+added:
+
+1. **Parameterized SQL only.** All SQL must use SQLAlchemy `text()`
+   with `:named` bind parameters or `%(named)s` psycopg2 style. No
+   f-string SQL construction. Grep gate in CI:
+   `grep -rn 'f"[^"]*INSERT\|f"[^"]*UPDATE\|f"[^"]*DELETE' lavandula/
+   --include='*.py'` must return zero lines in production code.
+2. **TLS/IAM-only auth.** `make_app_engine()` from Phase 1 already
+   enforces `sslmode=require` + IAM token injection. No module
+   constructs its own engine with different params.
+3. **Least privilege validated.** A CI test attempts a write as
+   `ro_user1` to any `lava_impact` table and asserts it fails with
+   `permission denied`.
+4. **Connection pool bounds.** Default `pool_size=5,
+   max_overflow=10` from Phase 1. Crawler TICK-002 uses 8 workers
+   → 8 concurrent connections max → within pool. Any future worker-
+   count increase requires revisiting pool size. Document this
+   coupling in `make_app_engine()` docstring.
+5. **Identifier whitelist on schema name.** The Phase 1 adapter
+   already validates schema name via regex. Preserved.
+6. **No elevated-privilege tokens in the runtime path.** `app_user1`
+   is the only role the runtime uses; `postgres` master is manual-
+   DDL only.
+
+Residual risk: noisy-neighbor on `lava_prod1` once Amazon order data
+shares the instance. Mitigated by Postgres's per-query planner and
+the low runtime query rate (~100 writes/sec max during a crawl).
+Revisit if a dashboard or extraction query causes user-visible
+degradation for order-data consumers.
 
 ## Files Changed
 
