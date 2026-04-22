@@ -22,6 +22,7 @@ Production SSM keys (flat-hyphenated, under
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
 from typing import Any
@@ -31,6 +32,7 @@ from sqlalchemy.engine import Engine
 
 
 _REGION = "us-east-1"
+_SCHEMA_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 
 
 class IAMTokenManager:
@@ -112,6 +114,12 @@ def make_engine(
     pool_size, max_overflow : SQLAlchemy pool sizing.
     token_manager : injection point for tests.
     """
+    if schema is not None and not _SCHEMA_NAME_RE.match(schema):
+        raise ValueError(
+            f"invalid schema name {schema!r}: must match "
+            f"{_SCHEMA_NAME_RE.pattern}"
+        )
+
     mgr = token_manager or IAMTokenManager(
         region=region, host=host, port=port, user=user,
     )

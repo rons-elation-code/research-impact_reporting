@@ -161,6 +161,38 @@ def test_do_connect_injects_token_as_password():
     mgr.token.assert_called()
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        'lava"; DROP SCHEMA public; --',
+        "lava_impact; SELECT 1",
+        "Lava_Impact",           # uppercase not allowed
+        "1lava",                 # leading digit
+        "lava-impact",           # hyphen
+        "a" * 65,                # too long
+        "",                      # empty
+        "lava impact",           # space
+    ],
+)
+def test_make_engine_rejects_malformed_schema(bad):
+    """Schema is interpolated into SET search_path; reject non-identifiers."""
+    mgr = MagicMock(spec=IAMTokenManager)
+    with pytest.raises(ValueError):
+        make_engine(
+            host="h", port=5432, database="d", user="u",
+            schema=bad, token_manager=mgr,
+        )
+
+
+def test_make_engine_accepts_valid_schema():
+    mgr = MagicMock(spec=IAMTokenManager)
+    engine = make_engine(
+        host="h", port=5432, database="d", user="u",
+        schema="lava_impact", token_manager=mgr,
+    )
+    assert engine is not None
+
+
 def test_ssm_based_factory_wiring(monkeypatch):
     """AC5: make_app_engine wires SSM values into make_engine.
 
