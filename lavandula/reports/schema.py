@@ -97,13 +97,23 @@ def insert_raw_report_for_test(
 
 
 def connect(*args: Any, **kwargs: Any):
-    """Deprecated shim. Construct an engine via
-    `lavandula.common.db.make_app_engine()` instead."""
-    raise RuntimeError(
-        "lavandula.reports.schema.connect() was removed in Spec 0017. "
-        "Use lavandula.common.db.make_app_engine() and pass the "
-        "returned Engine to db_writer functions."
-    )
+    """Back-compat shim (Spec 0017 AC6).
+
+    Returns `make_app_engine()`. The pre-0017 SQLite `db_path` argument
+    is accepted and ignored with a `DeprecationWarning`, so any leftover
+    callsite keeps working while it's cleaned up in a later sweep.
+    """
+    import warnings
+    if args or kwargs:
+        warnings.warn(
+            "lavandula.reports.schema.connect() ignores its arguments "
+            "after Spec 0017; returning the production engine from "
+            "lavandula.common.db.make_app_engine() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    from lavandula.common.db import make_app_engine
+    return make_app_engine()
 
 
 __all__ = ["insert_raw_report_for_test", "connect"]

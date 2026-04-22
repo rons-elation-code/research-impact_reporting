@@ -547,6 +547,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
+
+    # Spec 0017 AC: every production entrypoint hard-fails on stale schema.
+    # backfill_rds writes into lava_impact and assumes v2+ is live. The
+    # check lives in main() (not run()) so unit tests that inject a mock
+    # engine into run() don't need a full schema_version fixture.
+    from lavandula.common.db import (
+        MIN_SCHEMA_VERSION,
+        assert_schema_at_least,
+        make_app_engine,
+    )
+    try:
+        _probe_engine = make_app_engine()
+        try:
+            assert_schema_at_least(_probe_engine, MIN_SCHEMA_VERSION)
+        finally:
+            _probe_engine.dispose()
+    except SystemExit:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        log.error("cannot build RDS engine for schema check: %s",
+                  exc.__class__.__name__)
+        return 2
+
     return run(
         source_sqlite=args.source_sqlite,
         tables=args.table,
