@@ -190,7 +190,7 @@ projects:
   - id: "0007"
     title: "S3-Backed PDF Archive"
     summary: "Replace local-disk PDF archive with direct-to-S3 streaming upload. Addresses two concerns: (1) disk exhaustion at scale (5K+ orgs × ~5MB × 2 PDFs = 50GB+), (2) data protection (EBS is single-point-of-failure). PDF bytes stream through memory for first-page text extraction, then PUT to S3 by SHA256 key. SQLite metadata unchanged — classifier hot path unaffected."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0007-s3-pdf-archive.md
