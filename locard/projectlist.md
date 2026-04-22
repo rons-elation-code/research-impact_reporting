@@ -190,15 +190,15 @@ projects:
   - id: "0007"
     title: "S3-Backed PDF Archive"
     summary: "Replace local-disk PDF archive with direct-to-S3 streaming upload. Addresses two concerns: (1) disk exhaustion at scale (5K+ orgs × ~5MB × 2 PDFs = 50GB+), (2) data protection (EBS is single-point-of-failure). PDF bytes stream through memory for first-page text extraction, then PUT to S3 by SHA256 key. SQLite metadata unchanged — classifier hot path unaffected."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0007-s3-pdf-archive.md
-      plan: null
+      plan: locard/plans/0007-s3-pdf-archive.md
       review: null
     dependencies: ["0004"]
     tags: [infrastructure, storage, s3, crawler]
-    notes: "Blocks big-crawl work on >5K orgs. Bucket: lavandula-nonprofit-collaterals (us-east-1, SSE-S3, versioned, private). Not yet specified."
+    notes: "Spec + plan approved 2026-04-22 (red-team APPROVE). PR #4 merged 2026-04-22 after 5 review rounds. Bucket: lavandula-nonprofit-collaterals (us-east-1, SSE-S3, versioned, private). Follow-up TICK: unify Archive.head() shape across LocalArchive/S3Archive + harden startup_probe."
 
   - id: "0008"
     title: "Agent Batch Runner"
