@@ -268,7 +268,7 @@ projects:
   - id: "0013"
     title: "SQLite → PostgreSQL (RDS) Dual-Write Migration"
     summary: "Staged migration to managed Postgres RDS. Deploys RDS alongside existing SQLite with clean Alembic-managed schema, adds dual-write mode to db_writer so every write hits both backends, one-time backfills existing SQLite rows to RDS, then flips reads to RDS once dual-write is proven stable. Avoids a clean-cutoff pause because corpus build is continuous. Uses SQLAlchemy (already committed for 0006/0008) so the code change is minimal."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0013-rds-postgres-migration.md

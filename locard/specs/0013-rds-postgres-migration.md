@@ -82,15 +82,36 @@ Five phases, gated explicitly:
 
 | Phase | What changes | Rollback |
 |-------|-------------|----------|
-| 0. **Provision** | RDS instance, DB, schema, roles, SG, SSM keys | Terminate RDS |
+| 0. **Provision** ✅ DONE 2026-04-22 | RDS `lava-1`, DB `lava_prod1`, schema `lava_impact`, roles `app_user1`/`ro_user1`, IAM auth, 8 tables + 2 views | Drop schema |
 | 1. **Connect** | Python adapter (`lavandula.common.db`) with SQLAlchemy + IAM token manager | Remove adapter import |
-| 2. **Backfill** | One-time copy of current SQLite rows into RDS | Truncate RDS tables |
+| 2. **Backfill** | One-time copy of current SQLite rows into RDS | TRUNCATE RDS tables |
 | 3. **Dual-write** | `db_writer` writes to both SQLite and RDS | Flag off, drop RDS queue |
 | 4. **Read flip** | Reads come from RDS; SQLite reads retained behind a fallback flag | Flip reads back to SQLite |
 
 Each phase is independently mergeable and reversible. Phase order is
 strict: cannot dual-write before backfill; cannot flip reads before
 dual-write is validated.
+
+### Phase 0 actual state (as completed 2026-04-22)
+
+- Database: `lava_prod1` (existing; shared with future Amazon order data)
+- Schema: `lava_impact` (research data scope)
+- Tables (8): `schema_version`, `nonprofits_seed`, `runs`, `reports`,
+  `fetch_log`, `crawled_orgs`, `deletion_log`, `budget_ledger`
+- Views (2): `nonprofits`, `reports_public`
+- Roles (IAM auth via `rds_iam` group):
+  - `app_user1` — CRUD + CREATE on `lava_impact`
+  - `ro_user1` — SELECT only on `lava_impact`
+  - `postgres` (master) — DDL; NOT `rds_iam` (password auth only for
+    future manual migrations; placeholder password stored temporarily
+    in SSM during initial DDL and deleted after)
+- IAM policy on `cloud2_lavandulagroup` EC2 role includes
+  `rds-db:connect` for both user ARNs
+- SSM connection params at `/cloud2.lavandulagroup.com/rds-*`:
+  `endpoint`, `port`, `database`, `schema`, `app-user`, `ro-user`
+- Migration file committed at
+  `lavandula/migrations/rds/001_initial_schema.sql` — plain SQL run
+  via pgAdmin/psql as master. NO Alembic.
 
 ### Phase 0 — RDS provisioning
 
@@ -272,10 +293,10 @@ def make_app_engine() -> Engine:
     """Production app-role engine. Reads connection params from SSM."""
     from .secrets import get_secret  # existing helper
     return make_engine(
-        host=get_secret("rds/endpoint"),
-        port=int(get_secret("rds/port")),
-        database=get_secret("rds/database"),
-        user=get_secret("rds/app_user"),
+        host=get_secret("rds-endpoint"),
+        port=int(get_secret("rds-port")),
+        database=get_secret("rds-database"),
+        user=get_secret("rds-app-user"),
         region="us-east-1",
         role="app",
     )
@@ -285,14 +306,19 @@ def make_ro_engine() -> Engine:
     """Read-only engine for extraction/gallery future apps."""
     from .secrets import get_secret
     return make_engine(
-        host=get_secret("rds/endpoint"),
-        port=int(get_secret("rds/port")),
-        database=get_secret("rds/database"),
-        user=get_secret("rds/ro_user"),
+        host=get_secret("rds-endpoint"),
+        port=int(get_secret("rds-port")),
+        database=get_secret("rds-database"),
+        user=get_secret("rds-ro-user"),
         region="us-east-1",
         role="ro",
     )
 ```
+
+SSM keys use the flat-hyphenated naming convention (`rds-endpoint`,
+etc.), matching the project-wide standard in `secrets.py`. Schema name
+(`lava_impact`) is applied via `search_path` in connection setup or
+via fully-qualified table names in SQL — not in the URL.
 
 #### Why not port the JS helper wholesale?
 
