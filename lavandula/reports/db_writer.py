@@ -211,7 +211,16 @@ def upsert_crawled_org(
                     ON CONFLICT (ein) DO UPDATE SET
                       last_crawled_at = EXCLUDED.last_crawled_at,
                       candidate_count = EXCLUDED.candidate_count,
-                      fetched_count = EXCLUDED.fetched_count
+                      fetched_count = EXCLUDED.fetched_count,
+                      -- SQLite-parity: the crawler passes 0 on re-crawl
+                      -- and classify_null backfills the real value later.
+                      -- GREATEST protects the classify_null-backfilled
+                      -- count from being reset to 0 on re-crawl, matching
+                      -- SQLite's "intentionally NOT updated here" behavior.
+                      confirmed_report_count = GREATEST(
+                        {_RDS_SCHEMA}.crawled_orgs.confirmed_report_count,
+                        EXCLUDED.confirmed_report_count
+                      )
                     """,
                     params,
                 )

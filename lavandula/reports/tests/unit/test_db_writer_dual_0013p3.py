@@ -131,8 +131,11 @@ def test_upsert_crawled_org_enqueues_postgres_closure(sqlite_conn):
     sql = pg.all_sql()[0]
     assert "INSERT INTO lava_impact.crawled_orgs" in sql
     assert "ON CONFLICT (ein) DO UPDATE" in sql
-    # confirmed_report_count intentionally NOT in the DO UPDATE clause
-    assert "confirmed_report_count = EXCLUDED.confirmed_report_count" not in sql
+    # SQLite-parity: crawler passes 0 on re-crawl; GREATEST prevents the
+    # classify_null-backfilled count from being overwritten by 0. Raw
+    # EXCLUDED assignment would cause drift.
+    assert "GREATEST" in sql
+    assert "confirmed_report_count = GREATEST" in sql
 
 
 def test_record_deletion_omits_id_and_uses_schema(sqlite_conn):
