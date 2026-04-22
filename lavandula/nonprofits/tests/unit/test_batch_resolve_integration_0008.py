@@ -370,6 +370,118 @@ def test_partial_batch_state_preserved_for_resume_retry(tmp_path: Path) -> None:
 
 # ── Round-2 fix: flock is held on a dedicated sentinel, not the manifest ──
 
+# ── Round-3 fix #1: timeout with zero output stays retryable ─────────────
+
+def test_timeout_batch_preserved_for_resume(tmp_path: Path) -> None:
+    """Round-3 #1 — a timeout with no output must NOT be marked `ingested`.
+    It must remain retryable so --resume re-attempts it.
+    """
+    db = tmp_path / "s.db"
+    _make_db(db, n=1)
+
+    class TimeoutRunner:
+        def run(self, inv: AgentInvocation) -> AgentResult:
+            # Write nothing; report timeout.
+            inv.output_path.parent.mkdir(parents=True, exist_ok=True)
+            inv.output_path.write_text("")
+            return AgentResult(inv.batch_id, "timeout", 0,
+                               1, "wall-clock timeout")
+
+    args = _parse(["--db", str(db), "--batch-size", "1", "--parallelism", "1",
+                   "--yes"])
+    rc = br.run(args, agent_runner_factory=lambda: TimeoutRunner())
+    assert rc == 0
+    run_dir = next((tmp_path / "agent-results").iterdir())
+    manifest = RunManifest.load(run_dir / "RUN_MANIFEST.json")
+    # Single batch, zero output → must be retryable, NOT `ingested`.
+    assert manifest.batches[0].state != "ingested", (
+        "timeout batch with zero output silently marked ingested — "
+        "resume would never retry it"
+    )
+    assert manifest.batches[0].state in ("partial", "timeout")
+
+
+# ── Round-3 fix #2: duration_sec reflects actual agent wall time ─────────
+
+def test_duration_sec_measures_agent_runtime(tmp_path: Path) -> None:
+    """Round-3 #2 — duration_sec must measure from submit() to done,
+    not from as_completed() entry to end of post-processing.
+    """
+    db = tmp_path / "s.db"
+    _make_db(db, n=1)
+
+    class SlowRunner:
+        def run(self, inv: AgentInvocation) -> AgentResult:
+            time.sleep(0.2)  # simulate 200ms of agent runtime
+            return FakeAgentRunner().run(inv)
+
+    args = _parse(["--db", str(db), "--batch-size", "1", "--parallelism", "1",
+                   "--yes"])
+    rc = br.run(args, agent_runner_factory=lambda: SlowRunner())
+    assert rc == 0
+    run_dir = next((tmp_path / "agent-results").iterdir())
+    events = [json.loads(l) for l in (run_dir / "run.log").read_text().splitlines() if l.strip()]
+    completes = [e for e in events if e["event"] == "batch_complete"]
+    assert completes
+    # Actual agent sleep was ~0.2s; logged duration must reflect that,
+    # not near-zero (which would indicate measurement starts after done).
+    assert completes[0]["duration_sec"] >= 0.15
+
+
+# ── Round-3 fix #3: continuation completed_count accumulates ──────────────
+
+def test_continuation_accumulates_completed_count(tmp_path: Path) -> None:
+    """Round-3 #3 — continuations must ADD to completed_count, not
+    overwrite it. A partial batch producing 1 of 3, then a continuation
+    producing 2 of 2, should end at completed_count=3 (not 2).
+    """
+    db = tmp_path / "s.db"
+    _make_db(db, n=3)
+
+    phase = {"n": 0}
+
+    class StagedRunner:
+        def run(self, inv: AgentInvocation) -> AgentResult:
+            orgs = [json.loads(l) for l in inv.input_path.read_text().splitlines() if l.strip()]
+            phase["n"] += 1
+            # First call: emit first org only, report partial.
+            # Subsequent call (continuation): emit all its orgs.
+            with open(inv.output_path, "w") as f:
+                if phase["n"] == 1:
+                    f.write(json.dumps({
+                        "ein": orgs[0]["ein"],
+                        "url": "https://a.org",
+                        "confidence": "high",
+                        "reasoning": "r",
+                    }) + "\n")
+                    return AgentResult(inv.batch_id, "partial",
+                                       1, len(orgs), None)
+                for o in orgs:
+                    f.write(json.dumps({
+                        "ein": o["ein"],
+                        "url": f"https://cont-{o['ein']}.org",
+                        "confidence": "high",
+                        "reasoning": "c",
+                    }) + "\n")
+            return AgentResult(inv.batch_id, "complete",
+                               len(orgs), len(orgs), None)
+
+    args = _parse(["--db", str(db), "--batch-size", "3", "--parallelism", "1",
+                   "--yes"])
+    rc = br.run(args, agent_runner_factory=lambda: StagedRunner())
+    assert rc == 0
+    run_dir = next((tmp_path / "agent-results").iterdir())
+    args2 = _parse(["--resume", str(run_dir), "--yes"])
+    rc2 = br.run(args2, agent_runner_factory=lambda: StagedRunner())
+    assert rc2 == 0
+    manifest = RunManifest.load(run_dir / "RUN_MANIFEST.json")
+    # First attempt produced 1, continuation produced 2 → total 3.
+    assert manifest.batches[0].completed_count == 3, (
+        f"continuation overwrote completed_count instead of accumulating: "
+        f"got {manifest.batches[0].completed_count}"
+    )
+
+
 def test_flock_survives_manifest_atomic_rename(tmp_path: Path) -> None:
     """Round-2 #2 — flock must be on a sentinel file that is never
     renamed, otherwise a concurrent runner silently acquires a fresh lock.

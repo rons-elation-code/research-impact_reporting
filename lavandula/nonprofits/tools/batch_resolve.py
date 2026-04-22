@@ -848,7 +848,10 @@ def _drive_batches(*, args: argparse.Namespace, engine: Engine,
         if batch.state == "complete":
             # Already ran but not ingested — fall through to ingestion below.
             continue
-        if batch.state == "partial":
+        if batch.state in ("partial", "timeout"):
+            # Both states preserve whatever output the agent did emit
+            # before dying; resume spawns a continuation for the missing
+            # EINs rather than overwriting the existing output file.
             input_eins = _load_batch_input_eins(run_dir, batch.id)
             existing_rows = parse_output_file(
                 _batch_output_paths(run_dir, batch.id, batch.continuation_count),
@@ -885,6 +888,9 @@ def _drive_batches(*, args: argparse.Namespace, engine: Engine,
     runner = agent_runner_factory()
 
     # ── parallel agent spawn, sequential ingestion on main thread ────────
+    # Track submission time per batch so duration_sec measures actual
+    # agent wall time, not post-completion bookkeeping (round-3 #2).
+    started_at: dict[int, float] = {}
     try:
         with futures.ThreadPoolExecutor(max_workers=args.parallelism) as pool:
             future_map: dict[futures.Future, tuple[BatchState, AgentInvocation, bool]] = {}
@@ -897,12 +903,16 @@ def _drive_batches(*, args: argparse.Namespace, engine: Engine,
                     input_count=batch.input_count,
                 )
                 ingest_stats["agent_calls_attempted"] += 1
+                started_at[batch.id] = time.monotonic()
                 fut = pool.submit(runner.run, inv)
                 future_map[fut] = (batch, inv, is_cont)
 
             for fut in futures.as_completed(future_map):
                 batch, inv, is_cont = future_map[fut]
-                batch_started = time.monotonic()
+                duration = round(
+                    time.monotonic() - started_at.get(batch.id, time.monotonic()),
+                    2,
+                )
                 try:
                     result = fut.result()
                 except Exception as exc:  # noqa: BLE001
@@ -910,15 +920,22 @@ def _drive_batches(*, args: argparse.Namespace, engine: Engine,
                     batch.error = f"{type(exc).__name__}: {exc}"
                     manifest.save(manifest_path)
                     event_log.emit("batch_complete", batch_id=batch.id,
-                                   state="failed", error=batch.error)
+                                   state="failed", error=batch.error,
+                                   duration_sec=duration)
                     continue
 
+                # Accumulate across continuations — each attempt's
+                # completed_count adds to what the earlier attempts
+                # produced; plain assignment only for the first attempt
+                # (round-3 #3).
                 if is_cont:
                     batch.continuation_count += 1
+                    batch.completed_count += result.completed_count
+                else:
+                    batch.completed_count = result.completed_count
 
                 # Normalize state on disk.
                 batch.state = result.state
-                batch.completed_count = result.completed_count
                 if result.error:
                     batch.error = result.error
                 manifest.save(manifest_path)
@@ -932,7 +949,7 @@ def _drive_batches(*, args: argparse.Namespace, engine: Engine,
                     state=result.state,
                     completed_count=result.completed_count,
                     input_count=result.input_count,
-                    duration_sec=round(time.monotonic() - batch_started, 2),
+                    duration_sec=duration,
                     error=result.error,
                 )
 
@@ -1000,16 +1017,21 @@ def _ingest_single_batch(*, batch: BatchState, engine: Engine,
     ingest_stats["rows_skipped"] += skipped
     ingest_stats["rows_by_conf"].extend(r["confidence"] for r in parsed.values())
 
-    # AC3: a partial batch stays `partial` even after its completed subset
-    # has been ingested — so that resume spawns a continuation for the
-    # missing EINs. Only a full-coverage batch advances to `ingested`.
-    if pre_state == "partial" and set(parsed.keys()) != input_eins:
-        # Partial remains partial; the DB has the rows we produced, and
-        # ingest_rows() is idempotent on resume (skips already-resolved).
+    # AC3: a batch with missing EINs stays retryable after its completed
+    # subset has been ingested — so that resume spawns a continuation
+    # for the missing EINs. Only full-coverage batches advance to
+    # `ingested`. Both `partial` (agent finished but short) and
+    # `timeout` (agent killed mid-stream) are retryable via the same
+    # continuation path; a `timeout` with zero output would otherwise
+    # fall through to `ingested` and be silently lost (round-3 #1).
+    if (pre_state in ("partial", "timeout")
+            and set(parsed.keys()) != input_eins):
+        batch.state = "partial"
         manifest.save(manifest_path)
         event_log.emit("batch_ingested", batch_id=batch.id,
                        rows_written=written, rows_skipped=skipped,
-                       remaining_state="partial")
+                       remaining_state="partial",
+                       originating_state=pre_state)
         return
 
     batch.state = "ingested"
