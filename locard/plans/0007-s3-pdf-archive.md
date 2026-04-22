@@ -43,24 +43,39 @@ Read these files top-to-bottom before writing any code:
 
 ## Step 1 — Dependencies
 
-Edit `lavandula/reports/requirements.in` (runtime) and
-`lavandula/reports/tests/requirements.in` (test) if those exist; if
-not, the crawler venv already has a single `requirements.in`.
+The reports package has two requirements files (verified 2026-04-22):
 
-Add to runtime deps:
-- `boto3>=1.34` (latest stable as of 2026-04-22)
+- `lavandula/reports/requirements.in` — runtime
+- `lavandula/reports/requirements-dev.in` — dev/test
 
-Add to test deps only:
-- `moto[s3]>=5.0`
+Add to `requirements.in`:
+```
+boto3>=1.34
+```
 
-Regenerate `requirements.txt` via the project's standard `pip-compile`
-pipeline. Do not hand-edit the lockfile.
+Add to `requirements-dev.in`:
+```
+moto[s3]>=5.0
+```
+
+Regenerate both `requirements.txt` files:
+```
+cd lavandula/reports
+pip-compile requirements.in
+pip-compile requirements-dev.in
+```
+
+Do not hand-edit the `.txt` lockfiles. If `pip-compile` is not
+installed in the dev venv, install it first: `pip install pip-tools`.
 
 ---
 
-## Step 2 — New: `lavandula/reports/archive.py`
+## Step 2a — New: `lavandula/reports/archive.py`
 
-Defines the archive backend interface and the two concrete classes.
+Defines the archive backend Protocol + the `LocalArchive`
+implementation. Keeping the S3 class in a separate module
+(`s3_archive.py`) keeps boto3 out of the import chain for
+local-only workflows and matches the spec's naming.
 
 ```python
 from typing import Protocol
@@ -86,22 +101,23 @@ class Archive(Protocol):
         ...
 ```
 
-Two concrete implementations:
-
-1. **`LocalArchive`** — wraps the existing local-file write behavior.
-   `put()` writes `body` to `{archive_dir}/{sha256}.pdf`; metadata
-   written to a sidecar `.json` file (optional — keep simple, no
-   sidecar in v1). `startup_probe()` checks the dir exists and is
-   writable.
-
-2. **`S3Archive`** — wraps boto3 `put_object`/`head_object`/`get_object`
-   /`head_bucket`. Constructor accepts an optional `boto3_client` for
-   dependency injection (tests use moto). `startup_probe()` runs
-   `head_bucket` and compares the `x-amz-bucket-region` response
-   header against the client's configured region.
-
 The `Archive` Protocol is duck-typed — no ABC, no registration. A test
 can pass any object with the four methods.
+
+`LocalArchive` goes here:
+- `put()` writes `body` to `{archive_dir}/{sha256}.pdf`
+- Metadata sidecar is NOT implemented in v1 (kept simple; local mode
+  is for dev/test, metadata lives in reports.db anyway)
+- `startup_probe()` checks the dir exists and is writable
+
+## Step 2b — New: `lavandula/reports/s3_archive.py`
+
+This is the filename named in the spec's "Files Changed" section.
+AC12's grep assertion will look for imports of this module in
+`classify_null.py`.
+
+Module contents: the `S3Archive` class, `_encode_s3_metadata` helper,
+`ArchiveSetupError` exception.
 
 ### `S3Archive` — construction and responsibilities
 
@@ -155,28 +171,71 @@ from urllib.parse import quote
 
 _MAX_SOURCE_URL_LEN = 1024
 
+_ASCII_SAFE = re.compile(r'^[\x21-\x7e]*$')  # printable ASCII, no controls
+
 def _encode_s3_metadata(raw: dict) -> dict:
     """Encode metadata values to satisfy S3 ASCII rules and prevent
-    header injection via CRLF."""
+    header injection via CRLF.
+
+    Fallback: if even after percent-encoding a value is rejected by
+    S3's metadata validator (exotic edge case), drop the offending
+    key and log a structured warning. Never block the PUT on
+    metadata encoding failure.
+    """
     out = {}
     for k, v in raw.items():
         if v is None:
             continue
         if k == "source-url":
-            # safe='' is the CRLF defense — don't relax it.
-            encoded = quote(v, safe='')
+            encoded = quote(str(v), safe='')
             encoded = encoded[:_MAX_SOURCE_URL_LEN]
+            if not _ASCII_SAFE.match(encoded):
+                log.warning(
+                    "s3_metadata_encoding_failed key=%s",
+                    k,  # do not log the value
+                )
+                continue
             out[k] = encoded
         else:
             # EIN, run-id, timestamp — already ASCII; pass through.
-            out[k] = str(v)
+            str_v = str(v)
+            if not _ASCII_SAFE.match(str_v):
+                log.warning("s3_metadata_encoding_failed key=%s", k)
+                continue
+            out[k] = str_v
     return out
 ```
 
+The ASCII-only regex is defense-in-depth — S3's metadata validation
+already rejects non-printable bytes, but we prefer to drop bad values
+silently-with-warning rather than fail the whole PUT.
+
 ### `S3Archive.startup_probe()`
+
+Handles all the startup validation required by the spec, in this
+order:
+
+1. No region configured at all (neither `--s3-region`, AWS_REGION,
+   config file, nor IMDS resolved) → fail with
+   `no AWS region configured; pass --s3-region or set AWS_REGION`.
+2. `head_bucket` against the bucket:
+   - 404 / NoSuchBucket → `bucket X does not exist`
+   - 403 / AccessDenied → `no permission to access bucket X`
+   - Other ClientError → re-raise with full context
+   - Connection error (IMDS down, network partition) → propagate
+     as `ArchiveSetupError` with a clear cause
+3. Compare `x-amz-bucket-region` response header to the client's
+   configured region. Mismatch →
+   `bucket X is in region Y; client configured for Z`.
 
 ```python
 def startup_probe(self) -> None:
+    configured_region = self._client.meta.region_name
+    if not configured_region:
+        raise ArchiveSetupError(
+            "no AWS region configured; pass --s3-region or set AWS_REGION"
+        )
+
     try:
         resp = self._client.head_bucket(Bucket=self.bucket)
     except ClientError as exc:
@@ -189,13 +248,18 @@ def startup_probe(self) -> None:
             raise ArchiveSetupError(
                 f"no permission to access bucket {self.bucket}"
             ) from exc
-        raise
+        raise ArchiveSetupError(
+            f"head_bucket failed: {code or exc}"
+        ) from exc
+    except (EndpointConnectionError, NoCredentialsError) as exc:
+        raise ArchiveSetupError(
+            f"could not connect to S3 or load credentials: {exc}"
+        ) from exc
 
     actual_region = resp["ResponseMetadata"]["HTTPHeaders"].get(
         "x-amz-bucket-region", "unknown"
     )
-    configured_region = self._client.meta.region_name
-    if configured_region and actual_region != configured_region:
+    if actual_region != configured_region and actual_region != "unknown":
         raise ArchiveSetupError(
             f"bucket {self.bucket} is in region {actual_region}; "
             f"client configured for {configured_region}"
@@ -216,7 +280,16 @@ New signature:
 def download(client, url, *, archive, run_id, ein, ...) -> DownloadOutcome
 ```
 
-`archive` is an `Archive` (duck-typed). Inside `download()`:
+`archive` is an `Archive` (duck-typed). **Thread-safety**: boto3
+documents that low-level clients (what we're using) are thread-safe
+for most operations — safe to share one `S3Archive` instance across
+worker threads. We do so to avoid per-thread TLS handshake overhead.
+The `boto3-thread-safety` test below proves this holds under
+concurrent PUT load. If a future boto3 release changes this
+guarantee, the plan should switch to per-thread clients matching the
+crawler's existing HTTP-client pattern.
+
+Inside `download()`:
 
 1. Stream the HTTP response into `bytes` (existing code, unchanged).
 2. Run the existing PDF magic + structure validation subprocess.
@@ -252,6 +325,14 @@ here would amplify delays.
 Current: `--archive-dir DIR`. Keep it as an alias.
 
 Add: `--archive VALUE` — canonical.
+
+**Production-prefix invariant**: spec says prefix must be `pdfs/` in
+production. Enforcement: the crawler emits a WARNING log line when
+the resolved S3 prefix is anything other than `pdfs`. Not a hard
+block — tests and dev environments legitimately use alternate
+prefixes. The log message reads:
+`non-standard S3 prefix "{prefix}"; production convention is "pdfs"`.
+Production runbooks (HANDOFF.md) state the convention explicitly.
 
 Argparse setup:
 
@@ -320,9 +401,30 @@ usage: python -m lavandula.reports.tools.reconcile_s3 \
     [--dry-run | --apply]
 ```
 
+**Prerequisite — schema audit**: before building the insert
+statement, the builder must read the actual `CREATE TABLE reports`
+from `lavandula/reports/schema.py` and identify:
+
+- Which columns are NOT NULL
+- Which have DEFAULT values
+- Which are required for `reports_public` view membership
+
+The minimal orphan-reinsert row must satisfy NOT NULL constraints.
+Based on the current schema (audited 2026-04-22), required columns
+for a row to exist are: `content_sha256` (PK). All other columns
+including `ein`, `source_url`, `first_page_text`, `classification`
+etc. are nullable. The reconciler populates `content_sha256`, `ein`,
+`source_url`, `archived_at` (from `fetched-at` metadata); leaves
+everything else NULL for classify_null.py and future runs to fill.
+
+If a future schema change adds NOT NULL columns without defaults,
+the reconciler's insert will fail and this plan's test will catch
+it. That's acceptable — schema change implies the reconciler needs
+re-audit too.
+
 Logic:
 
-1. Parse args. `--dry-run` default; `--apply` required for writes.
+1. Parse args. Require exactly one of `--dry-run` / `--apply`.
 2. Open reports DB (read-only for dry-run, read-write for apply).
 3. Load all `content_sha256` values from `reports` into a Python set
    (`db_shas`).
@@ -331,117 +433,115 @@ Logic:
 5. Compute `orphans = s3_shas - db_shas` and `missing = db_shas - s3_shas`.
 6. For each orphan:
    - `head_object` to read metadata
-   - Extract `ein`, `source-url` (percent-decoded for storage)
+   - Extract `ein`, `source-url` (percent-decoded for storage),
+     `fetched-at`
+   - **Optional source-URL HEAD probe** (spec's note): if
+     `--verify-source` flag is set, do an HTTP HEAD on the
+     decoded source URL and skip re-inserting if the server returns
+     non-200. Default: do not probe (simpler; the S3 bytes are the
+     source of truth regardless of whether the origin URL still
+     serves them).
    - If `--dry-run`: print `ORPHAN sha=... ein=... source=...`
-   - If `--apply`: insert a minimal `reports` row using metadata as
-     source of truth; leave `first_page_text=NULL`, `classification=NULL`
-     (classify_null can fill later)
+   - If `--apply`: insert a minimal `reports` row with the columns
+     audited above.
 7. For each missing: print `MISSING sha=... (DB references but S3 has no object)`.
    This should be rare; do not attempt auto-repair.
 8. Exit with 0 on success, 2 on any hard error.
 
 Tests: unit test with moto populating a bucket, a tempfile reports.db,
-and assertions on exit code + DB state after `--apply`.
+and assertions on exit code + DB state after `--apply`. Plus a
+schema-audit test that loads the current `CREATE TABLE reports` and
+verifies the reconciler's column-set subset.
 
 ---
 
 ## Step 7 — Tests
 
-### Unit tests (all with moto, no AWS)
+### AC → test mapping (every AC has a concrete test)
 
-**`tests/unit/test_s3_archive_0007.py`** (covers AC1, AC2, AC3, AC5,
-AC7, AC8, AC9, AC13, AC14, AC15):
+| AC | Test file | Test name | Mock strategy |
+|----|-----------|-----------|---------------|
+| AC1 | `test_s3_archive_0007.py` | `test_ac1_key_format` | moto |
+| AC2 | `test_s3_archive_0007.py` | `test_ac2_sse_aes256_applied` | moto |
+| AC3 | `test_s3_archive_0007.py` | `test_ac3_canonical_metadata_keys` | moto |
+| AC4 | `test_fetch_pdf_s3_0007.py` | `test_ac4_text_extracted_before_put` | MagicMock archive that asserts order |
+| AC5 | `test_fetch_pdf_s3_0007.py` | `test_ac5_oversize_not_put` | MagicMock archive; assert `put` never called when body > 50MB |
+| AC6 | `test_fetch_pdf_local_regression_0007.py` | `test_ac6_local_archive_byte_identical` | golden-file comparison against pre-0007 snapshot |
+| AC7a | `test_s3_archive_0007.py` | `test_ac7_no_region_raises` | client with `region_name=None` |
+| AC7b | `test_s3_archive_0007.py` | `test_ac7_bucket_not_found_raises` | moto (bucket not created) |
+| AC7c | `test_s3_archive_0007.py` | `test_ac7_access_denied_raises` | botocore stubber injecting 403 |
+| AC7d | `test_s3_archive_0007.py` | `test_ac7_region_mismatch_raises` | botocore stubber with header override |
+| AC8 | `test_s3_archive_retry_0007.py` | `test_ac8_503_then_success_retries` | custom boto3 event hook (see below) |
+| AC9 | `test_crawler_s3_integration_0007.py` | `test_ac9_put_failure_writes_fetch_log_no_reports` | end-to-end via real DBWriter + moto S3 + fault injection |
+| AC10 | n/a | `grep` gate in CI — zero `aws s3` / `boto3.client("s3")` in unit test source files without moto decorator | ci check |
+| AC11 | `test_crawler_archive_argv_0007.py` | 5 sub-tests, one per argv rule | pure argparse |
+| AC12 | `test_classify_null_no_s3_import_0007.py` | `test_ac12_classify_null_does_not_import_s3_archive` | Python AST walk of classify_null.py source |
+| AC13 | `test_s3_archive_0007.py` | `test_ac13_key_basename_matches_regex` | moto |
+| AC14 | `test_s3_archive_0007.py` | `test_ac14_put_never_sets_acl` | botocore stubber asserts no `ACL` key |
+| AC15 | `test_archive_encoding_0007.py` | 4 sub-tests (CRLF, truncation, non-ASCII, fallback) | pure-function |
+| AC16 | `test_reconcile_s3_0007.py` | 2 sub-tests (dry-run, apply) | moto + tempfile reports.db |
 
-Use `moto.mock_aws` decorator on each test function.
+### How to test AC8 retry without Stubber
 
-Representative tests:
+`botocore.stub.Stubber` intercepts *above* the retry layer, so it
+can't prove retries happened. Two workable approaches — pick one:
 
-```python
-@mock_aws
-def test_ac1_s3_put_uses_correct_key_format():
-    client = boto3.client("s3", region_name="us-east-1")
-    client.create_bucket(Bucket="testbucket")
-    archive = S3Archive("testbucket", prefix="pdfs", client=client)
-    archive.put("a"*64, b"%PDF-1.7\n...", {"ein": "123456789",
-                "source-url": "https://example.org/r.pdf",
-                "crawl-run-id": "run1", "fetched-at": "2026-04-22T00:00:00Z"})
-    resp = client.list_objects_v2(Bucket="testbucket")
-    assert resp["Contents"][0]["Key"] == "pdfs/" + "a"*64 + ".pdf"
-```
-
-```python
-@mock_aws
-def test_ac2_sse_s3_applied():
-    # After put, head_object returns ServerSideEncryption == "AES256"
-    ...
-
-@mock_aws
-def test_ac3_metadata_present_with_canonical_keys():
-    # head_object shows metadata keys source-url, ein, crawl-run-id, fetched-at
-    ...
-
-@mock_aws
-def test_ac7_head_bucket_404_raises_clear_error():
-    client = boto3.client("s3", region_name="us-east-1")
-    archive = S3Archive("doesnotexist", client=client)
-    with pytest.raises(ArchiveSetupError, match="does not exist"):
-        archive.startup_probe()
-
-@mock_aws
-def test_ac7_region_mismatch_raises_clear_error():
-    # Create bucket in us-west-2 via mocked API; probe with us-east-1 client
-    ...
-```
-
-For AC8 (5xx retry) and AC14 (no ACL param), use `botocore.stub`
-instead of moto so we can inject exact HTTP responses and assert exact
-request kwargs.
-
-**`tests/unit/test_crawler_archive_argv_0007.py`** (covers AC11):
-
-Pure argparse tests. Instantiate the parser, call `parse_args` on
-various argv combinations, assert `parser.error` raises `SystemExit`
-with the expected message.
-
-**`tests/unit/test_archive_encoding_0007.py`** (covers AC15, part of AC3):
-
-Pure-function tests on `_encode_s3_metadata`:
+**Option A (preferred)**: register a `before-send` event handler on
+the S3 client. The handler counts invocations and returns a fake 503
+response for the first two, passes through on the third. boto3's
+`RetryHandler` sees the 503s, applies its default retry config (3
+attempts), and eventually succeeds.
 
 ```python
-def test_crlf_url_is_encoded_and_does_not_inject_headers():
-    result = _encode_s3_metadata({
-        "source-url": "https://a.example/\r\nx-amz-acl: public-read",
-        "ein": "123456789",
-    })
-    assert result["source-url"] == (
-        "https%3A%2F%2Fa.example%2F%0D%0Ax-amz-acl%3A%20public-read"
-    )
-    # The literal "\r\n" does not appear anywhere:
-    assert "\r" not in result["source-url"]
-    assert "\n" not in result["source-url"]
+call_count = [0]
+def fake_503_then_success(request, **kwargs):
+    call_count[0] += 1
+    if call_count[0] < 3:
+        return botocore.awsrequest.AWSResponse(
+            url=request.url, status_code=503, headers={}, raw=None
+        )
+    return None  # let it through to moto
 
-def test_long_url_truncated_to_1024_chars():
-    long_url = "https://example.org/" + ("a" * 2000)
-    result = _encode_s3_metadata({"source-url": long_url, "ein": "1"})
-    assert len(result["source-url"]) == 1024
+client.meta.events.register(
+    "before-send.s3.PutObject", fake_503_then_success
+)
 ```
 
-**`tests/unit/test_reconcile_s3_0007.py`** (covers AC16):
+**Option A** exercises boto3's real retry stack.
 
-```python
-@mock_aws
-def test_reconcile_dry_run_lists_orphan_but_does_not_write(tmp_path):
-    # setup: create bucket, upload one PDF with metadata, create empty reports.db
-    # invoke reconcile_s3 main() with --dry-run
-    # assert: stdout contains ORPHAN line with sha/ein
-    # assert: reports.db has 0 rows
+**Option B (fallback)**: scale back AC8 to verify the client's retry
+config is set correctly (3 attempts, standard mode), without proving
+end-to-end retry. Add a note that a live-S3 integration test covers
+actual retries.
 
-@mock_aws
-def test_reconcile_apply_inserts_orphan(tmp_path):
-    # same setup
-    # invoke with --apply
-    # assert: reports.db has 1 row with matching sha/ein
-```
+Pick Option A; if it proves flaky in CI, fall back to Option B.
+
+### How to test AC9 end-to-end
+
+Create a fixture `fake_crawler` that:
+1. Spins up a real `DBWriter` against a tempfile reports.db
+2. Uses moto for the S3 backend
+3. Configures moto to make `put_object` raise permanently (5
+   retries fail)
+4. Calls `process_org` with one org on one worker thread
+5. Waits for DBWriter to drain, then asserts:
+   - `reports` table has 0 rows for the test EIN
+   - `fetch_log` table has 1 row with `kind='pdf-get'`,
+     `outcome='error'`
+
+Place this test in
+`tests/unit/test_crawler_s3_integration_0007.py`. Despite the name
+and directory, it's a unit test in the sense that all external
+systems are mocked — no real AWS or network.
+
+### Boto3 thread-safety test
+
+**`test_s3_archive_thread_safety_0007.py`**:
+Spawn 8 threads, each doing 20 PUTs against a moto-backed `S3Archive`
+instance (shared). Assert all 160 objects land with correct content.
+
+This is cheap insurance that a future boto3 release doesn't break
+our shared-client assumption silently.
 
 ### Integration test (live S3, gated)
 
