@@ -112,7 +112,7 @@ projects:
   - id: "0001"
     title: "Nonprofit Seed List Extraction"
     summary: "Extract ~48K US nonprofit profiles (EIN, name, website URL, rating, revenue, sector, state) from Charity Navigator's public sitemap into a queryable SQLite database, to serve as the seed list for a future report-harvesting bot."
-    status: implementing
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0001-nonprofit-seed-list-extraction.md
@@ -120,7 +120,7 @@ projects:
       review: locard/reviews/0001-nonprofit-seed-list-extraction.md
     dependencies: []
     tags: [crawler, data-acquisition, nonprofit, lavandula-sales]
-    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) added 2026-04-17. TICK-005 + TICK-006 merged 2026-04-20. TICK-008 (IRS fields from ProPublica) spec+plan approved 2026-04-20 — spawning builder."
+    notes: "Spec + plan approved 2026-04-17. Implementation merged to master 2026-04-17 after architect APPROVE (.consult/0001/architect-signoff.md). 96 tests passing + lint.sh clean. TICK-001 (curated-lists pivot) 2026-04-17. TICK-005 + TICK-006 merged 2026-04-20. TICK-008 (IRS fields from ProPublica) merged 2026-04-20 — OrgDetail dataclass + 6 columns + PRAGMA migrations. Marked integrated 2026-04-22 — seed enumeration is running in production (TX 100 + NY 5K runs both successful)."
 
   - id: "0002"
     title: "Corpus Search Engine (abandoned)"
