@@ -453,7 +453,42 @@ Threat model stays the same as Phase 1.
    post-merge. The builder's automated test suite (Category A Postgres
    + Category B SQLite) is the CI gate.
 
-## Security Considerations (expanded)
+## Red-team findings addressed
+
+**CRITICAL — brittle grep gate for f-string SQL**: replaced with a
+real AST-based check. Add `bandit` to dev deps; CI runs:
+
+```bash
+bandit -r lavandula/ --exclude lavandula/*/tests -c pyproject.toml
+# config enables B608 (hardcoded_sql_expressions)
+```
+
+The grep gate remains as a cheap first-line filter, but the Bandit
+S608 check is the authoritative gate. Mandate in CI that both pass.
+
+**HIGH — advisory lock key registry**: create
+`lavandula/common/lock_keys.py` with named constants:
+
+```python
+"""Central registry of Postgres advisory lock IDs.
+Every caller of pg_advisory_xact_lock() must use a key from here.
+Keys are arbitrary but must be unique project-wide to avoid
+cross-feature deadlocks."""
+BUDGET_LEDGER_RESERVE = 0xB0DGE7    # check_and_reserve/settle/release
+# Future lock keys added here, one per use case.
+```
+
+`budget.py` imports and uses `BUDGET_LEDGER_RESERVE`. Any future
+advisory lock must add a named constant here; a grep gate catches
+hardcoded hex literals in `pg_advisory_xact_lock` calls.
+
+**HIGH — budget SUM scan grows O(n)**: at current scale
+(~150 rows, <1M expected within a year) this is trivial. Documented
+as a known scaling limit. Add a follow-up TICK on Spec 0017 if the
+ledger grows past ~100K rows: introduce a cached running total via
+a materialized row or trigger. Not blocking this spec.
+
+
 
 Threat model is materially the same as Phase 1 (RDS adapter), but the
 surface area of writes changes. Specific requirements preserved or
