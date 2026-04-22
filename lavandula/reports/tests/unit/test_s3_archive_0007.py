@@ -1,0 +1,253 @@
+"""Spec 0007 — unit tests for S3Archive (moto-backed).
+
+Covers ACs: 1, 2, 3, 5, 7 (startup probe variants), 13, 14.
+"""
+from __future__ import annotations
+
+import re
+
+import boto3
+import pytest
+from botocore.exceptions import ClientError
+from botocore.stub import Stubber
+from moto import mock_aws
+
+from lavandula.reports import s3_archive as s3a
+
+
+BUCKET = "test-lavandula-archive"
+REGION = "us-east-1"
+PDF_BYTES = b"%PDF-1.4\n% minimal\n%%EOF\n"
+SHA = "a" * 64
+
+
+@pytest.fixture
+def s3_env(monkeypatch):
+    monkeypatch.setenv("AWS_DEFAULT_REGION", REGION)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+
+
+@pytest.fixture
+def moto_s3(s3_env):
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        yield client
+
+
+def _archive(client, prefix="pdfs"):
+    return s3a.S3Archive(BUCKET, prefix, region=REGION, client=client)
+
+
+# ---------------------------------------------------------------------
+# AC1 — key format + in-memory only write
+# ---------------------------------------------------------------------
+
+def test_ac1_key_format(moto_s3):
+    arch = _archive(moto_s3)
+    arch.put(SHA, PDF_BYTES, {"ein": "123456789"})
+    resp = moto_s3.list_objects_v2(Bucket=BUCKET)
+    keys = [o["Key"] for o in resp.get("Contents", [])]
+    assert keys == [f"pdfs/{SHA}.pdf"]
+
+
+def test_ac1_empty_prefix_uses_flat_key(moto_s3):
+    arch = _archive(moto_s3, prefix="")
+    arch.put(SHA, PDF_BYTES, {})
+    resp = moto_s3.list_objects_v2(Bucket=BUCKET)
+    assert resp["Contents"][0]["Key"] == f"{SHA}.pdf"
+
+
+# ---------------------------------------------------------------------
+# AC2 — SSE AES256
+# ---------------------------------------------------------------------
+
+def test_ac2_sse_aes256_applied(moto_s3):
+    arch = _archive(moto_s3)
+    arch.put(SHA, PDF_BYTES, {})
+    head = moto_s3.head_object(Bucket=BUCKET, Key=f"pdfs/{SHA}.pdf")
+    assert head.get("ServerSideEncryption") == "AES256"
+
+
+# ---------------------------------------------------------------------
+# AC3 — canonical metadata keys
+# ---------------------------------------------------------------------
+
+def test_ac3_canonical_metadata_keys(moto_s3):
+    arch = _archive(moto_s3)
+    metadata = {
+        "source-url": "https://example.org/report.pdf",
+        "ein": "123456789",
+        "crawl-run-id": "deadbeef",
+        "fetched-at": "2026-04-22T16:30:05Z",
+    }
+    arch.put(SHA, PDF_BYTES, metadata)
+    head = moto_s3.head_object(Bucket=BUCKET, Key=f"pdfs/{SHA}.pdf")
+    md = head["Metadata"]
+    assert set(md) == {"source-url", "ein", "crawl-run-id", "fetched-at"}
+    assert md["ein"] == "123456789"
+    assert md["crawl-run-id"] == "deadbeef"
+    assert md["fetched-at"] == "2026-04-22T16:30:05Z"
+    # percent-encoded
+    assert md["source-url"] == "https%3A%2F%2Fexample.org%2Freport.pdf"
+
+
+# ---------------------------------------------------------------------
+# AC5 — 50 MB cap
+# ---------------------------------------------------------------------
+
+def test_ac5_oversize_rejected(moto_s3, monkeypatch):
+    monkeypatch.setattr(s3a.config, "MAX_PDF_BYTES", 16)
+    arch = _archive(moto_s3)
+    with pytest.raises(s3a.ArchiveSizeError):
+        arch.put(SHA, b"x" * 17, {})
+
+
+# ---------------------------------------------------------------------
+# AC7 — startup probe variants
+# ---------------------------------------------------------------------
+
+def test_ac7_no_region_raises():
+    # Use a mock client with region_name=None; the probe must refuse
+    # without even attempting head_bucket.
+    class _FakeMeta:
+        region_name = None
+
+    class _FakeClient:
+        meta = _FakeMeta()
+
+        def head_bucket(self, **_):  # pragma: no cover — should not reach
+            raise AssertionError("head_bucket should not be called")
+
+    arch = s3a.S3Archive("any-bucket", "pdfs", client=_FakeClient())
+    with pytest.raises(s3a.ArchiveSetupError, match="no AWS region"):
+        arch.startup_probe()
+
+
+def test_ac7_bucket_not_found_raises(moto_s3):
+    arch = _archive(moto_s3)
+    arch.bucket = "no-such-bucket-0007"
+    with pytest.raises(s3a.ArchiveSetupError, match="does not exist"):
+        arch.startup_probe()
+
+
+def test_ac7_access_denied_raises(s3_env):
+    client = boto3.client("s3", region_name=REGION)
+    stubber = Stubber(client)
+    stubber.add_client_error(
+        "head_bucket",
+        service_error_code="403",
+        http_status_code=403,
+    )
+    with stubber:
+        arch = s3a.S3Archive("denied", "pdfs", region=REGION, client=client)
+        with pytest.raises(s3a.ArchiveSetupError, match="no permission"):
+            arch.startup_probe()
+
+
+def test_ac7_region_mismatch_raises(s3_env):
+    # Simulate a 301 with x-amz-bucket-region header pointing elsewhere.
+    client = boto3.client("s3", region_name=REGION)
+    stubber = Stubber(client)
+    stubber.add_client_error(
+        "head_bucket",
+        service_error_code="PermanentRedirect",
+        http_status_code=301,
+        response_meta={"HTTPHeaders": {"x-amz-bucket-region": "us-west-2"}},
+    )
+    with stubber:
+        arch = s3a.S3Archive("wrong", "pdfs", region=REGION, client=client)
+        with pytest.raises(s3a.ArchiveSetupError, match="region us-west-2"):
+            arch.startup_probe()
+
+
+def test_ac7_happy_path_passes(moto_s3):
+    arch = _archive(moto_s3)
+    arch.startup_probe()  # no exception
+
+
+# ---------------------------------------------------------------------
+# AC13 — key basename regex
+# ---------------------------------------------------------------------
+
+def test_ac13_key_basename_regex(moto_s3):
+    arch = _archive(moto_s3)
+    arch.put(SHA, PDF_BYTES, {})
+    resp = moto_s3.list_objects_v2(Bucket=BUCKET)
+    key = resp["Contents"][0]["Key"]
+    base = key.rsplit("/", 1)[-1]
+    assert re.match(r"^[a-f0-9]{64}\.pdf$", base)
+    assert re.match(r"^([^/]+/)*[a-f0-9]{64}\.pdf$", key)
+
+
+def test_ac13_rejects_malformed_sha(moto_s3):
+    arch = _archive(moto_s3)
+    with pytest.raises(ValueError):
+        arch.put("not-a-sha", PDF_BYTES, {})
+    with pytest.raises(ValueError):
+        arch.put("a" * 63, PDF_BYTES, {})  # too short
+
+
+# ---------------------------------------------------------------------
+# AC14 — never set ACL
+# ---------------------------------------------------------------------
+
+def test_ac14_put_never_sets_acl(s3_env):
+    client = boto3.client("s3", region_name=REGION)
+    stubber = Stubber(client)
+    captured = {}
+
+    expected = {
+        "Bucket": BUCKET,
+        "Key": f"pdfs/{SHA}.pdf",
+        "Body": PDF_BYTES,
+        "ContentLength": len(PDF_BYTES),
+        "ContentType": "application/pdf",
+        "ServerSideEncryption": "AES256",
+        "Metadata": {},
+    }
+
+    def record(params, **kwargs):
+        captured.update(params)
+
+    stubber.add_response("put_object", {}, expected)
+    with stubber:
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        arch.put(SHA, PDF_BYTES, {})
+    # Stubber accepted the call only because our expected params
+    # did not contain ACL — any attempt to pass ACL would have raised.
+    # As a belt-and-braces assertion, re-run against a captured-params
+    # event hook.
+
+    call_params = {}
+
+    def capture_before_param(params, **_):
+        call_params.update(params)
+
+    client2 = boto3.client("s3", region_name=REGION)
+    client2.meta.events.register("before-parameter-build.s3.PutObject",
+                                 capture_before_param)
+    with mock_aws():
+        client2.create_bucket(Bucket=BUCKET)
+        arch2 = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client2)
+        arch2.put(SHA, PDF_BYTES, {})
+    assert "ACL" not in call_params
+
+
+# ---------------------------------------------------------------------
+# get / head round-trip
+# ---------------------------------------------------------------------
+
+def test_get_and_head_roundtrip(moto_s3):
+    arch = _archive(moto_s3)
+    arch.put(SHA, PDF_BYTES, {"ein": "123456789"})
+    assert arch.get(SHA) == PDF_BYTES
+    h = arch.head(SHA)
+    assert h is not None
+    assert h["metadata"]["ein"] == "123456789"
+
+
+def test_head_returns_none_when_missing(moto_s3):
+    arch = _archive(moto_s3)
+    assert arch.head(SHA) is None

@@ -6,6 +6,11 @@ to content-addressable storage, classifies them via Anthropic Haiku
 (or the Codex CLI subscription shim), and exposes a `reports_public`
 SQLite view for downstream consumers.
 
+Spec 0007 (2026-04-22) replaced the local-disk archive with an
+S3-backed one. The crawler streams each PDF through memory to
+`s3://bucket/pdfs/{sha256}.pdf`, never touching local disk. See
+`## Configuring the PDF archive` below.
+
 TICK-002 (2026-04-21) parallelized the per-org crawl and split
 classification out of the crawler into a separate tool. The crawler
 writes reports with `classification=NULL`; `classify_null.py` backfills
@@ -160,6 +165,43 @@ Controls in this module defend against:
 - URL credential leakage in logs / DB (AC13)
 - Symlink TOCTOU on archive write (AC9 — O_NOFOLLOW + lstat pre/post)
 - Budget overspend across crashes (AC18.1 reserve/settle/reconcile)
+
+## Configuring the PDF archive
+
+Pick ONE of these at crawler startup:
+
+- **Production (S3)**: `--archive s3://lavandula-nonprofit-collaterals/pdfs`
+  - Credentials come from the EC2 instance role (IMDS). Do not set
+    `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars.
+  - Bucket is us-east-1 with SSE-S3 (AES256), versioning, and full
+    public-access-block.
+  - Override the region with `--s3-region us-east-1` if boto3's
+    resolver (env, ~/.aws/config, IMDS) returns something unexpected.
+  - At startup the crawler does one `head_bucket` probe; wrong region
+    / 403 / 404 abort before any orgs are processed.
+
+- **Dev / test**: `--archive /absolute/path/to/raw` (or the legacy
+  `--archive-dir /path`, which refuses `s3://` values).
+
+Exactly one archive flag is required. Neither or both → argparse
+error.
+
+### Reconciling orphans
+
+If the crawler is killed between a successful S3 PUT and the queued
+`reports` upsert (SIGKILL, OOM, spot-instance termination), the
+object exists in S3 but no DB row references it. Run:
+
+```
+python -m lavandula.reports.tools.reconcile_s3 \
+  --db /path/reports.db \
+  --archive s3://bucket/pdfs \
+  --dry-run
+```
+
+`--dry-run` lists orphans; re-run with `--apply` to insert the
+minimal `reports` rows (EIN + source URL come from the S3 object's
+metadata; `classify_null.py` backfills classifications later).
 
 ## Amendments
 

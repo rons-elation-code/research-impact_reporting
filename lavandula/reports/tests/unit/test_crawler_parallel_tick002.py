@@ -27,7 +27,7 @@ def _reset_throttle():
     host_throttle.reset_for_testing()
 
 
-def _stub_process_org(*, ein, website, archive_dir, db_queue, **kwargs):
+def _stub_process_org(*, ein, website, archive, db_queue, **kwargs):
     """Replacement for crawler.process_org — records calls, no I/O."""
     db_writer.upsert_crawled_org(
         None,
@@ -61,14 +61,14 @@ def test_ac1_run_uses_thread_pool(tmp_path, monkeypatch):
     seen_threads: set[str] = set()
     barrier = threading.Barrier(4, timeout=5.0)
 
-    def slow_proc(*, ein, website, archive_dir, db_queue, **kw):
+    def slow_proc(*, ein, website, archive, db_queue, **kw):
         seen_threads.add(threading.current_thread().name)
         try:
             barrier.wait()
         except threading.BrokenBarrierError:
             pass
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", slow_proc)
@@ -206,11 +206,11 @@ def test_invalid_url_does_not_mask_valid_duplicate(tmp_path, monkeypatch):
     calls: list[tuple[str, str]] = []
     lock = threading.Lock()
 
-    def record_call(*, ein, website, archive_dir, db_queue, **kw):
+    def record_call(*, ein, website, archive, db_queue, **kw):
         with lock:
             calls.append((ein, website))
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", record_call)
@@ -251,11 +251,11 @@ def test_duplicate_eins_deduped_before_dispatch(tmp_path, monkeypatch):
     calls: list[tuple[str, str]] = []
     lock = threading.Lock()
 
-    def record_call(*, ein, website, archive_dir, db_queue, **kw):
+    def record_call(*, ein, website, archive, db_queue, **kw):
         with lock:
             calls.append((ein, website))
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", record_call)
@@ -303,12 +303,12 @@ def test_http_client_reused_per_thread_not_per_org(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_crawler, "_get_thread_client", tracking_get)
 
-    def stub(*, ein, website, archive_dir, db_queue, client=None, conn=None, **kw):
+    def stub(*, ein, website, archive, db_queue, client=None, conn=None, **kw):
         # Force the per-thread path
         if client is None:
             client = tracking_get()
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", stub)
@@ -413,7 +413,7 @@ def test_queue_saturation_aborts_run(tmp_path, monkeypatch):
         lambda _p: seeds,
     )
 
-    def saturate(*, ein, website, archive_dir, db_queue, **kw):
+    def saturate(*, ein, website, archive, db_queue, **kw):
         raise DBWriterSaturated("simulated saturation")
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", saturate)
@@ -453,11 +453,11 @@ def test_max_workers_1_is_deterministic_and_equivalent(tmp_path, monkeypatch):
     call_order: list[str] = []
     lock = threading.Lock()
 
-    def record_order(*, ein, website, archive_dir, db_queue, **kw):
+    def record_order(*, ein, website, archive, db_queue, **kw):
         with lock:
             call_order.append(ein)
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", record_order)
@@ -525,12 +525,12 @@ def test_writer_death_aborts_run(tmp_path, monkeypatch):
         lambda _p: seeds,
     )
 
-    def kill_writer(*, ein, website, archive_dir, db_queue, **kw):
+    def kill_writer(*, ein, website, archive, db_queue, **kw):
         # First worker submits a poisoned op that crashes the writer.
         if ein.endswith("0"):
             db_queue.put(lambda c: (_ for _ in ()).throw(RuntimeError("writer kaboom")))
         return _stub_process_org(
-            ein=ein, website=website, archive_dir=archive_dir, db_queue=db_queue,
+            ein=ein, website=website, archive=archive, db_queue=db_queue,
         )
 
     monkeypatch.setattr("lavandula.reports.crawler.process_org", kill_writer)
