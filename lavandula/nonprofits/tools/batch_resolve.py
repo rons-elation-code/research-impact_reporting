@@ -30,6 +30,11 @@ from urllib.parse import urlparse
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
+from lavandula.common.db import (
+    MIN_SCHEMA_VERSION,
+    assert_schema_at_least,
+    make_app_engine,
+)
 from lavandula.nonprofits.agent_runner import (
     AGENT_DISALLOWED_TOOLS,
     AGENT_MAX_OUTPUT_BYTES,
@@ -70,7 +75,7 @@ EST_TOKENS_IN_PER_ORG = 8_000
 EST_TOKENS_OUT_PER_ORG = 200
 
 UPDATE_SQL = text("""
-UPDATE nonprofits_seed
+UPDATE lava_impact.nonprofits_seed
    SET website_url = :url,
        resolver_status = :status,
        resolver_confidence = :confidence,
@@ -194,7 +199,7 @@ def _normalize_filters(args: argparse.Namespace) -> None:
 
 SELECT_SQL_TMPL = """
 SELECT ein, name, address, city, state, zipcode, ntee_code
-  FROM nonprofits_seed
+  FROM lava_impact.nonprofits_seed
  WHERE 1=1
  {state_clause}
  {ntee_clause}
@@ -220,7 +225,7 @@ def _select_orgs(engine: Engine, args: argparse.Namespace) -> list[dict]:
             params[f"st{i}"] = v
     if args.ntee_major:
         placeholders = ",".join(f":nt{i}" for i in range(len(args.ntee_major)))
-        ntee_clause = f"AND substr(ntee_code,1,1) IN ({placeholders})"
+        ntee_clause = f"AND SUBSTRING(ntee_code FROM 1 FOR 1) IN ({placeholders})"
         for i, v in enumerate(args.ntee_major):
             params[f"nt{i}"] = v
     if args.revenue_min is not None:
@@ -449,7 +454,7 @@ def ingest_rows(engine: Engine, rows: dict[str, dict], *,
                 placeholders = ",".join(f":e{j}" for j in range(len(chunk)))
                 params = {f"e{j}": v for j, v in enumerate(chunk)}
                 q = text(
-                    "SELECT ein FROM nonprofits_seed "
+                    "SELECT ein FROM lava_impact.nonprofits_seed "
                     f"WHERE ein IN ({placeholders}) "
                     "AND resolver_status = 'resolved'"
                 )
@@ -708,7 +713,11 @@ def run(args: argparse.Namespace, *,
         manifest = None  # built after query
 
     # ── engine + query (for new runs) ────────────────────────────────────
-    engine = create_engine(f"sqlite:///{args.db}")
+    # Spec 0017: point at the production Postgres engine rather than a
+    # SQLite file path. `args.db` is preserved in the manifest for
+    # backwards compatibility but the actual connection comes from SSM.
+    engine = make_app_engine()
+    assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
 
     try:
         if manifest is None:

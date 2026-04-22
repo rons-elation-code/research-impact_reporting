@@ -18,7 +18,6 @@ import datetime as dt
 import json
 import logging
 import re
-import sqlite3
 import sys
 import time
 import urllib.error
@@ -26,6 +25,16 @@ import urllib.request
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+from lavandula.common.db import (
+    MIN_SCHEMA_VERSION,
+    assert_schema_at_least,
+    make_app_engine,
+)
 
 log = logging.getLogger(__name__)
 
@@ -77,36 +86,7 @@ SLEEP_BETWEEN_CALLS = 0.35
 
 _EIN_RE = re.compile(r"^\d{9}$")
 
-# ── schema ────────────────────────────────────────────────────────────────────
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS nonprofits_seed (
-  ein                     TEXT PRIMARY KEY,
-  name                    TEXT,
-  address                 TEXT,
-  city                    TEXT,
-  state                   TEXT,
-  zipcode                 TEXT,
-  ntee_code               TEXT,
-  revenue                 INTEGER,
-  website_url             TEXT,
-  website_candidates_json TEXT,
-  discovered_at           TEXT,
-  run_id                  TEXT
-);
-CREATE VIEW IF NOT EXISTS nonprofits AS
-  SELECT ein, website_url, resolver_status FROM nonprofits_seed;
-CREATE TABLE IF NOT EXISTS runs (
-  run_id           TEXT PRIMARY KEY,
-  started_at       TEXT,
-  finished_at      TEXT,
-  filters_json     TEXT,
-  found_count      INTEGER,
-  website_hit_count INTEGER
-);
-CREATE INDEX IF NOT EXISTS idx_seed_state ON nonprofits_seed(state);
-CREATE INDEX IF NOT EXISTS idx_seed_website_null
-  ON nonprofits_seed(ein) WHERE website_url IS NULL;
-"""
+_SCHEMA = "lava_impact"
 
 
 # ── sentinel exceptions ───────────────────────────────────────────────────────
@@ -126,43 +106,11 @@ class _InfraError(Exception):
     """5 consecutive failures — caller should commit + exit(1)."""
 
 
-# ── Step 1: schema migrations ─────────────────────────────────────────────────
-def _apply_migrations(conn: sqlite3.Connection) -> None:
-    """Idempotent additive migrations run after base schema creation."""
-    existing_runs = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
-    if "last_page_scanned" not in existing_runs:
-        conn.execute("ALTER TABLE runs ADD COLUMN last_page_scanned TEXT DEFAULT NULL")
-    if "exit_reason" not in existing_runs:
-        conn.execute("ALTER TABLE runs ADD COLUMN exit_reason TEXT DEFAULT NULL")
-    existing_seed = {row[1] for row in conn.execute("PRAGMA table_info(nonprofits_seed)")}
-    if "notes" not in existing_seed:
-        conn.execute("ALTER TABLE nonprofits_seed ADD COLUMN notes TEXT DEFAULT NULL")
-    for col, typedef in [
-        ("address", "TEXT DEFAULT NULL"),
-        ("zipcode", "TEXT DEFAULT NULL"),
-        ("subsection_code", "INTEGER DEFAULT NULL"),
-        ("activity_codes", "TEXT DEFAULT NULL"),
-        ("classification_codes", "TEXT DEFAULT NULL"),
-        ("foundation_code", "INTEGER DEFAULT NULL"),
-        ("ruling_date", "TEXT DEFAULT NULL"),
-        ("accounting_period", "INTEGER DEFAULT NULL"),
-        ("resolver_status", "TEXT DEFAULT NULL"),
-        ("resolver_confidence", "REAL DEFAULT NULL"),
-        ("resolver_method", "TEXT DEFAULT NULL"),
-        ("resolver_reason", "TEXT DEFAULT NULL"),
-        ("website_candidates_json", "TEXT DEFAULT NULL"),
-    ]:
-        if col not in existing_seed:
-            conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
-    conn.commit()
-
-
-def ensure_db(path: Path) -> sqlite3.Connection:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path))
-    conn.executescript(SCHEMA_SQL)
-    _apply_migrations(conn)
-    return conn
+def ensure_engine() -> Engine:
+    """Return the production SQLAlchemy engine, asserting schema is current."""
+    engine = make_app_engine()
+    assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
+    return engine
 
 
 def iso_now() -> str:
@@ -171,19 +119,22 @@ def iso_now() -> str:
 
 # ── Step 7: structured logging helper ─────────────────────────────────────────
 def _finish_run(
-    conn: sqlite3.Connection,
+    engine: Engine,
     run_id: str,
     found: int,
     reason: str,
     exit_code: int,
 ) -> None:
     """Commit terminal run state and exit."""
-    conn.execute(
-        "UPDATE runs SET finished_at=?, found_count=?, exit_reason=? WHERE run_id=?",
-        (iso_now(), found, reason, run_id),
-    )
-    conn.commit()
-    total = conn.execute("SELECT COUNT(*) FROM nonprofits_seed").fetchone()[0]
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"UPDATE {_SCHEMA}.runs SET finished_at=:f, found_count=:c, "
+                 "exit_reason=:r WHERE run_id=:rid"),
+            {"f": iso_now(), "c": found, "r": reason, "rid": run_id},
+        )
+        total = int(conn.execute(
+            text(f"SELECT COUNT(*) FROM {_SCHEMA}.nonprofits_seed")
+        ).scalar() or 0)
     log.info("done total_added=%d db_rows=%d exit_reason=%s", found, total, reason)
     sys.exit(exit_code)
 
@@ -331,48 +282,45 @@ def _fetch_org_revenue(
 
 # ── Step 3: filter mismatch guard ─────────────────────────────────────────────
 def _check_filter_consistency(
-    conn: sqlite3.Connection,
+    engine: Engine,
     states: list[str],
     ntee_majors: list[str],
     rev_min: int,
     rev_max: int,
 ) -> None:
-    """Exit 2 if a previous run used different filters against this DB."""
-    row = conn.execute(
-        "SELECT filters_json FROM runs ORDER BY started_at DESC LIMIT 1"
-    ).fetchone()
+    """Exit 2 if a previous run used different filters."""
+    with engine.connect() as conn:
+        row = conn.execute(text(
+            f"SELECT filters_json FROM {_SCHEMA}.runs "
+            "ORDER BY started_at DESC LIMIT 1"
+        )).fetchone()
     if row is None:
         return
     prev = json.loads(row[0])
     if sorted(prev.get("states", [])) != sorted(states):
-        print("Filter mismatch: --states changed; use a different --db", file=sys.stderr)
+        print("Filter mismatch: --states changed", file=sys.stderr)
         sys.exit(2)
     if sorted(prev.get("ntee_majors", [])) != sorted(ntee_majors):
-        print("Filter mismatch: --ntee-majors changed; use a different --db", file=sys.stderr)
+        print("Filter mismatch: --ntee-majors changed", file=sys.stderr)
         sys.exit(2)
     if prev.get("rev_min") != rev_min or prev.get("rev_max") != rev_max:
-        print("Filter mismatch: revenue bounds changed; use a different --db", file=sys.stderr)
+        print("Filter mismatch: revenue bounds changed", file=sys.stderr)
         sys.exit(2)
 
 
 # ── Step 4: cursor / checkpoint ───────────────────────────────────────────────
 def _get_or_create_run(
-    conn: sqlite3.Connection,
+    engine: Engine,
     states: list[str],
     ntee_majors: list[str],
     rev_min: int,
     rev_max: int,
 ) -> tuple[str, dict[str, int]]:
-    """Return (run_id, cursor). Resume an incomplete run or create a fresh one.
-
-    Cursor key: "{state}:{ntee_major}" → last successfully committed page number.
-    Resume starts at cursor[key]+1 so the un-committed page is always re-fetched
-    (idempotent via EIN PRIMARY KEY).
-    """
-    row = conn.execute(
-        "SELECT run_id, last_page_scanned FROM runs "
-        "WHERE finished_at IS NULL ORDER BY started_at DESC LIMIT 1"
-    ).fetchone()
+    with engine.connect() as conn:
+        row = conn.execute(text(
+            f"SELECT run_id, last_page_scanned FROM {_SCHEMA}.runs "
+            "WHERE finished_at IS NULL ORDER BY started_at DESC LIMIT 1"
+        )).fetchone()
     if row is not None:
         run_id: str = row[0]
         cursor: dict[str, int] = json.loads(row[1]) if row[1] else {}
@@ -386,18 +334,20 @@ def _get_or_create_run(
         "rev_min": rev_min,
         "rev_max": rev_max,
     }
-    conn.execute(
-        "INSERT INTO runs(run_id, started_at, filters_json, found_count) VALUES (?, ?, ?, 0)",
-        (run_id, iso_now(), json.dumps(filters)),
-    )
-    conn.commit()
+    with engine.begin() as conn:
+        conn.execute(
+            text(f"INSERT INTO {_SCHEMA}.runs "
+                 "(run_id, started_at, filters_json, found_count) "
+                 "VALUES (:r, :s, :f, 0)"),
+            {"r": run_id, "s": iso_now(), "f": json.dumps(filters)},
+        )
     log.info("new_run run_id=%s", run_id)
     return run_id, {}
 
 
 # ── core enumeration ──────────────────────────────────────────────────────────
 def enumerate_new_orgs(
-    conn: sqlite3.Connection,
+    engine: Engine,
     *,
     target: int,
     states: list[str] | tuple[str, ...],
@@ -409,7 +359,12 @@ def enumerate_new_orgs(
     fail_counter: dict[str, int],
 ) -> tuple[int, str]:
     """Enumerate new orgs from ProPublica. Returns (found_count, exit_reason)."""
-    seen: set[str] = {row[0] for row in conn.execute("SELECT ein FROM nonprofits_seed")}
+    with engine.connect() as conn:
+        seen: set[str] = {
+            row[0] for row in conn.execute(text(
+                f"SELECT ein FROM {_SCHEMA}.nonprofits_seed"
+            ))
+        }
     found = 0
     exit_reason = "exhausted"
 
@@ -431,14 +386,14 @@ def enumerate_new_orgs(
                 try:
                     data = _fetch_with_retry(url, fail_counter=fail_counter)
                 except _RateLimited:
-                    _finish_run(conn, run_id, found, "rate_limited", 0)
+                    _finish_run(engine, run_id, found, "rate_limited", 0)
                 except _SkipPage:
                     break  # cursor does NOT advance
                 except _SkipPair as exc:
                     log.warning("skip_pair state=%s ntee=%s reason=%s", state, ntee_major, exc)
                     break
                 except _InfraError:
-                    _finish_run(conn, run_id, found, "infra_error", 1)
+                    _finish_run(engine, run_id, found, "infra_error", 1)
 
                 orgs = data.get("organizations") or []
                 if not orgs:
@@ -464,9 +419,9 @@ def enumerate_new_orgs(
                     try:
                         detail = _fetch_org_revenue(ein, fail_counter=fail_counter)
                     except _RateLimited:
-                        _finish_run(conn, run_id, found, "rate_limited", 0)
+                        _finish_run(engine, run_id, found, "rate_limited", 0)
                     except _InfraError:
-                        _finish_run(conn, run_id, found, "infra_error", 1)
+                        _finish_run(engine, run_id, found, "infra_error", 1)
                     time.sleep(SLEEP_BETWEEN_CALLS)
                     if detail is None or detail.revenue is None \
                             or detail.revenue < rev_min or detail.revenue > rev_max:
@@ -485,33 +440,37 @@ def enumerate_new_orgs(
                     ntee_code: str | None = (detail.ntee_code or o.get("ntee_code") or None)
                     if ntee_code:
                         ntee_code = ntee_code[:6]
-                    conn.execute(
-                        "INSERT OR IGNORE INTO nonprofits_seed"
-                        " (ein, name, address, city, state, zipcode, ntee_code, revenue,"
-                        "  subsection_code, activity_codes, classification_codes,"
-                        "  foundation_code, ruling_date, accounting_period,"
-                        "  website_url, website_candidates_json, discovered_at, run_id)"
-                        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)",
-                        (
-                            ein,
-                            name,
-                            address,
-                            city,
-                            o.get("state") or state,
-                            zipcode,
-                            ntee_code,
-                            detail.revenue,
-                            detail.subsection_code,
-                            detail.activity_codes,
-                            detail.classification_codes,
-                            detail.foundation_code,
-                            detail.ruling_date,
-                            detail.accounting_period,
-                            iso_now(),
-                            run_id,
-                        ),
-                    )
-                    conn.commit()
+                    with engine.begin() as wconn:
+                        wconn.execute(
+                            text(
+                                f"INSERT INTO {_SCHEMA}.nonprofits_seed "
+                                "(ein, name, address, city, state, zipcode, "
+                                " ntee_code, revenue, subsection_code, "
+                                " activity_codes, classification_codes, "
+                                " foundation_code, ruling_date, "
+                                " accounting_period, website_url, "
+                                " website_candidates_json, discovered_at, run_id) "
+                                "VALUES (:ein, :name, :addr, :city, :state, "
+                                "        :zip, :ntee, :rev, :sub, :act, "
+                                "        :cls, :fnd, :rul, :ap, NULL, NULL, "
+                                "        :dt, :rid) "
+                                "ON CONFLICT (ein) DO NOTHING"
+                            ),
+                            {
+                                "ein": ein, "name": name, "addr": address,
+                                "city": city,
+                                "state": o.get("state") or state,
+                                "zip": zipcode, "ntee": ntee_code,
+                                "rev": detail.revenue,
+                                "sub": detail.subsection_code,
+                                "act": detail.activity_codes,
+                                "cls": detail.classification_codes,
+                                "fnd": detail.foundation_code,
+                                "rul": detail.ruling_date,
+                                "ap": detail.accounting_period,
+                                "dt": iso_now(), "rid": run_id,
+                            },
+                        )
                     seen.add(ein)
                     found += 1
                     page_added += 1
@@ -519,11 +478,12 @@ def enumerate_new_orgs(
 
                 # Cursor advances AFTER successful commit
                 cursor[key] = page
-                conn.execute(
-                    "UPDATE runs SET last_page_scanned=? WHERE run_id=?",
-                    (json.dumps(cursor), run_id),
-                )
-                conn.commit()
+                with engine.begin() as wconn:
+                    wconn.execute(
+                        text(f"UPDATE {_SCHEMA}.runs SET last_page_scanned=:p "
+                             "WHERE run_id=:rid"),
+                        {"p": json.dumps(cursor), "rid": run_id},
+                    )
                 log.info(
                     "page state=%s ntee=%s page=%d added=%d",
                     state,
@@ -578,12 +538,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_TARGET,
         help="Stop after N new orgs added (default: 100)",
     )
-    ap.add_argument(
-        "--db",
-        type=Path,
-        default=Path(__file__).resolve().parents[1] / "data" / "seeds.db",
-        help="Path to seeds.db",
-    )
     return ap
 
 
@@ -618,16 +572,18 @@ def main(argv: list[str] | None = None) -> None:
         stream=sys.stderr,
     )
     args = parse_and_validate(argv)
-    conn = ensure_db(args.db)
+    engine = ensure_engine()
     _check_filter_consistency(
-        conn, args.states_list, args.ntee_majors_list, args.revenue_min, args.revenue_max
+        engine, args.states_list, args.ntee_majors_list,
+        args.revenue_min, args.revenue_max,
     )
     run_id, cursor = _get_or_create_run(
-        conn, args.states_list, args.ntee_majors_list, args.revenue_min, args.revenue_max
+        engine, args.states_list, args.ntee_majors_list,
+        args.revenue_min, args.revenue_max,
     )
     fail_counter: dict[str, int] = {"count": 0}
     added, exit_reason = enumerate_new_orgs(
-        conn,
+        engine,
         target=args.target,
         states=args.states_list,
         ntee_majors=args.ntee_majors_list,
@@ -637,7 +593,7 @@ def main(argv: list[str] | None = None) -> None:
         cursor=cursor,
         fail_counter=fail_counter,
     )
-    _finish_run(conn, run_id, added, exit_reason, 0)
+    _finish_run(engine, run_id, added, exit_reason, 0)
 
 
 if __name__ == "__main__":

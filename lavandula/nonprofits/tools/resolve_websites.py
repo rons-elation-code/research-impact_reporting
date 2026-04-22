@@ -19,15 +19,23 @@ import ipaddress
 import json
 import logging
 import math
-import sqlite3
 import sys
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import requests
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
+from lavandula.common.db import (
+    MIN_SCHEMA_VERSION,
+    assert_schema_at_least,
+    make_app_engine,
+)
 from lavandula.common.secrets import SecretUnavailable, get_brave_api_key
+
+_SCHEMA = "lava_impact"
 
 log = logging.getLogger(__name__)
 
@@ -119,23 +127,13 @@ def _validate_url(url: str) -> str | None:
     return f"{parts.scheme}://{hostname}"
 
 
-def _apply_migrations(conn: sqlite3.Connection) -> None:
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(nonprofits_seed)")}
-    for col, typedef in [
-        ("notes", "TEXT DEFAULT NULL"),
-        ("resolver_confidence", "REAL DEFAULT NULL"),
-        ("resolver_status", "TEXT DEFAULT NULL"),
-        ("resolver_method", "TEXT DEFAULT NULL"),
-        ("resolver_reason", "TEXT DEFAULT NULL"),
-    ]:
-        if col not in existing:
-            conn.execute(f"ALTER TABLE nonprofits_seed ADD COLUMN {col} {typedef}")
-    conn.execute("DROP VIEW IF EXISTS nonprofits")
-    conn.execute(
-        "CREATE VIEW nonprofits AS"
-        " SELECT ein, website_url, resolver_status FROM nonprofits_seed"
-    )
-    conn.commit()
+def _apply_migrations(engine: Engine) -> None:
+    """No-op shim kept for test compatibility.
+
+    Post-Spec-0017 the schema lives in `lavandula/migrations/rds/*.sql`
+    and is applied by the operator. The runtime does not ALTER TABLE.
+    """
+    return None
 
 
 def _org_tokens(name: str) -> list[str]:
@@ -292,7 +290,7 @@ def _search_with_retry(
 # ── Main resolution loop ──────────────────────────────────────────────────────
 
 def resolve_batch(
-    conn: sqlite3.Connection,
+    engine: Engine,
     *,
     key: str,
     limit: int,
@@ -302,12 +300,16 @@ def resolve_batch(
     _search_fn=None,
 ) -> None:
     """Iterate rows with NULL website_url, query Brave, write results."""
-    _apply_migrations(conn)
-    rows = conn.execute(
-        "SELECT ein, name, city FROM nonprofits_seed WHERE website_url IS NULL"
-        + (" LIMIT ?" if limit else ""),
-        (limit,) if limit else (),
-    ).fetchall()
+    sql = (
+        f"SELECT ein, name, city FROM {_SCHEMA}.nonprofits_seed "
+        "WHERE website_url IS NULL"
+    )
+    params: dict = {}
+    if limit:
+        sql += " LIMIT :lim"
+        params["lim"] = limit
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
 
     for ein, name, city in rows:
         safe_name = (name or "").replace('"', "")
@@ -356,23 +358,27 @@ def resolve_batch(
         if dry_run:
             print(f"DRY-RUN ein={ein} url={chosen}")
         else:
-            conn.execute(
-                "UPDATE nonprofits_seed"
-                " SET website_url=?, website_candidates_json=?, notes=?,"
-                " resolver_confidence=?, resolver_status=?, resolver_method=?, resolver_reason=?"
-                " WHERE ein=?",
-                (
-                    chosen,
-                    candidates_json,
-                    notes,
-                    confidence,
-                    resolver_status,
-                    "brave-scored",
-                    resolver_reason,
-                    ein,
-                ),
-            )
-            conn.commit()
+            with engine.begin() as wconn:
+                wconn.execute(
+                    text(
+                        f"UPDATE {_SCHEMA}.nonprofits_seed "
+                        "SET website_url=:url, website_candidates_json=:cand, "
+                        "    notes=:notes, resolver_confidence=:conf, "
+                        "    resolver_status=:status, "
+                        "    resolver_method='brave-scored', "
+                        "    resolver_reason=:reason "
+                        "WHERE ein=:ein"
+                    ),
+                    {
+                        "url": chosen,
+                        "cand": candidates_json,
+                        "notes": notes,
+                        "conf": confidence,
+                        "status": resolver_status,
+                        "reason": resolver_reason,
+                        "ein": ein,
+                    },
+                )
 
         to_sleep = min_sleep - elapsed
         if to_sleep > 0:
@@ -381,11 +387,9 @@ def resolve_batch(
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
-_DEFAULT_DB = Path(__file__).parent.parent / "data" / "seeds.db"
-
 
 def _resolve_llm_batch(
-    conn: sqlite3.Connection,
+    engine: Engine,
     *,
     max_orgs: int,
     dry_run: bool,
@@ -397,16 +401,19 @@ def _resolve_llm_batch(
         select_resolver_client,
     )
 
-    _apply_migrations(conn)
     client = select_resolver_client()
     http_client = make_resolver_http_client()
 
-    rows = conn.execute(
-        "SELECT ein, name, address, city, state, zipcode, ntee_code"
-        " FROM nonprofits_seed WHERE website_url IS NULL"
-        + (" LIMIT ?" if max_orgs > 0 else ""),
-        (max_orgs,) if max_orgs > 0 else (),
-    ).fetchall()
+    sql = (
+        "SELECT ein, name, address, city, state, zipcode, ntee_code "
+        f"FROM {_SCHEMA}.nonprofits_seed WHERE website_url IS NULL"
+    )
+    params: dict = {}
+    if max_orgs > 0:
+        sql += " LIMIT :lim"
+        params["lim"] = max_orgs
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).fetchall()
 
     for ein, name, address, city, state, zipcode, ntee_code in rows:
         org = OrgIdentity(
@@ -429,42 +436,32 @@ def _resolve_llm_batch(
         if dry_run:
             print(f"DRY-RUN ein={ein} status={result.status} url={result.url}")
         else:
-            # Store the URL as-is for all statuses (including ambiguous) so
-            # the spec's highest-confidence candidate is preserved. The crawler
-            # gates on resolver_status='resolved' via the nonprofits view.
-            conn.execute(
-                "UPDATE nonprofits_seed SET"
-                " website_url=?,"
-                " resolver_status=?,"
-                " resolver_confidence=?,"
-                " resolver_method=?,"
-                " resolver_reason=?,"
-                " website_candidates_json=?"
-                " WHERE ein=?",
-                (
-                    result.url,
-                    result.status,
-                    result.confidence,
-                    result.method,
-                    result.reason,
-                    json.dumps(result.candidates),
-                    ein,
-                ),
-            )
-            conn.commit()
+            with engine.begin() as wconn:
+                wconn.execute(
+                    text(
+                        f"UPDATE {_SCHEMA}.nonprofits_seed SET "
+                        "  website_url=:url, resolver_status=:status, "
+                        "  resolver_confidence=:conf, resolver_method=:method, "
+                        "  resolver_reason=:reason, "
+                        "  website_candidates_json=:cand "
+                        "WHERE ein=:ein"
+                    ),
+                    {
+                        "url": result.url,
+                        "status": result.status,
+                        "conf": result.confidence,
+                        "method": result.method,
+                        "reason": result.reason,
+                        "cand": json.dumps(result.candidates),
+                        "ein": ein,
+                    },
+                )
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="resolve_websites",
         description="Fill website_url for nonprofit seeds via Brave Search API.",
-    )
-    p.add_argument(
-        "--db",
-        type=Path,
-        default=_DEFAULT_DB,
-        metavar="PATH",
-        help="Path to seeds.db (default: %(default)s)",
     )
     p.add_argument(
         "--limit",
@@ -513,11 +510,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.limit < 0:
         parser.error("--limit must be >= 0")
 
-    conn = sqlite3.connect(str(args.db))
+    engine = make_app_engine()
+    assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
     try:
         if args.resolver == "llm":
             _resolve_llm_batch(
-                conn,
+                engine,
                 max_orgs=args.max_orgs,
                 dry_run=args.dry_run,
             )
@@ -529,7 +527,7 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit(1)
             min_sleep = 1.0 / args.qps
             resolve_batch(
-                conn,
+                engine,
                 key=key,
                 limit=args.limit,
                 min_sleep=min_sleep,
@@ -537,7 +535,7 @@ def main(argv: list[str] | None = None) -> None:
                 log=log,
             )
     finally:
-        conn.close()
+        engine.dispose()
 
 
 if __name__ == "__main__":
