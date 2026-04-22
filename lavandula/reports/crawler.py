@@ -1,9 +1,14 @@
-"""Main crawler orchestration (Phase 6).
+"""Main crawler orchestration (Spec 0004 + Spec 0017).
 
-Loops the 0001 seed list, validates each seed URL (AC12.4), runs
-discovery → fetch → sandbox → classify → db_writer for each candidate,
-and enforces operational ACs (flock AC19, resume AC20, permissions
-AC21, encryption-at-rest AC21.1).
+Loops the seed list from `lava_impact.nonprofits_seed`, runs
+discovery → fetch → sandbox → db_writer for each candidate, and
+enforces operational ACs (flock AC19, resume AC20, permissions AC21,
+encryption-at-rest AC21.1).
+
+Spec 0017: SQLite is gone. Every DB call flows through the SQLAlchemy
+engine from `lavandula.common.db.make_app_engine()`. Each db_writer
+call opens its own short-lived transaction via `engine.begin()`; the
+connection pool handles worker-thread concurrency natively.
 """
 from __future__ import annotations
 
@@ -11,11 +16,9 @@ import argparse
 import dataclasses
 import datetime
 import fcntl
-import json
 import logging
 import os
 import re
-import sqlite3
 import sys
 import uuid
 from pathlib import Path
@@ -25,15 +28,21 @@ from urllib.parse import urlsplit
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+from lavandula.common.db import (
+    MIN_SCHEMA_VERSION,
+    assert_schema_at_least,
+    make_app_engine,
+)
+
 from . import config
 from . import db_writer
-from . import schema
 from . import fetch_pdf
 from . import archive as _archive
 from . import budget
 from .candidate_filter import Candidate
-from .db_queue import DBWriter, DBWriterDied
-from .rds_db_writer import RDSDBWriter
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
 from .logging_utils import sanitize, setup_logging
@@ -71,15 +80,7 @@ _BASIC_AUTH_RE = re.compile(r"@")
 
 
 def validate_seed_url(url: str) -> SeedCheck:
-    """AC12.4 — strict validation at the trust boundary.
-
-    Rejects:
-      - non-http(s) schemes (javascript:, file:, data:, ftp:, …)
-      - URLs with userinfo (user:pass@)
-      - empty hostnames
-      - IP-literal hosts (public OR private)
-      - hosts resolving to SSRF-blocked addresses
-    """
+    """AC12.4 — strict validation at the trust boundary."""
     try:
         parsed = urlsplit(url)
     except ValueError:
@@ -93,7 +94,6 @@ def validate_seed_url(url: str) -> SeedCheck:
     if not host:
         return SeedCheck(ok=False, reason="empty_host")
 
-    # Reject bare IPs (bypass the public-suffix expectation).
     import ipaddress
     try:
         ipaddress.ip_address(host)
@@ -101,17 +101,9 @@ def validate_seed_url(url: str) -> SeedCheck:
     except ValueError:
         pass
 
-    # Reject hosts that look like bare single labels (no dot) — the
-    # public-suffix list check below handles the full hostname shape,
-    # but catching localhost / site-local names here is simpler and
-    # defends against resolver override.
     if "." not in host:
         return SeedCheck(ok=False, reason="bare_hostname")
 
-    # SSRF guard: if the host is itself an IP, it's already rejected
-    # above. For proper hostnames we defer the IP check to HostPinCache
-    # at fetch time — but we still refuse known-bad hostnames like
-    # 'localhost' here as belt-and-suspenders.
     if host.lower() in ("localhost", "localhost.localdomain"):
         return SeedCheck(ok=False, reason="localhost")
     return SeedCheck(ok=True)
@@ -126,10 +118,7 @@ class FlockBusy(RuntimeError):
 
 
 def acquire_flock(lock_path: Path) -> int:
-    """Acquire an exclusive non-blocking flock on `lock_path`. Returns fd.
-
-    Subsequent callers while the fd is open receive FlockBusy.
-    """
+    """Acquire an exclusive non-blocking flock on `lock_path`. Returns fd."""
     lock_path = Path(lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
@@ -145,12 +134,15 @@ def acquire_flock(lock_path: Path) -> int:
 # Resume / skip (AC20)
 # ---------------------------------------------------------------------
 
-def should_skip_ein(conn: sqlite3.Connection, *, ein: str, refresh: bool) -> bool:
+def should_skip_ein(engine: Engine, *, ein: str, refresh: bool) -> bool:
     if refresh:
         return False
-    row = conn.execute(
-        "SELECT 1 FROM crawled_orgs WHERE ein = ?", (ein,)
-    ).fetchone()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT 1 FROM lava_impact.crawled_orgs "
+                 "WHERE ein = :ein"),
+            {"ein": ein},
+        ).fetchone()
     return row is not None
 
 
@@ -166,16 +158,7 @@ class EncryptionCheckResult:
 
 
 def check_encryption_at_rest(path: Path) -> EncryptionCheckResult:
-    """AC21.1 — halt at startup if data/raw paths aren't on encrypted storage.
-
-    Detection order (first hit wins):
-      (a) /proc/mounts LUKS / dm-crypt / fscrypt flag.
-      (b) macOS diskutil apfs encryption (not exercised here; placeholder).
-      (c) operator-signed `.encrypted-volume` marker file in `path`.
-
-    No detection → ok=False with a reason; caller halts with the
-    HALT-encryption-not-detected.md file.
-    """
+    """AC21.1 — halt at startup if data/raw paths aren't on encrypted storage."""
     path = Path(path)
     marker = path / ".encrypted-volume"
     if marker.exists():
@@ -184,7 +167,6 @@ def check_encryption_at_rest(path: Path) -> EncryptionCheckResult:
             reason="operator_attested",
             mechanism="marker_file",
         )
-    # /proc/mounts heuristic: look for dm-crypt / ecryptfs / fscrypt.
     try:
         mounts = Path("/proc/mounts").read_text()
         for line in mounts.splitlines():
@@ -193,7 +175,6 @@ def check_encryption_at_rest(path: Path) -> EncryptionCheckResult:
                 continue
             src, mnt = parts[0], parts[1]
             if any(s in src for s in ("dm-crypt", "mapper/", "ecryptfs")):
-                # Crude: if the project path starts with mnt, assume encrypted.
                 if str(path.resolve()).startswith(mnt):
                     return EncryptionCheckResult(
                         ok=True, reason="dm-crypt", mechanism=src
@@ -214,7 +195,6 @@ def check_encryption_at_rest(path: Path) -> EncryptionCheckResult:
 # ---------------------------------------------------------------------
 
 def write_halt(halt_dir: Path, slug: str, body: str) -> Path:
-    """Write a HALT-*.md file and return its path."""
     halt_dir = Path(halt_dir)
     halt_dir.mkdir(parents=True, exist_ok=True)
     path = halt_dir / f"HALT-{slug}.md"
@@ -231,10 +211,6 @@ class OrgResult:
     ein: str
     candidate_count: int = 0
     fetched_count: int = 0
-    # TICK-002: classification is deferred out of the crawler, so this
-    # always stays 0 at crawl time. Downstream catalogue/reporting should
-    # derive the real count from the `reports` table once classify_null
-    # has run, not from `crawled_orgs.confirmed_report_count`.
     confirmed_report_count: int = 0
 
 
@@ -244,13 +220,7 @@ def _pick_discovered_via(c: Candidate) -> str:
     return c.discovered_via
 
 
-# Per-thread HTTP client storage (TICK-002 round-2 review).
-#
-# `requests.Session` is not thread-safe, so each worker thread gets
-# its own `ReportsHTTPClient`. We use `threading.local()` + a registry
-# so the client is created once per thread (not once per org) and
-# explicitly closed at run-end to avoid socket/TLS leaks.
-
+# Per-thread HTTP client storage (TICK-002 round-2).
 _thread_local = threading.local()
 _thread_clients: list[ReportsHTTPClient] = []
 _thread_clients_lock = threading.Lock()
@@ -267,7 +237,6 @@ def _get_thread_client() -> ReportsHTTPClient:
 
 
 def _close_thread_clients() -> None:
-    """Close all per-thread HTTP clients opened during the run."""
     with _thread_clients_lock:
         for c in _thread_clients:
             try:
@@ -281,41 +250,30 @@ def process_org(
     *,
     ein: str,
     website: str,
+    engine: Engine,
     archive: "object | None" = None,
     archive_dir: Path | None = None,
     run_id: str = "",
-    db_queue: "DBWriter | None" = None,
-    rds_queue: "RDSDBWriter | None" = None,
     client: ReportsHTTPClient | None = None,
-    conn: sqlite3.Connection | None = None,
 ) -> OrgResult:
     """Process a single org end-to-end.
 
-    TICK-002: classification is NO LONGER invoked here. Rows are written
-    with `classification=NULL`; a separate `classify_null.py` pass fills
-    them in afterward.
-
-    Concurrency:
-      - parallel path: `db_queue` is passed, `client` is left `None`,
-        and the function fetches the per-thread cached client
-        (one `ReportsHTTPClient` per worker thread, reused across
-        orgs). Clients are closed at end-of-run.
-      - legacy/serial path: a caller-provided `conn` + `client` are
-        used directly (no queue).
+    All DB writes go through `db_writer.*(engine, ...)` — each call
+    opens its own short-lived transaction from the engine's connection
+    pool. Multiple worker threads call concurrently; the pool
+    serializes connection checkout but Postgres handles write
+    concurrency natively via MVCC.
     """
     if client is None:
         client = _get_thread_client()
 
-    # Back-compat: callers that still pass `archive_dir` get a LocalArchive.
     if archive is None:
         if archive_dir is None:
             raise ValueError("process_org requires archive or archive_dir")
         archive = _archive.LocalArchive(archive_dir)
 
     def _write_fetch(**kwargs):
-        db_writer.record_fetch(
-            conn, db_writer=db_queue, rds_writer=rds_queue, **kwargs,
-        )
+        db_writer.record_fetch(engine, **kwargs)
 
     result = OrgResult(ein=ein)
     seed_etld1 = etld1(urlsplit(website).hostname or "")
@@ -388,10 +346,6 @@ def process_org(
             )
             continue
 
-        # AC9 sequence: extract text FIRST (in-memory), then PUT, then
-        # upsert_report, then record_fetch. Do not record_fetch(pdf-get=ok)
-        # until after the archive PUT succeeds — if PUT fails we log
-        # pdf-get=server_error and skip the reports row entirely (AC9b/9c).
         flags = scan_active_content(outcome.body)
 
         first_page_text = ""
@@ -424,9 +378,6 @@ def process_org(
             "ein": ein,
             "crawl-run-id": run_id,
             "fetched-at": _iso_utc_now(),
-            # Round-4 review: the S3 object carries its own attribution
-            # tier + discovery channel so reconciler-inserted rows land
-            # in reports_public (the view filters out platform_unverified).
             "attribution-confidence": cand.attribution_confidence,
             "discovered-via": _pick_discovered_via(cand),
         }
@@ -451,7 +402,6 @@ def process_org(
                     f"sha={outcome.content_sha256}"
                 ),
             )
-            # AC9b: no reports row, no extract log.
             continue
 
         result.fetched_count += 1
@@ -463,9 +413,7 @@ def process_org(
         )
 
         db_writer.upsert_report(
-            conn,
-            db_writer=db_queue,
-            rds_writer=rds_queue,
+            engine,
             content_sha256=outcome.content_sha256,
             source_url_redacted=outcome.final_url_redacted or redact_url(cand.url),
             referring_page_url_redacted=redact_url(cand.referring_page_url),
@@ -514,9 +462,7 @@ def process_org(
         )
 
     db_writer.upsert_crawled_org(
-        conn,
-        db_writer=db_queue,
-        rds_writer=rds_queue,
+        engine,
         ein=ein,
         candidate_count=result.candidate_count,
         fetched_count=result.fetched_count,
@@ -526,14 +472,7 @@ def process_org(
 
 
 def _resolve_archive(parser: argparse.ArgumentParser, args) -> object:
-    """Validate --archive / --archive-dir and construct a backend.
-
-    AC11 CLI rules:
-      - neither → `archive destination is required`
-      - both → `use --archive or --archive-dir, not both`
-      - --archive-dir with s3:// value → specific error
-      - otherwise: s3:// → S3Archive; absolute path → LocalArchive
-    """
+    """Validate --archive / --archive-dir and construct a backend."""
     from . import s3_archive as _s3a
 
     archive = args.archive
@@ -574,27 +513,20 @@ def _resolve_archive(parser: argparse.ArgumentParser, args) -> object:
     return _archive.LocalArchive(p)
 
 
-def fetch_seeds_from_0001(
-    nonprofits_db: Path,
-) -> list[tuple[str, str]]:
-    """Read seed (ein, website) pairs from 0001's nonprofits.db."""
-    conn = sqlite3.connect(str(nonprofits_db))
-    try:
-        return [
-            (row[0], row[1])
-            for row in conn.execute(
-                "SELECT ein, website_url FROM nonprofits "
-                "WHERE website_url IS NOT NULL AND website_url != '' "
-                "AND (resolver_status IS NULL OR resolver_status IN ('resolved', 'accepted'))"
-            )
-        ]
-    finally:
-        conn.close()
+def fetch_seeds(engine: Engine) -> list[tuple[str, str]]:
+    """Read (ein, website_url) pairs from `lava_impact.nonprofits_seed`."""
+    with engine.connect() as conn:
+        rows = conn.execute(text(
+            "SELECT ein, website_url FROM lava_impact.nonprofits "
+            " WHERE website_url IS NOT NULL AND website_url <> '' "
+            "   AND (resolver_status IS NULL "
+            "        OR resolver_status IN ('resolved', 'accepted'))"
+        )).fetchall()
+    return [(r[0], r[1]) for r in rows]
 
 
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Spec 0004 report crawler")
-    parser.add_argument("--nonprofits-db", type=Path, default=None)
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--data-dir", type=Path, default=config.DATA)
     parser.add_argument(
@@ -621,20 +553,17 @@ def run(argv: list[str] | None = None) -> int:
     if args.max_workers < 1 or args.max_workers > 32:
         parser.error("--max-workers must be between 1 and 32")
 
-    # AC11: resolve archive backend (argparse errors on bad combinations).
     archive = _resolve_archive(parser, args)
     run_id = uuid.uuid4().hex
 
     logger = setup_logging(config.LOGS, name="reports-crawler")
 
-    # AC7 startup probe — fail fast on misconfigured bucket / region / auth.
     try:
         archive.startup_probe()
     except Exception as exc:
         logger.error("archive startup probe failed: %s", exc)
         return 2
 
-    # AC19 flock.
     try:
         lock_fd = acquire_flock(config.LOCK_PATH)
     except FlockBusy:
@@ -642,7 +571,6 @@ def run(argv: list[str] | None = None) -> int:
         return 3
 
     try:
-        # AC21.1 encryption-at-rest.
         if not args.skip_encryption_check:
             enc = check_encryption_at_rest(args.data_dir)
             if not enc.ok:
@@ -655,7 +583,6 @@ def run(argv: list[str] | None = None) -> int:
                 logger.error("encryption-at-rest halt: %s", enc.reason)
                 return 2
 
-        # AC11 TLS self-test.
         if not args.skip_tls_self_test:
             try:
                 tls_self_test()
@@ -668,70 +595,34 @@ def run(argv: list[str] | None = None) -> int:
                 logger.error("tls self-test failed: %s", exc)
                 return 2
 
-        db_path = args.data_dir / "reports.db"
-        conn = schema.ensure_db(db_path)
+        engine = make_app_engine()
+        assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
+
         try:
-            # Reconcile any crashed-mid-settle preflight reservations.
-            reclaimed = budget.reconcile_stale_reservations(conn)
+            reclaimed = budget.reconcile_stale_reservations(engine)
             if reclaimed:
                 logger.info("reconciled %d stale classifier preflights", reclaimed)
 
-            seeds: Iterable[tuple[str, str]] = []
-            if args.nonprofits_db:
-                seeds = fetch_seeds_from_0001(args.nonprofits_db)
+            seeds: Iterable[tuple[str, str]] = fetch_seeds(engine)
 
-            # Pre-filter seeds: validate URLs FIRST, then dedupe by EIN,
-            # then skip already-crawled. Doing validation before dedupe
-            # matters: a seed list with EIN A (invalid URL) followed by
-            # EIN A (valid URL) must keep the valid one, not discard it
-            # as a duplicate of the invalid first occurrence.
             validated: list[tuple[str, str]] = []
             for ein, website in seeds:
                 check = validate_seed_url(website)
                 if not check.ok:
-                    logger.warning("skip ein=%s bad seed %r: %s", ein, website, check.reason)
+                    logger.warning("skip ein=%s bad seed %r: %s",
+                                   ein, website, check.reason)
                     continue
                 validated.append((ein, website))
 
-            # Dedupe survivors by EIN — keeping first occurrence. With
-            # parallel dispatch duplicate EINs would race into the same
-            # crawled_orgs row instead of being serialized by
-            # should_skip_ein.
             pending: list[tuple[str, str]] = []
             seen_eins: set[str] = set()
             for ein, website in validated:
                 if ein in seen_eins:
                     continue
                 seen_eins.add(ein)
-                if should_skip_ein(conn, ein=ein, refresh=args.refresh):
+                if should_skip_ein(engine, ein=ein, refresh=args.refresh):
                     continue
                 pending.append((ein, website))
-
-            # Parallel dispatch via single-writer DB queue + worker pool.
-            # The read-only `conn` stays on the main thread; writes flow
-            # through `writer`. `max_workers=1` preserves serial behavior.
-            writer = DBWriter(str(db_path))
-            writer.start()
-
-            # Spec 0013 Phase 3: opt-in dual-write to RDS. When the flag
-            # is off, NO RDS engine is constructed and behavior is
-            # byte-identical to pre-0013.
-            rds_writer: RDSDBWriter | None = None
-            dual_write_flag = os.getenv("LAVANDULA_DUAL_WRITE", "").strip().lower()
-            if dual_write_flag in ("1", "true", "yes", "on"):
-                try:
-                    from lavandula.common.db import make_app_engine
-                    engine = make_app_engine()
-                    rds_writer = RDSDBWriter(engine)
-                    rds_writer.start()
-                    logger.info("LAVANDULA_DUAL_WRITE on: RDS writer started")
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "LAVANDULA_DUAL_WRITE on but RDS engine setup "
-                        "failed (%s); continuing with SQLite only",
-                        exc.__class__.__name__,
-                    )
-                    rds_writer = None
 
             try:
                 with ThreadPoolExecutor(
@@ -743,39 +634,22 @@ def run(argv: list[str] | None = None) -> int:
                             process_org,
                             ein=ein,
                             website=website,
+                            engine=engine,
                             archive=archive,
                             run_id=run_id,
-                            db_queue=writer,
-                            rds_queue=rds_writer,
                         ): (ein, website)
                         for ein, website in pending
                     }
                     for fut in as_completed(futures):
                         ein, website = futures[fut]
-                        if not writer.is_alive():
-                            logger.error("db writer died; aborting run")
-                            for f in futures:
-                                f.cancel()
-                            raise RuntimeError("db writer thread died")
                         try:
                             fut.result()
-                        except DBWriterDied:
-                            raise
                         except Exception as exc:  # noqa: BLE001
                             logger.exception("ein=%s failed: %s", ein, exc)
             finally:
-                writer.stop()
-                if rds_writer is not None:
-                    try:
-                        rds_writer.stop()
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning(
-                            "rds writer stop raised (%s); ignoring",
-                            exc.__class__.__name__,
-                        )
                 _close_thread_clients()
         finally:
-            conn.close()
+            engine.dispose()
 
         return 0
     finally:
@@ -795,7 +669,7 @@ __all__ = [
     "check_encryption_at_rest",
     "write_halt",
     "process_org",
-    "fetch_seeds_from_0001",
+    "fetch_seeds",
     "run",
 ]
 

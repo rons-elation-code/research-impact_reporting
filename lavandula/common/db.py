@@ -27,11 +27,18 @@ import threading
 import time
 from typing import Any
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 
 
 _REGION = "us-east-1"
+
+# Minimum schema version the current code was written against. Bumped
+# when a new `lavandula/migrations/rds/NNN_*.sql` file lands and callers
+# start relying on the new objects. Every production CLI entrypoint
+# calls `assert_schema_at_least(engine)` at startup, hard-failing if
+# the DB schema is older.
+MIN_SCHEMA_VERSION: int = 2
 _SCHEMA_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 
 
@@ -174,8 +181,42 @@ def make_ro_engine() -> Engine:
     return _engine_from_ssm("rds-ro-user")
 
 
+def assert_schema_at_least(
+    engine: Engine, min_version: int = MIN_SCHEMA_VERSION
+) -> None:
+    """Hard-fail if the RDS schema is older than `min_version`.
+
+    Called at the top of every production CLI entrypoint that writes
+    to `lava_impact`. Two failure modes, both exit 2:
+
+      1. `schema_version` table unreadable (missing or no grants) —
+         usually means migrations haven't been applied.
+      2. Max recorded version below `min_version` — operator needs to
+         apply newer migrations from `lavandula/migrations/rds/`.
+    """
+    try:
+        with engine.connect() as conn:
+            v = conn.execute(text(
+                "SELECT COALESCE(MAX(version), 0) "
+                "FROM lava_impact.schema_version"
+            )).scalar()
+    except Exception as exc:
+        raise SystemExit(
+            f"schema_version table missing or unreadable: {exc}. "
+            "Apply migrations from lavandula/migrations/rds/ before "
+            "running."
+        ) from exc
+    if v is None or int(v) < min_version:
+        raise SystemExit(
+            f"schema at v{v}; code expects v{min_version}+. Apply "
+            "newer migrations from lavandula/migrations/rds/."
+        )
+
+
 __all__ = [
     "IAMTokenManager",
+    "MIN_SCHEMA_VERSION",
+    "assert_schema_at_least",
     "make_engine",
     "make_app_engine",
     "make_ro_engine",

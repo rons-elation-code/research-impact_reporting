@@ -1,13 +1,18 @@
 """Coverage report generator (Phase 6 deliverable).
 
-Reads `reports_public` (AC23) + `fetch_log` aggregates and emits a
-Markdown summary for operator review. Produced after each full pass.
+Reads `lava_impact.reports_public` + `fetch_log` aggregates and emits
+a Markdown summary for operator review.
 """
 from __future__ import annotations
 
 import datetime
-import sqlite3
 from pathlib import Path
+
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+
+_SCHEMA = "lava_impact"
 
 
 def _table(rows: list[tuple]) -> str:
@@ -22,29 +27,43 @@ def _table(rows: list[tuple]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def generate(conn: sqlite3.Connection, out: Path) -> Path:
+def generate(engine: Engine, out: Path) -> Path:
     """Write a coverage_report.md file. Returns its path."""
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 
-    total_public = conn.execute("SELECT COUNT(*) FROM reports_public").fetchone()[0]
-    by_class = list(conn.execute(
-        "SELECT classification, COUNT(*) FROM reports_public "
-        "GROUP BY classification ORDER BY 2 DESC"
-    ))
-    by_platform = list(conn.execute(
-        "SELECT hosting_platform, COUNT(*) FROM reports_public "
-        "GROUP BY hosting_platform ORDER BY 2 DESC"
-    ))
-    by_year = list(conn.execute(
-        "SELECT report_year, COUNT(*) FROM reports_public "
-        "GROUP BY report_year ORDER BY 1 DESC"
-    ))
-    fetch_outcomes = list(conn.execute(
-        "SELECT fetch_status, COUNT(*) FROM fetch_log GROUP BY fetch_status ORDER BY 2 DESC"
-    ))
-    crawled = conn.execute("SELECT COUNT(*) FROM crawled_orgs").fetchone()[0]
+    with engine.connect() as conn:
+        total_public = int(conn.execute(
+            text(f"SELECT COUNT(*) FROM {_SCHEMA}.reports_public")
+        ).scalar() or 0)
+        by_class = [
+            tuple(r) for r in conn.execute(text(
+                f"SELECT classification, COUNT(*) FROM {_SCHEMA}.reports_public "
+                "GROUP BY classification ORDER BY 2 DESC"
+            ))
+        ]
+        by_platform = [
+            tuple(r) for r in conn.execute(text(
+                f"SELECT hosting_platform, COUNT(*) FROM {_SCHEMA}.reports_public "
+                "GROUP BY hosting_platform ORDER BY 2 DESC"
+            ))
+        ]
+        by_year = [
+            tuple(r) for r in conn.execute(text(
+                f"SELECT report_year, COUNT(*) FROM {_SCHEMA}.reports_public "
+                "GROUP BY report_year ORDER BY 1 DESC"
+            ))
+        ]
+        fetch_outcomes = [
+            tuple(r) for r in conn.execute(text(
+                f"SELECT fetch_status, COUNT(*) FROM {_SCHEMA}.fetch_log "
+                "GROUP BY fetch_status ORDER BY 2 DESC"
+            ))
+        ]
+        crawled = int(conn.execute(
+            text(f"SELECT COUNT(*) FROM {_SCHEMA}.crawled_orgs")
+        ).scalar() or 0)
 
     body = f"""# Spec 0004 — Coverage Report
 

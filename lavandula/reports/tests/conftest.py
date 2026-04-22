@@ -36,16 +36,6 @@ def sitemap_fixtures():
 
 
 @pytest.fixture
-def tmp_reports_db(tmp_path):
-    """Materialize a fresh reports DB and yield the connection."""
-    from lavandula.reports import schema
-    db = tmp_path / "reports.db"
-    conn = schema.ensure_db(db)
-    yield conn
-    conn.close()
-
-
-@pytest.fixture
 def tmp_archive_dir(tmp_path):
     """A scratch raw/ directory with 0o700 permissions."""
     raw = tmp_path / "raw"

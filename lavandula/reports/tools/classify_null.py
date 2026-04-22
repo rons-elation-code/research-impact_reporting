@@ -1,17 +1,11 @@
 """Batch-classify all reports where classification IS NULL.
 
-Iterates the `reports` table of an existing reports.db, calls the
-selected classifier backend on each row's `first_page_text`, writes
-the result back in-place.
-
-TICK-002: classification runs in parallel across worker threads.
-`--max-workers N` controls fanout (default 4, safe for Codex CLI
-on a 2-CPU host). Use `--max-workers 1` for deterministic order.
+Iterates `lava_impact.reports`, calls the selected classifier backend
+on each row's `first_page_text`, and writes the result back in-place
+via the SQLAlchemy engine (Spec 0017).
 
 Usage:
-    python -m lavandula.reports.tools.classify_null \\
-        --db /tmp/0004-coastal-run/data/reports.db \\
-        --max-workers 4
+    python -m lavandula.reports.tools.classify_null --max-workers 4
 
 Idempotent — re-runs only touch rows still NULL.
 """
@@ -19,15 +13,19 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import os
-import signal
-import sqlite3
 import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+
+from lavandula.common.db import (
+    MIN_SCHEMA_VERSION,
+    assert_schema_at_least,
+    make_app_engine,
+)
 from lavandula.reports import budget, config, db_writer
 from lavandula.reports.classifier_clients import (
     CodexSubscriptionClient,
@@ -38,7 +36,6 @@ from lavandula.reports.classify import (
     classify_first_page,
     estimate_cents,
 )
-from lavandula.reports.rds_db_writer import RDSDBWriter
 
 
 class _BudgetHalt(SystemExit):
@@ -49,16 +46,6 @@ class _BudgetHalt(SystemExit):
 
 
 # --- Subprocess tracking (TICK-002 Ctrl-C cleanup) ---------------------
-#
-# The default `subprocess.run` blocks the worker thread for up to 60s
-# on each `codex exec`. `ThreadPoolExecutor.shutdown(cancel_futures=True)`
-# only stops *pending* futures — it cannot interrupt an in-flight
-# subprocess. Without explicit kill, Ctrl-C leaves up to N orphan
-# codex processes running until they hit the 60s timeout.
-#
-# We inject a tracking runner into `CodexSubscriptionClient` that
-# records each active Popen. On Ctrl-C, `kill_active_subprocesses()`
-# terminates them so shutdown is prompt.
 
 _ACTIVE_PROCS: set[subprocess.Popen] = set()
 _ACTIVE_LOCK = threading.Lock()
@@ -101,7 +88,6 @@ def _tracking_subprocess_run(
 
 
 def kill_active_subprocesses() -> int:
-    """Terminate any tracked in-flight Codex subprocesses. Returns count."""
     with _ACTIVE_LOCK:
         procs = list(_ACTIVE_PROCS)
     n = 0
@@ -115,7 +101,6 @@ def kill_active_subprocesses() -> int:
 
 
 def _effective_classifier_model(client, result) -> str:
-    """Return a truthful classifier_model string for the audit trail."""
     if isinstance(client, CodexSubscriptionClient):
         return f"codex-cli/{client._codex_model or 'default'}"
     return result.classifier_model
@@ -126,13 +111,6 @@ def iso_now() -> str:
 
 
 # Per-thread classifier client (TICK-002 round-3 review).
-#
-# The Anthropic SDK keeps an httpx.Client; the Codex shim builds
-# per-call subprocesses but holds config state. Neither is audited
-# as thread-safe for shared use across workers. Match the crawler's
-# per-thread pattern: each worker thread lazily constructs its own
-# client via threading.local.
-
 _classifier_local = threading.local()
 _classifier_factory = None  # set by main() before dispatch
 
@@ -141,23 +119,15 @@ def _get_thread_classifier():
     c = getattr(_classifier_local, "client", None)
     if c is None:
         c = _classifier_factory()
-        # Inject the tracking runner so Ctrl-C can kill in-flight codex
-        # subprocesses started by this thread's client.
         if isinstance(c, CodexSubscriptionClient):
             c._runner = _tracking_subprocess_run
         _classifier_local.client = c
     return c
 
 
-def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
-                  budget_enabled=False, halt_event=None, rds_writer=None):
-    """Worker-side classify call. Returns (sha, result_or_exc_tuple).
-
-    When `budget_enabled`, wraps the classifier call with
-    budget.check_and_reserve → settle (on success) / release
-    (on failure). A `BudgetExceeded` from reserve sets the shared
-    `halt_event` and returns a "budget_halt" outcome.
-    """
+def _classify_one(sha: str, text_input: str, *, engine: Engine,
+                  budget_enabled=False, halt_event=None):
+    """Worker-side classify call. Returns (sha, (kind, payload))."""
     if halt_event is not None and halt_event.is_set():
         return sha, ("cancelled", None)
 
@@ -166,13 +136,11 @@ def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
     if budget_enabled:
         try:
             est = estimate_cents(1200, 150)
-            with db_lock:
-                reservation_id = budget.check_and_reserve(
-                    conn,
-                    estimated_cents=est,
-                    classifier_model=config.CLASSIFIER_MODEL,
-                    rds_writer=rds_writer,
-                )
+            reservation_id = budget.check_and_reserve(
+                engine,
+                estimated_cents=est,
+                classifier_model=config.CLASSIFIER_MODEL,
+            )
         except budget.BudgetExceeded as exc:
             if halt_event is not None:
                 halt_event.set()
@@ -182,118 +150,89 @@ def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
 
     try:
         result = classify_first_page(
-            text, client=client, raise_on_error=False
+            text_input, client=client, raise_on_error=False
         )
     except ClassifierError as exc:
-        _release_reservation(conn, db_lock, reservation_id, rds_writer)
+        _release_reservation(engine, reservation_id)
         return sha, ("schema_error", exc)
     except Exception as exc:  # noqa: BLE001
-        _release_reservation(conn, db_lock, reservation_id, rds_writer)
+        _release_reservation(engine, reservation_id)
         return sha, ("unexpected", exc)
 
     if budget_enabled and reservation_id is not None:
         if result.classification is None:
-            _release_reservation(conn, db_lock, reservation_id, rds_writer)
+            _release_reservation(engine, reservation_id)
         else:
             try:
-                with db_lock:
-                    budget.settle(
-                        conn,
-                        reservation_id=reservation_id,
-                        actual_input_tokens=getattr(result, "input_tokens", 0) or 0,
-                        actual_output_tokens=getattr(result, "output_tokens", 0) or 0,
-                        sha256_classified=sha,
-                        rds_writer=rds_writer,
-                    )
+                budget.settle(
+                    engine,
+                    reservation_id=reservation_id,
+                    actual_input_tokens=getattr(result, "input_tokens", 0) or 0,
+                    actual_output_tokens=getattr(result, "output_tokens", 0) or 0,
+                    sha256_classified=sha,
+                )
             except Exception:  # noqa: BLE001
-                _release_reservation(conn, db_lock, reservation_id, rds_writer)
+                _release_reservation(engine, reservation_id)
                 raise
 
     return sha, ("ok", result)
 
 
-def _release_reservation(conn, db_lock, reservation_id, rds_writer=None) -> None:
-    if reservation_id is None or db_lock is None:
+def _release_reservation(engine: Engine, reservation_id) -> None:
+    if reservation_id is None:
         return
     try:
-        with db_lock:
-            budget.release(conn, reservation_id=reservation_id,
-                           rds_writer=rds_writer)
+        budget.release(engine, reservation_id=reservation_id)
     except Exception:  # noqa: BLE001,S110  # nosec B110 — best-effort rollback
         pass
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", type=Path, required=True)
     ap.add_argument("--limit", type=int, default=None,
                     help="Stop after N classifications (for testing).")
     ap.add_argument("--sha-prefix", type=str, default=None,
                     help="Only classify rows whose sha256 starts with this "
                     "prefix (for testing).")
     ap.add_argument("--re-classify", action="store_true",
-                    help="Re-classify rows that already have a classification "
-                    "(used to re-stamp with new model). WARNING: overwrites.")
+                    help="Re-classify rows that already have a classification.")
     ap.add_argument("--max-workers", type=int, default=4,
-                    help="Parallel classifier threads (TICK-002). Default 4. "
-                    "Codex CLI fanout on a 2-CPU host; lower to 2 if "
-                    "rate-limiting is observed. Use 1 for serial.")
+                    help="Parallel classifier threads (TICK-002). Default 4.")
     args = ap.parse_args()
 
     if args.max_workers < 1 or args.max_workers > 32:
         ap.error("--max-workers must be between 1 and 32")
 
-    if not args.db.exists():
-        print(f"error: {args.db} not found", file=sys.stderr)
-        return 2
+    engine = make_app_engine()
+    assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
 
-    # check_same_thread=False: the conn is shared across worker threads
-    # but every access is serialized via db_lock below — SQLite sees a
-    # single writer at a time.
-    conn = sqlite3.connect(str(args.db), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-
-    null_filter = "" if args.re_classify else "AND classification IS NULL"
-    # Detect optional columns — test fixtures sometimes use a minimal
-    # reports schema without source_org_ein / source_url_redacted.
-    have_cols = {
-        r[1] for r in conn.execute("PRAGMA table_info(reports)")
-    }
-    ein_col = "source_org_ein" if "source_org_ein" in have_cols else "NULL AS source_org_ein"
-    url_col = (
-        "source_url_redacted"
-        if "source_url_redacted" in have_cols
-        else "'' AS source_url_redacted"
+    null_filter = "" if args.re_classify else " AND classification IS NULL "
+    sql = (
+        "SELECT content_sha256, first_page_text, "
+        "       source_org_ein, source_url_redacted "
+        "  FROM lava_impact.reports "
+        " WHERE first_page_text IS NOT NULL "
+        "   AND first_page_text <> '' "
+        f"{null_filter}"
     )
-    sql = f"""
-        SELECT content_sha256, first_page_text, {ein_col}, {url_col}
-        FROM reports
-        WHERE first_page_text IS NOT NULL
-          AND first_page_text != ''
-          {null_filter}
-    """
-    params: tuple = ()
+    params: dict = {}
     if args.sha_prefix:
-        sql += " AND content_sha256 LIKE ?"
-        params = (args.sha_prefix + "%",)
+        sql += " AND content_sha256 LIKE :prefix "
+        params["prefix"] = args.sha_prefix + "%"
     sql += " ORDER BY archived_at"
     if args.limit:
-        sql += f" LIMIT {int(args.limit)}"
+        sql += " LIMIT :limit"
+        params["limit"] = int(args.limit)
 
-    rows = conn.execute(sql, params).fetchall()
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql), params).mappings().all()
     total = len(rows)
-    print(f"classifying {total} rows from {args.db} (max_workers={args.max_workers})")
+    print(f"classifying {total} rows (max_workers={args.max_workers})")
     if total == 0:
         return 0
 
-    # Per-thread clients (round-3): workers lazily construct their own
-    # via threading.local. We need a sample client up front only to
-    # compute the effective_classifier_model for audit stamps and to
-    # print the class name. The sample is NOT used by workers.
     global _classifier_factory
     _classifier_factory = select_classifier_client
-    # Clear main-thread-cached client from any prior main() invocation
-    # (test isolation).
     if hasattr(_classifier_local, "client"):
         del _classifier_local.client
     sample_client = _get_thread_classifier()
@@ -304,22 +243,13 @@ def main() -> int:
     unknown_enum = 0
     low_confidence = 0
     classification_counts: dict[str, int] = {}
-    # DB writes serialized via a lock — single connection, multi-thread callers.
-    db_lock = threading.Lock()
 
-    # Budget preflight: reconcile any stale reservations from a prior
-    # crash, then guard every classifier call with check_and_reserve +
-    # settle/release. The lock serializes budget writes on the shared
-    # conn so the DB sees one writer at a time.
     budget_enabled = True
     try:
-        with db_lock:
-            reclaimed = budget.reconcile_stale_reservations(conn)
+        reclaimed = budget.reconcile_stale_reservations(engine)
         if reclaimed:
             print(f"reconciled {reclaimed} stale classifier preflight reservation(s)")
-    except sqlite3.OperationalError as exc:
-        # Most common cause: test DB without `budget_ledger` table.
-        # In production reports.db always has the table.
+    except Exception as exc:  # noqa: BLE001
         budget_enabled = False
         print(f"note: budget ledger unavailable ({exc}); skipping accounting",
               file=sys.stderr)
@@ -327,90 +257,52 @@ def main() -> int:
     halt_event = threading.Event()
     halt_message = {"text": ""}
 
-    # Spec 0013 Phase 3: opt-in dual-write to RDS. When the flag is
-    # off, NO RDS engine is constructed (byte-identical pre-0013).
-    rds_writer: RDSDBWriter | None = None
-    dual_write_flag = os.getenv("LAVANDULA_DUAL_WRITE", "").strip().lower()
-    if dual_write_flag in ("1", "true", "yes", "on"):
+    def _log_classify_event(sha: str, ein: str | None,
+                            url_redacted: str, fetch_status: str,
+                            notes: str = "") -> None:
         try:
-            from lavandula.common.db import make_app_engine
-            engine = make_app_engine()
-            rds_writer = RDSDBWriter(engine)
-            rds_writer.start()
-            print("LAVANDULA_DUAL_WRITE on: RDS writer started",
-                  file=sys.stderr)
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"LAVANDULA_DUAL_WRITE on but RDS setup failed "
-                f"({type(exc).__name__}); continuing with SQLite only",
-                file=sys.stderr,
+            db_writer.record_fetch(
+                engine,
+                ein=ein,
+                url_redacted=url_redacted or "",
+                kind="classify",
+                fetch_status=fetch_status,
+                notes=notes or None,
             )
-            rds_writer = None
-
-    # fetch_log may or may not exist on the DB (full reports.db vs. a
-    # test fixture). Probe once so per-row calls don't keep erroring.
-    fetch_log_enabled = True
-    try:
-        conn.execute("SELECT 1 FROM fetch_log LIMIT 1")
-    except sqlite3.OperationalError:
-        fetch_log_enabled = False
-        print("note: fetch_log table absent; classify events not audited",
-              file=sys.stderr)
-
-    def _log_classify_event(sha: str, ein: str | None, url_redacted: str,
-                            fetch_status: str, notes: str = "") -> None:
-        """Write a kind='classify' row to fetch_log (TICK-002 round-6 fix).
-        Restores the audit trail that the old inline crawler path wrote."""
-        if not fetch_log_enabled:
-            return
-        try:
-            with db_lock:
-                db_writer.record_fetch(
-                    conn,
-                    ein=ein,
-                    url_redacted=url_redacted or "",
-                    kind="classify",
-                    fetch_status=fetch_status,
-                    notes=notes or None,
-                    rds_writer=rds_writer,
-                )
-                conn.commit()
-        except sqlite3.OperationalError:
-            # Writer-side schema drift — don't block classification.
+        except Exception:  # noqa: BLE001
             pass
 
     def _write_result(sha: str, result) -> None:
-        with db_lock:
+        with engine.begin() as conn:
             conn.execute(
-                """UPDATE reports
-                   SET classification=?,
-                       classification_confidence=?,
-                       classifier_model=?,
-                       classifier_version=?,
-                       classified_at=?
-                   WHERE content_sha256=?""",
-                (
-                    result.classification,
-                    result.classification_confidence,
-                    _effective_classifier_model(sample_client, result),
-                    1,
-                    iso_now(),
-                    sha,
+                text(
+                    "UPDATE lava_impact.reports SET "
+                    "  classification = :class, "
+                    "  classification_confidence = :conf, "
+                    "  classifier_model = :model, "
+                    "  classifier_version = :cver, "
+                    "  classified_at = :ts "
+                    "WHERE content_sha256 = :sha"
                 ),
+                {
+                    "class": result.classification,
+                    "conf": result.classification_confidence,
+                    "model": _effective_classifier_model(sample_client, result),
+                    "cver": 1,
+                    "ts": iso_now(),
+                    "sha": sha,
+                },
             )
-            conn.commit()
 
     executor = ThreadPoolExecutor(
         max_workers=args.max_workers,
         thread_name_prefix="classify-null",
     )
-    interrupted = False
     try:
-        # Map sha → (ein, url_redacted) for the fetch_log audit trail.
         sha_meta = {
             row["content_sha256"]: (
-                row["source_org_ein"] if "source_org_ein" in row.keys() else None,
-                row["source_url_redacted"] if "source_url_redacted" in row.keys() else "",
+                row.get("source_org_ein"),
+                row.get("source_url_redacted") or "",
             )
             for row in rows
         }
@@ -419,11 +311,9 @@ def main() -> int:
                 _classify_one,
                 row["content_sha256"],
                 row["first_page_text"],
-                conn=conn,
-                db_lock=db_lock,
+                engine=engine,
                 budget_enabled=budget_enabled,
                 halt_event=halt_event,
-                rds_writer=rds_writer,
             ): i
             for i, row in enumerate(rows, 1)
         }
@@ -464,7 +354,6 @@ def main() -> int:
                       file=sys.stderr)
                 continue
             if kind == "cancelled":
-                # Future never ran — halt was set before it started.
                 continue
 
             result = payload
@@ -491,14 +380,9 @@ def main() -> int:
             print(f"  [{i:>3}/{total}] sha={sha[:10]}  "
                   f"{result.classification:<12} "
                   f"conf={result.classification_confidence:.2f}")
-        # Budget cap hit — drain/cancel any still-pending futures so we
-        # don't issue more classifier calls past the cap.
         if halt_event.is_set():
             executor.shutdown(wait=False, cancel_futures=True)
     except KeyboardInterrupt:
-        # Interrupt path: cancel pending futures AND kill any in-flight
-        # codex subprocesses. Do NOT wait for them — they're gone.
-        interrupted = True
         print("\n^C — cancelling pending classifications", file=sys.stderr)
         executor.shutdown(wait=False, cancel_futures=True)
         killed = kill_active_subprocesses()
@@ -507,48 +391,36 @@ def main() -> int:
                   file=sys.stderr)
         raise
     else:
-        # Normal completion: drain the (already-drained) pool cleanly.
         executor.shutdown(wait=True)
 
     # Backfill crawled_orgs.confirmed_report_count from the now-classified
-    # reports table. TICK-002 deferred classification out of the crawler
-    # so the column is written as 0 at crawl time; this restores the
-    # invariant that `confirmed_report_count` reflects the current
-    # annual/impact/hybrid count per EIN.
+    # reports table.
     try:
-        with db_lock:
-            conn.execute(
-                """
-                UPDATE crawled_orgs
-                   SET confirmed_report_count = (
-                     SELECT COUNT(*) FROM reports
-                      WHERE reports.source_org_ein = crawled_orgs.ein
-                        AND reports.classification IN ('annual', 'impact', 'hybrid')
-                   )
-                """
-            )
-            conn.commit()
-        print(f"\nbackfilled crawled_orgs.confirmed_report_count")
-    except sqlite3.Error as exc:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE lava_impact.crawled_orgs "
+                "   SET confirmed_report_count = ( "
+                "       SELECT COUNT(*) FROM lava_impact.reports "
+                "        WHERE reports.source_org_ein = crawled_orgs.ein "
+                "          AND reports.classification IN "
+                "              ('annual','impact','hybrid')"
+                "   )"
+            ))
+        print("\nbackfilled crawled_orgs.confirmed_report_count")
+    except Exception as exc:  # noqa: BLE001
         print(f"\nwarning: confirmed_report_count backfill failed: {exc}",
               file=sys.stderr)
 
-    print(f"\n=== done ===")
+    print("\n=== done ===")
     print(f"  classified ok:   {ok}")
     print(f"  null (errors):   {errs}")
     print(f"  schema errors:   {unknown_enum}")
     print(f"  low confidence:  {low_confidence}")
-    print(f"\n=== by classification ===")
+    print("\n=== by classification ===")
     for cls in sorted(classification_counts.keys()):
         print(f"  {cls:<14} {classification_counts[cls]}")
 
-    conn.close()
-    if rds_writer is not None:
-        try:
-            rds_writer.stop()
-        except Exception as exc:  # noqa: BLE001
-            print(f"rds writer stop raised ({type(exc).__name__}); ignoring",
-                  file=sys.stderr)
+    engine.dispose()
     if halt_event.is_set():
         print(f"\nHALT: classifier budget cap exceeded — {halt_message['text']}",
               file=sys.stderr)
