@@ -203,7 +203,7 @@ projects:
   - id: "0008"
     title: "Agent Batch Runner"
     summary: "Orchestrate Claude Code WebSearch sub-agents for URL resolution at scale. Takes an EIN list → splits into N-org chunks → spawns K agents in parallel → waits → ingests results back into seeds.db. Resumable (agents append to results file as they go), skip-already-resolved by default."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0008-agent-batch-runner.md
