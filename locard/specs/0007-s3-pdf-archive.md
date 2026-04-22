@@ -147,14 +147,26 @@ metadata in Python code.
 1. S3 enforces a 2 KB total user-metadata limit per object. To stay
    well under, the URL is truncated to **1024 characters** before
    upload.
-2. S3 user-metadata must be US-ASCII. Non-ASCII characters in the URL
-   are percent-encoded (RFC 3986) before truncation. Truncation
-   happens after encoding to guarantee the stored value never splits
-   a percent-encoded triplet.
-3. If the URL after encoding and truncation still contains any byte
-   S3 rejects, the upload proceeds without the `source-url`
-   metadata key; a structured warning is logged. The PDF itself
-   still uploads; provenance degrades to EIN + crawl-run-id only.
+2. S3 user-metadata must be US-ASCII. Non-ASCII and control characters
+   in the URL are percent-encoded via `urllib.parse.quote(url, safe='')`
+   **before** truncation. The strict `safe=''` mode encodes *everything*
+   that isn't an unreserved RFC 3986 character, which inherently blocks
+   CRLF (`\r\n`) injection into the S3 PUT's HTTP headers.
+3. Truncation happens after encoding to guarantee the stored value
+   never splits a percent-encoded triplet.
+4. If the encoded+truncated URL still fails S3's metadata validator
+   (e.g., an exotic edge case), the upload proceeds without the
+   `source-url` metadata key; a structured warning is logged. The
+   PDF itself still uploads; provenance degrades to EIN + crawl-run-id
+   only.
+
+**CRLF / header-injection defense**: the `safe=''` strictness is the
+primary defense. A malicious source URL containing raw `\r\n` would
+be encoded to `%0D%0A` — literal text, not a header terminator. boto3
+additionally validates metadata values and rejects non-ASCII; the
+encoding prevents that rejection path from firing on legitimate URLs.
+Do **not** relax `safe=''` to include `%` or `/` "for readability" —
+those relaxations reopen the injection vector.
 
 This lets you answer "where did this PDF come from?" from S3 alone,
 even if the reports.db is corrupted or offline.
@@ -200,7 +212,7 @@ stance is enforced by operating environment, not by the code.
 | Bucket exists, wrong region | Fail fast. Logs say `bucket is in us-west-2; expected us-east-1`. |
 | IAM missing s3:PutObject | Fail fast at startup after a HEAD probe. |
 | Transient S3 5xx | boto3 default retry (3 attempts with exponential backoff). |
-| PUT succeeds, DB write fails | Orphaned S3 object is acceptable. Log structured warning so a garbage-collection TICK can clean up later. |
+| PUT succeeds, DB write fails | Orphaned S3 object is acceptable (bounded rate); logged with structured warning. Reconciler detects and repairs. |
 | PUT fails after all retries | Record `fetch_log` row with `outcome='error'`, do NOT insert a `reports` row. The sha256 is retained in fetch_log for debugging. |
 | PDF validation fails (not a PDF, bad structure) | Existing behavior — no PUT attempted. |
 
@@ -230,6 +242,52 @@ We intentionally do not perform a write-probe at startup because:
 
 The startup probe is best-effort for fast failure of common
 misconfigurations; it is not a substitute for the first real PUT.
+
+### Orphan reconciliation (addresses async-queue orphan risk)
+
+Because `DBWriter` is async-queued (per TICK-002), a worker's sequence
+can be interrupted between a successful S3 PUT and the DB write being
+flushed by the writer thread. Interruption sources:
+
+- SIGKILL / `kill -9` on the crawler process
+- OOM kill from the OS
+- EC2 spot-instance termination
+- Writer thread dies with the queue still holding the pending write
+
+All produce the same result: an S3 object that no `reports` row
+references. The bytes exist in the bucket but are invisible to the
+pipeline. This is a **data-integrity** hazard, not a data-loss one —
+the bytes are still there.
+
+**Mitigation**: a new `lavandula/reports/tools/reconcile_s3.py`
+utility (ships in this spec). It:
+
+1. Lists all object keys under the archive prefix (`s3:ListBucket`)
+2. Queries the reports DB for all `content_sha256` values
+3. For each S3 key not in the DB, reads `x-amz-meta-ein` and
+   `x-amz-meta-source-url` from the object, HEAD-probes the source URL
+   to confirm the PDF is still the same content (optional), and inserts
+   a `reports` row using the S3 metadata as the source of truth.
+4. For each DB sha256 not in S3, logs a structured warning (this
+   would indicate a *different* kind of drift — PUT never happened
+   but DB row was written, which the 0007 design explicitly prevents,
+   so this should never trigger).
+
+The reconciler runs manually post-crawl via:
+```
+python -m lavandula.reports.tools.reconcile_s3 \
+  --db /path/reports.db \
+  --archive s3://bucket/prefix \
+  --dry-run
+```
+
+`--dry-run` prints differences without writing. Real runs need
+`--apply`.
+
+**Recommended operational cadence**: run after each large crawl
+(5K+ orgs) and immediately after any abnormal crawler shutdown.
+Expected orphan rate is low (< 0.1%) under normal operation; higher
+rates indicate infrastructure instability worth investigating.
 
 ---
 
@@ -314,6 +372,24 @@ length check rejects any computed sha256 that isn't 64 hex chars.
 call. Objects inherit bucket default ACL (private). *Offline test:
 botocore stubber asserts no `ACL` key in request params.*
 
+**AC15** — `source-url` metadata encoding uses
+`urllib.parse.quote(url, safe='')`. A URL containing CRLF
+(`"https://a.example/\r\nx-amz-acl: public-read"`) is encoded to
+`https%3A%2F%2Fa.example%2F%0D%0Ax-amz-acl%3A%20public-read`, and the
+resulting HTTP request headers contain no injected `x-amz-acl` line.
+*Offline test: botocore stubber asserts request headers do not contain
+additional `x-amz-*` keys beyond the canonical four and that the
+encoded URL is correctly percent-encoded.*
+
+**AC16** — `reconcile_s3.py` tool exists and supports `--dry-run` and
+`--apply` modes. Given a reports DB and an S3 prefix with one orphan
+object (present in S3, absent from DB), the tool:
+  - `--dry-run`: prints the orphan sha256 and its EIN from object
+    metadata, exits 0, writes nothing.
+  - `--apply`: inserts a `reports` row using the S3 metadata as the
+    source of truth, exits 0.
+  *Offline test: moto + an in-memory reports DB.*
+
 ---
 
 ## Traps to Avoid
@@ -365,6 +441,21 @@ botocore stubber asserts no `ACL` key in request params.*
     that can unintentionally override the private-by-default stance.
     Explicitly do not set the `ACL` parameter in PUT calls.
 
+11. **Do not relax `urllib.parse.quote(url, safe='')` to
+    `safe='/'` or `safe='%'`**. The strict setting is the primary
+    defense against CRLF injection into S3 PUT HTTP headers via the
+    `source-url` metadata. Any relaxation reintroduces the attack
+    vector.
+
+12. **Do not assume DBWriter persistence at the moment `put()`
+    returns**. Writes are queued and flushed by the writer thread.
+    A worker that considers itself "done" the instant it calls
+    `DBWriter.put(upsert_report)` has NOT yet durably recorded the
+    upload. On abnormal shutdown, a window exists where S3 has the
+    bytes but the DB does not. The `reconcile_s3` tool is how we
+    recover, not a pre-commit-style synchronous barrier (which would
+    serialize the pipeline and defeat TICK-002's parallelism).
+
 ---
 
 ## Files Changed
@@ -378,6 +469,8 @@ botocore stubber asserts no `ACL` key in request params.*
 | `lavandula/reports/tests/unit/test_s3_archive_0007.py` | NEW — AC1, AC2, AC3, AC5, AC6, AC7, AC8, AC9, AC11, AC12, AC13, AC14 (moto + botocore stubber; no AWS calls) |
 | `lavandula/reports/tests/unit/test_crawler_archive_argv_0007.py` | NEW — AC11 pure argparse tests |
 | `lavandula/reports/tests/integration/test_s3_archive_live.py` | NEW — end-to-end smoke test against real S3, gated on `LAVANDULA_LIVE_S3=1` |
+| `lavandula/reports/tools/reconcile_s3.py` | NEW — orphan reconciliation tool (AC16) |
+| `lavandula/reports/tests/unit/test_reconcile_s3_0007.py` | NEW — AC16 |
 | `lavandula/reports/HANDOFF.md` | Update operator runbook — how to configure S3 archive |
 | `requirements.in` / `requirements.txt` | Add `boto3`, `moto` (test-only) |
 
