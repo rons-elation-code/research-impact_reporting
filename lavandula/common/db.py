@@ -194,6 +194,7 @@ def assert_schema_at_least(
       2. Max recorded version below `min_version` — operator needs to
          apply newer migrations from `lavandula/migrations/rds/`.
     """
+    import sys as _sys
     try:
         with engine.connect() as conn:
             v = conn.execute(text(
@@ -201,16 +202,23 @@ def assert_schema_at_least(
                 "FROM lava_impact.schema_version"
             )).scalar()
     except Exception as exc:
-        raise SystemExit(
+        # SystemExit(str) exits with code 1; the spec documents exit 2
+        # on stale schema, so we print the message to stderr ourselves
+        # and raise SystemExit(2).
+        print(
             f"schema_version table missing or unreadable: {exc}. "
             "Apply migrations from lavandula/migrations/rds/ before "
-            "running."
-        ) from exc
-    if v is None or int(v) < min_version:
-        raise SystemExit(
-            f"schema at v{v}; code expects v{min_version}+. Apply "
-            "newer migrations from lavandula/migrations/rds/."
+            "running.",
+            file=_sys.stderr,
         )
+        raise SystemExit(2) from exc
+    if v is None or int(v) < min_version:
+        print(
+            f"schema at v{v}; code expects v{min_version}+. Apply "
+            "newer migrations from lavandula/migrations/rds/.",
+            file=_sys.stderr,
+        )
+        raise SystemExit(2)
 
 
 __all__ = [
