@@ -532,6 +532,24 @@ def record_deletion(
         rds_writer.put(_do_rds)
 
 
+def _is_unique_violation(exc: BaseException) -> bool:
+    """Identify psycopg2 UniqueViolation without a hard import dependency.
+
+    Tests and some environments may not have psycopg2 on the path, so
+    we duck-type the SQLSTATE ('23505' = unique_violation per Postgres).
+    """
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode == "23505":
+        return True
+    cls_name = exc.__class__.__name__
+    if cls_name == "UniqueViolation":
+        return True
+    return False
+
+
+_UPSERT_REPORT_MAX_ATTEMPTS = 2
+
+
 def _upsert_report_pg_inner(
     pg_conn: Any,
     *,
@@ -570,7 +588,106 @@ def _upsert_report_pg_inner(
     classification confidence, monotonic extractor_version, etc.) but
     targets `lava_impact.reports` with %s placeholders. Called only
     from the `rds_writer` closure path; SQLite path is unchanged.
+
+    Race handling: the crawler and classify_null each run independent
+    `RDSDBWriter`s, so two processes can SELECT (miss) → INSERT the
+    same `content_sha256` and lose the race on the Postgres unique
+    key. We catch `UniqueViolation` (SQLSTATE 23505), rollback to a
+    savepoint, and retry the read-merge path which now sees the
+    other writer's row and lands in the UPDATE branch. Bounded to
+    `_UPSERT_REPORT_MAX_ATTEMPTS` to avoid pathological loops.
     """
+    kwargs = dict(
+        content_sha256=content_sha256,
+        source_url_redacted=source_url_redacted,
+        referring_page_url_redacted=referring_page_url_redacted,
+        chain_json=chain_json,
+        source_org_ein=source_org_ein,
+        discovered_via=discovered_via,
+        hosting_platform=hosting_platform,
+        attribution_confidence=attribution_confidence,
+        archived_at=archived_at,
+        content_type=content_type,
+        file_size_bytes=file_size_bytes,
+        page_count=page_count,
+        first_page_text=first_page_text,
+        pdf_creator=pdf_creator,
+        pdf_producer=pdf_producer,
+        pdf_creation_date=pdf_creation_date,
+        pdf_has_javascript=pdf_has_javascript,
+        pdf_has_launch=pdf_has_launch,
+        pdf_has_embedded=pdf_has_embedded,
+        pdf_has_uri_actions=pdf_has_uri_actions,
+        classification=classification,
+        classification_confidence=classification_confidence,
+        classifier_model=classifier_model,
+        classifier_version=classifier_version,
+        classified_at=classified_at,
+        report_year=report_year,
+        report_year_source=report_year_source,
+        extractor_version=extractor_version,
+    )
+    sp_name = "upsert_report_rds"
+    last_exc: BaseException | None = None
+    for _attempt in range(_UPSERT_REPORT_MAX_ATTEMPTS):
+        with pg_conn.cursor() as sp_cur:
+            sp_cur.execute(f"SAVEPOINT {sp_name}")
+        try:
+            _upsert_report_pg_body(pg_conn, **kwargs)
+            with pg_conn.cursor() as sp_cur:
+                sp_cur.execute(f"RELEASE SAVEPOINT {sp_name}")
+            return
+        except Exception as exc:  # noqa: BLE001
+            with pg_conn.cursor() as sp_cur:
+                sp_cur.execute(f"ROLLBACK TO SAVEPOINT {sp_name}")
+            if _is_unique_violation(exc):
+                # Another writer inserted this sha between our SELECT
+                # and INSERT. Retry — the second pass will see the
+                # row and take the UPDATE branch.
+                last_exc = exc
+                continue
+            raise
+    # Exhausted attempts — surface the last UniqueViolation. The
+    # best-effort RDSDBWriter will log WARN and drop the op; SQLite
+    # remains untouched.
+    if last_exc is not None:
+        raise last_exc
+
+
+def _upsert_report_pg_body(
+    pg_conn: Any,
+    *,
+    content_sha256: str,
+    source_url_redacted: str,
+    referring_page_url_redacted: str | None,
+    chain_json: str | None,
+    source_org_ein: str,
+    discovered_via: str,
+    hosting_platform: str | None,
+    attribution_confidence: str,
+    archived_at: str,
+    content_type: str,
+    file_size_bytes: int,
+    page_count: int | None,
+    first_page_text: str | None,
+    pdf_creator: str | None,
+    pdf_producer: str | None,
+    pdf_creation_date: str | None,
+    pdf_has_javascript: int,
+    pdf_has_launch: int,
+    pdf_has_embedded: int,
+    pdf_has_uri_actions: int,
+    classification: str | None,
+    classification_confidence: float | None,
+    classifier_model: str,
+    classifier_version: int,
+    classified_at: str | None,
+    report_year: int | None,
+    report_year_source: str | None,
+    extractor_version: int,
+) -> None:
+    """One read-merge-write attempt against RDS. Called by the retry
+    loop in `_upsert_report_pg_inner`."""
     with pg_conn.cursor() as cur:
         cur.execute(
             f"SELECT source_url_redacted, referring_page_url_redacted, "

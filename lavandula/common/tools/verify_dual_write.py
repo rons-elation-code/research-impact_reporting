@@ -97,28 +97,22 @@ def _postgres_count(pg_cur, schema: str, table: str) -> int:
     return int(pg_cur.fetchone()[0])
 
 
-def _sqlite_pks(
-    conn: sqlite3.Connection, table: str, pk: str, limit: int = 100000
-) -> set[str]:
-    # Deterministic sampling: ORDER BY <pk> so both backends walk the
-    # same prefix of the sort order. Without this, LIMIT picks an
-    # arbitrary subset and the "missing PKs" list is meaningless.
+def _sqlite_pks(conn: sqlite3.Connection, table: str, pk: str) -> set[str]:
+    # Full set-diff (no LIMIT). Current scale (<10K rows) makes the
+    # memory cost trivial. If scale grows past ~1M, add an opt-in
+    # `--sample-size` flag — but a bounded sample would hide real
+    # drift that falls outside the sample, so the default must be
+    # exact.
     cur = conn.execute(
-        f"SELECT {_safe_ident(pk)} FROM {_safe_ident(table)} "
-        f"ORDER BY {_safe_ident(pk)} LIMIT ?",
-        (limit,),
+        f"SELECT {_safe_ident(pk)} FROM {_safe_ident(table)}"
     )
     return {str(r[0]) for r in cur.fetchall() if r[0] is not None}
 
 
-def _postgres_pks(
-    pg_cur, schema: str, table: str, pk: str, limit: int = 100000
-) -> set[str]:
+def _postgres_pks(pg_cur, schema: str, table: str, pk: str) -> set[str]:
     pg_cur.execute(
         f'SELECT "{_safe_ident(pk)}" '
-        f'FROM "{_safe_ident(schema)}"."{_safe_ident(table)}" '
-        f'ORDER BY "{_safe_ident(pk)}" LIMIT %s',
-        (limit,),
+        f'FROM "{_safe_ident(schema)}"."{_safe_ident(table)}"'
     )
     return {str(r[0]) for r in pg_cur.fetchall() if r[0] is not None}
 
@@ -131,6 +125,8 @@ def verify_table(
     schema: str,
     sample_size: int = 20,
 ) -> TableDrift:
+    """Compare one table. `sample_size` caps the number of missing
+    PKs printed in the drift report; set-diff itself is exhaustive."""
     res = TableDrift(table=spec.name)
     if not _sqlite_has_table(sqlite_conn, spec.name):
         # This SQLite file doesn't have this table; e.g. reports.db vs seeds.db.

@@ -219,10 +219,16 @@ def test_upsert_report_update_path_merges(sqlite_conn):
     _run_ops(rds, pg)
     sql_joined = " \n ".join(pg.all_sql())
     assert "UPDATE lava_impact.reports" in sql_joined
-    # The UPDATE is the second statement on the single cursor.
-    # Its params must include 100 = max(existing 50, new 100).
-    update_stmt = pg.cursors[0].executed[1]
-    assert 100 in update_stmt[1]
+    # Locate the UPDATE statement across all cursors (SAVEPOINT /
+    # SELECT / UPDATE each run on their own cursor context).
+    update_stmts = [
+        (sql, params)
+        for c in pg.cursors for sql, params in c.executed
+        if "UPDATE lava_impact.reports" in sql
+    ]
+    assert update_stmts, "expected an UPDATE statement"
+    # file_size_bytes picks max(existing 50, new 100) = 100.
+    assert 100 in update_stmts[0][1]
 
 
 def test_budget_check_and_reserve_enqueues_preflight(sqlite_conn):
