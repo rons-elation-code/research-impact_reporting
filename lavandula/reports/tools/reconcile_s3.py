@@ -25,6 +25,7 @@ from urllib.parse import unquote, urlparse
 
 from .. import config
 from .. import s3_archive as _s3a
+from ..url_redact import redact_url
 
 
 log = logging.getLogger("lavandula.reports.reconcile_s3")
@@ -155,24 +156,27 @@ def reconcile(
                 print(f"ORPHAN_INVALID_METADATA sha={sha} reason={reason}")
                 continue
             size = head.get("ContentLength", 0)
+            # Use the crawler's canonical redaction so reconciler-inserted
+            # rows look identical to crawler-written ones.
+            redacted = redact_url(clean["source_url"])
             if apply:
                 _insert_orphan_row(
                     conn,
                     sha=sha,
                     ein=clean["ein"],
-                    source_url=clean["source_url"],
+                    source_url=redacted,
                     fetched_at=clean["fetched_at"],
                     file_size_bytes=size,
                 )
                 conn.commit()
                 print(
                     f"ORPHAN_APPLIED sha={sha} ein={clean['ein']} "
-                    f"source={clean['source_url']}"
+                    f"source={redacted}"
                 )
             else:
                 print(
                     f"ORPHAN sha={sha} ein={clean['ein']} "
-                    f"source={clean['source_url']}"
+                    f"source={redacted}"
                 )
 
         missing = db_shas - s3_shas

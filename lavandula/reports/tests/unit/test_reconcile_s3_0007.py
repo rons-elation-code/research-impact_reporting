@@ -90,6 +90,55 @@ def test_ac16_apply_inserts_report_row(orphan_bucket):
     assert row[2] == "https://ex.org/report.pdf"
 
 
+def test_reconciler_redacts_source_url_matching_crawler(env, tmp_path):
+    """Parity check (architect review round 1): reconciler-inserted rows
+    must store the same `source_url_redacted` that the crawler would have
+    written for the same source URL. Catches regression where reconcile
+    persists the raw URL and skips the redaction pipeline."""
+    sensitive = (
+        "https://user:pw@ex.org/report.pdf?token=SECRET&report=annual"
+    )
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        arch.put(SHA, PDF, {
+            "source-url": sensitive,
+            "ein": "123456789",
+            "crawl-run-id": "runA",
+            "fetched-at": "2026-04-22T16:30:05Z",
+        })
+        db = tmp_path / "reports.db"
+        conn = schema.ensure_db(db)
+        conn.close()
+
+        reconcile_s3.reconcile(
+            db_path=str(db),
+            uri=f"s3://{BUCKET}/pdfs",
+            apply=True,
+            client=client,
+        )
+
+    import sqlite3
+    from lavandula.reports.url_redact import redact_url
+    conn = sqlite3.connect(db)
+    try:
+        row = conn.execute(
+            "SELECT source_url_redacted FROM reports WHERE content_sha256=?",
+            (SHA,),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    stored = row[0]
+    expected = redact_url(sensitive)
+    assert stored == expected
+    # Belt-and-braces: the raw URL's userinfo and token value must not
+    # appear in the stored row.
+    assert "user:pw" not in stored
+    assert "SECRET" not in stored
+
+
 def test_ac16_invalid_metadata_skipped(env, tmp_path, capsys):
     with mock_aws():
         client = boto3.client("s3", region_name=REGION)
