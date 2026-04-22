@@ -264,11 +264,63 @@ projects:
     dependencies: ["0008", "0010"]
     tags: [architecture, future-proofing]
     notes: "Do after 0008+0010 give concrete contracts to abstract. Premature now."
+
+  - id: "0013"
+    title: "SQLite → PostgreSQL (RDS) Migration"
+    summary: "Move metadata databases (seeds, reports, budget, fetch_log) from local SQLite files to a managed Postgres RDS instance. Blocks the extraction-app and gallery-app work since both require multi-host/multi-user read access. Uses SQLAlchemy (already adopted for 0006) so the migration is primarily configuration + data copy, not a rewrite."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0013-rds-postgres-migration.md
+      plan: null
+      review: null
+    dependencies: ["0004", "0007"]
+    tags: [infrastructure, database, rds, migration]
+    notes: "Timing: after initial corpus build (5K-10K orgs) completes but BEFORE extraction-app and gallery-app start. All specs from 0006 onward should use SQLAlchemy so this migration is a connection-string + Alembic change, not a rewrite. Postgres features to adopt: JSONB for flexible metadata, GIN indexes for full-text, proper concurrent writes for multi-host crawlers, point-in-time recovery, automated daily backups."
+
+  - id: "0014"
+    title: "PDF Full-Page Text Extraction for Training"
+    summary: "Reads PDFs from s3://bucket/pdfs/, runs full-document text extraction (pypdf + OCR fallback via Tesseract or equivalent for scanned docs), produces structured JSON per PDF at s3://bucket/extractions/v1/. Output feeds the interview-training model pipeline. Versioned prefix (v1/) so future extractions don't clobber prior runs."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0014-pdf-extraction-training.md
+      plan: null
+      review: null
+    dependencies: ["0007", "0013"]
+    tags: [extraction, training-data, future-app]
+    notes: "Follow-on app. Depends on 0007 for S3 PDF archive and 0013 for RDS. Structured extraction output must preserve sha256 lineage from source PDF."
+
+  - id: "0015"
+    title: "Report Gallery UI"
+    summary: "Web gallery app for browsing the corpus. Reads metadata from RDS (org name, year, state, NTEE, classification), displays thumbnails from s3://bucket/thumbnails/, full PDFs via presigned S3 URLs. Supports search/filter. Multi-user, read-only, private (auth required)."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0015-report-gallery.md
+      plan: null
+      review: null
+    dependencies: ["0007", "0013", "0016"]
+    tags: [gallery, ui, future-app]
+    notes: "Follow-on app. Depends on 0013 (RDS for multi-user reads), 0007 (S3 pdfs), 0016 (thumbnails)."
+
+  - id: "0016"
+    title: "PDF Thumbnail Generator"
+    summary: "Batch job that reads PDFs from s3://bucket/pdfs/, renders the first page as a JPEG, uploads to s3://bucket/thumbnails/{sha256}.jpg. Runs either post-crawl or on-demand via lambda. Feeds the gallery UI (0015)."
+    status: conceived
+    priority: low
+    files:
+      spec: locard/specs/0016-pdf-thumbnail-generator.md
+      plan: null
+      review: null
+    dependencies: ["0007"]
+    tags: [rendering, gallery-support, future-app]
+    notes: "Needed by 0015 but independent of it. Could run as a Lambda triggered by S3 PUT events."
 ```
 
 ## Next Available Number
 
-**0013** - Reserve this number for your next project
+**0017** - Reserve this number for your next project
 
 ---
 
