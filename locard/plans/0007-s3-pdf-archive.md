@@ -151,11 +151,20 @@ explicitly; boto3's default credential chain handles it.
 
 ```python
 def put(self, sha256: str, body: bytes, metadata: dict) -> None:
+    # Defense-in-depth: re-assert 50 MB ceiling right before PUT.
+    # ReportsHTTPClient enforces it during fetch, but a future
+    # refactor could relax that; this line catches regressions.
+    if len(body) > config.MAX_PDF_BYTES:
+        raise ArchiveSizeError(
+            f"PDF exceeds 50MB cap: {len(body)} bytes"
+        )
+
     encoded_metadata = _encode_s3_metadata(metadata)
     kwargs = {
         "Bucket": self.bucket,
         "Key": self._key(sha256),
         "Body": body,
+        "ContentLength": len(body),  # explicit; catches truncation
         "ContentType": "application/pdf",
         "ServerSideEncryption": "AES256",  # AC2
         "Metadata": encoded_metadata,
@@ -188,7 +197,9 @@ def _encode_s3_metadata(raw: dict) -> dict:
             continue
         if k == "source-url":
             encoded = quote(str(v), safe='')
-            encoded = encoded[:_MAX_SOURCE_URL_LEN]
+            encoded = _truncate_respecting_percent_triplets(
+                encoded, _MAX_SOURCE_URL_LEN
+            )
             if not _ASCII_SAFE.match(encoded):
                 log.warning(
                     "s3_metadata_encoding_failed key=%s",
@@ -209,6 +220,29 @@ def _encode_s3_metadata(raw: dict) -> dict:
 The ASCII-only regex is defense-in-depth — S3's metadata validation
 already rejects non-printable bytes, but we prefer to drop bad values
 silently-with-warning rather than fail the whole PUT.
+
+**Safe truncation helper** (red-team MEDIUM): a hard cut at 1024
+chars can split a percent-encoded triplet like `%3A` into `%3` or
+`%`, which downstream `urllib.parse.unquote` will leave as a literal
+`%`. Back off the truncation point so it never lands mid-triplet:
+
+```python
+def _truncate_respecting_percent_triplets(s: str, limit: int) -> str:
+    """Truncate to `limit` chars, but never leave a dangling
+    partial %XX sequence at the tail."""
+    if len(s) <= limit:
+        return s
+    cut = limit
+    # If the cut point is inside a %XX, back up to before the %.
+    if cut >= 2 and s[cut - 2] == '%':
+        cut -= 2
+    elif cut >= 1 and s[cut - 1] == '%':
+        cut -= 1
+    return s[:cut]
+```
+
+Unit tests for this helper are in `test_archive_encoding_0007.py`
+alongside the other encoding tests.
 
 ### `S3Archive.startup_probe()`
 
@@ -263,6 +297,27 @@ def startup_probe(self) -> None:
         raise ArchiveSetupError(
             f"bucket {self.bucket} is in region {actual_region}; "
             f"client configured for {configured_region}"
+        )
+
+    # Defense-in-depth (red-team LOW): verify versioning is enabled
+    # so spec's durability guarantees are actually active.
+    try:
+        ver = self._client.get_bucket_versioning(Bucket=self.bucket)
+        if ver.get("Status") != "Enabled":
+            log.warning(
+                "s3_bucket_versioning_disabled bucket=%s; "
+                "spec requires Enabled for durability",
+                self.bucket,
+            )
+    except ClientError:
+        # get_bucket_versioning requires s3:GetBucketVersioning, which
+        # is NOT in the minimal runtime policy. Missing permission is
+        # not a startup failure — we warn and continue. Ops should
+        # grant this on first setup.
+        log.warning(
+            "s3_bucket_versioning_check_skipped bucket=%s "
+            "(missing s3:GetBucketVersioning permission)",
+            self.bucket,
         )
 ```
 
@@ -435,6 +490,15 @@ Logic:
    - `head_object` to read metadata
    - Extract `ein`, `source-url` (percent-decoded for storage),
      `fetched-at`
+   - **Validate metadata before INSERT** (red-team MEDIUM):
+     - `ein` must match `^\d{9}$` — reject otherwise
+     - `source-url` must parse via `urllib.parse.urlparse` with a
+       non-empty scheme in `{http, https}` and non-empty netloc —
+       reject otherwise
+     - `fetched-at` must parse via `datetime.fromisoformat` — reject
+       otherwise
+   - Rejected orphans are logged as `ORPHAN_INVALID_METADATA sha=...`
+     and left in S3 untouched (no DB write).
    - **Optional source-URL HEAD probe** (spec's note): if
      `--verify-source` flag is set, do an HTTP HEAD on the
      decoded source URL and skip re-inserting if the server returns
