@@ -55,7 +55,8 @@ def test_allowed_tools_constants_restrict_capabilities() -> None:
 
 def test_build_claude_argv_allow_list_mode(tmp_path: Path) -> None:
     inv = _inv(tmp_path, [{"ein": "1"*9, "name": "x"}])
-    argv = build_claude_argv(inv, "PROMPT", mode="allow_list", prefix=[])
+    argv = build_claude_argv(inv, "PROMPT", mode="allow_list", prefix=[],
+                             has_deny_list=True)
     # --allowed-tools present with WebSearch,WebFetch
     i = argv.index("--allowed-tools")
     assert argv[i + 1] == "WebSearch,WebFetch"
@@ -70,11 +71,21 @@ def test_build_claude_argv_allow_list_mode(tmp_path: Path) -> None:
     assert "-p" in argv
 
 
+def test_build_claude_argv_omits_disallowed_when_unsupported(tmp_path: Path) -> None:
+    inv = _inv(tmp_path, [{"ein": "1"*9}])
+    argv = build_claude_argv(inv, "PROMPT", mode="allow_list", prefix=[],
+                             has_deny_list=False)
+    assert "--allowed-tools" in argv
+    # Must NOT include --disallowed-tools when CLI lacks the flag —
+    # emitting an unrecognised flag would break every invocation.
+    assert "--disallowed-tools" not in argv
+
+
 def test_build_claude_argv_sandbox_mode(tmp_path: Path) -> None:
     inv = _inv(tmp_path, [{"ein": "1"*9}])
     argv = build_claude_argv(
         inv, "PROMPT", mode="sandbox",
-        prefix=["firejail", "--quiet", "--net=none"],
+        prefix=["firejail", "--quiet", "--private-tmp"],
     )
     # Sandbox prefix before claude invocation
     assert argv[0] == "firejail"
@@ -83,18 +94,43 @@ def test_build_claude_argv_sandbox_mode(tmp_path: Path) -> None:
     assert "--allowed-tools" not in argv
 
 
+def test_sandbox_prefix_allows_network_access() -> None:
+    """WebSearch+WebFetch need network. Sandbox must NOT cut it."""
+    from lavandula.nonprofits.agent_runner import _detect_sandbox_prefix
+    with patch("lavandula.nonprofits.agent_runner.shutil.which") as which:
+        which.side_effect = lambda name: f"/usr/bin/{name}" if name in ("firejail", "bwrap") else None
+        prefix = _detect_sandbox_prefix()
+    assert prefix is not None
+    # No network-killing flags.
+    joined = " ".join(prefix)
+    assert "--net=none" not in joined
+    assert "--unshare-net" not in joined
+
+
 def test_resolve_spawn_prefix_prefers_allow_list() -> None:
-    prefix, mode = resolve_spawn_prefix("Options:\n  --allowed-tools TOOLS\n")
+    prefix, mode, deny = resolve_spawn_prefix(
+        "Options:\n  --allowed-tools TOOLS\n"
+    )
     assert mode == "allow_list"
     assert prefix == []
+    assert deny is False
+
+
+def test_resolve_spawn_prefix_detects_deny_list_capability() -> None:
+    prefix, mode, deny = resolve_spawn_prefix(
+        "Options:\n  --allowed-tools TOOLS\n  --disallowed-tools TOOLS\n"
+    )
+    assert mode == "allow_list"
+    assert deny is True
 
 
 def test_resolve_spawn_prefix_falls_back_to_sandbox() -> None:
     with patch("lavandula.nonprofits.agent_runner.shutil.which") as which:
         which.side_effect = lambda name: f"/usr/bin/{name}" if name == "firejail" else None
-        prefix, mode = resolve_spawn_prefix("no allow list flag here")
+        prefix, mode, deny = resolve_spawn_prefix("no allow list flag here")
         assert mode == "sandbox"
         assert prefix[0] == "firejail"
+        assert deny is False
 
 
 def test_resolve_spawn_prefix_fails_without_both() -> None:

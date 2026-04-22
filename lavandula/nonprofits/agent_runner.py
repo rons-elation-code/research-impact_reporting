@@ -132,11 +132,23 @@ def _has_allow_list_flag(help_text: str | None = None) -> bool:
     return "--allowed-tools" in text or "--allowedTools" in text
 
 
+def _has_deny_list_flag(help_text: str | None = None) -> bool:
+    text = help_text if help_text is not None else _claude_help_text()
+    return "--disallowed-tools" in text or "--disallowedTools" in text
+
+
 def _detect_sandbox_prefix() -> list[str] | None:
-    """Return a command prefix for the available sandbox, or None."""
+    """Return a command prefix for the available sandbox, or None.
+
+    Network access is REQUIRED — the agent's only permitted tools are
+    WebSearch + WebFetch, both of which need outbound HTTP. The sandbox
+    restricts shell + filesystem access only.
+    """
     candidates: list[list[str]] = [
-        ["firejail", "--quiet", "--private-tmp", "--net=none"],
-        ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--unshare-net"],
+        # firejail: allow network (no --net=none), private /tmp, no shell.
+        ["firejail", "--quiet", "--private-tmp"],
+        # bwrap: no --unshare-net → the host network namespace is shared.
+        ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev"],
     ]
     for cmd in candidates:
         if shutil.which(cmd[0]):
@@ -144,19 +156,26 @@ def _detect_sandbox_prefix() -> list[str] | None:
     return None
 
 
-def resolve_spawn_prefix(help_text: str | None = None) -> tuple[list[str], str]:
-    """Return (extra_argv_prefix, mode) for spawning claude.
+def resolve_spawn_prefix(
+    help_text: str | None = None,
+) -> tuple[list[str], str, bool]:
+    """Return (extra_argv_prefix, mode, has_deny_list) for spawning claude.
 
     mode is one of:
       "allow_list" — CLI has --allowed-tools; no sandbox needed
       "sandbox"    — no flag, but firejail/bwrap is available
-    Raises RuntimeError if neither is available.
+    has_deny_list indicates whether the CLI accepts --disallowed-tools
+    (belt-and-suspenders). Emitting that flag without capability support
+    would make every spawn fail at startup.
+
+    Raises RuntimeError if neither allow-list nor sandbox is available.
     """
-    if _has_allow_list_flag(help_text):
-        return [], "allow_list"
+    resolved_help = help_text if help_text is not None else _claude_help_text()
+    if _has_allow_list_flag(resolved_help):
+        return [], "allow_list", _has_deny_list_flag(resolved_help)
     sandbox = _detect_sandbox_prefix()
     if sandbox is not None:
-        return sandbox, "sandbox"
+        return sandbox, "sandbox", False
     raise RuntimeError(
         "claude CLI lacks --allowed-tools support and no sandbox "
         "(firejail/bwrap) is installed. Security policy requires one "
@@ -165,15 +184,18 @@ def resolve_spawn_prefix(help_text: str | None = None) -> tuple[list[str], str]:
 
 
 def build_claude_argv(invocation: AgentInvocation, prompt: str, *,
-                      mode: str, prefix: list[str]) -> list[str]:
+                      mode: str, prefix: list[str],
+                      has_deny_list: bool = False) -> list[str]:
     """Build the argv list used to spawn the claude subprocess."""
     argv = list(prefix)
     argv.append("claude")
     if mode == "allow_list":
         argv += ["--allowed-tools", ",".join(AGENT_ALLOWED_TOOLS)]
-        # Belt + suspenders — explicitly deny dangerous tools if the CLI
-        # exposes the deny-list flag (harmless if it doesn't parse).
-        argv += ["--disallowed-tools", ",".join(AGENT_DISALLOWED_TOOLS)]
+        # Only emit --disallowed-tools if the CLI actually supports it —
+        # unconditional emission breaks every invocation on CLIs that
+        # support allow-list but not deny-list.
+        if has_deny_list:
+            argv += ["--disallowed-tools", ",".join(AGENT_DISALLOWED_TOOLS)]
     argv += ["--model", invocation.model]
     argv += ["-p", prompt]
     return argv
@@ -243,14 +265,18 @@ class ClaudeCodeAgentRunner:
 
     def __init__(self, *, spawn_prefix: list[str] | None = None,
                  mode: str | None = None,
-                 help_text: str | None = None):
-        if spawn_prefix is None or mode is None:
-            prefix, resolved_mode = resolve_spawn_prefix(help_text)
+                 help_text: str | None = None,
+                 has_deny_list: bool | None = None):
+        if spawn_prefix is None or mode is None or has_deny_list is None:
+            prefix, resolved_mode, deny = resolve_spawn_prefix(help_text)
             self._prefix = spawn_prefix if spawn_prefix is not None else prefix
             self._mode = mode if mode is not None else resolved_mode
+            self._has_deny_list = (has_deny_list if has_deny_list is not None
+                                   else deny)
         else:
             self._prefix = spawn_prefix
             self._mode = mode
+            self._has_deny_list = has_deny_list
 
     def _count_input(self, path: Path) -> int:
         try:
@@ -267,7 +293,8 @@ class ClaudeCodeAgentRunner:
             return AgentResult(inv.batch_id, "failed", 0, input_count,
                                f"input read error: {exc}")
         argv = build_claude_argv(inv, prompt, mode=self._mode,
-                                 prefix=self._prefix)
+                                 prefix=self._prefix,
+                                 has_deny_list=self._has_deny_list)
 
         try:
             proc = subprocess.Popen(

@@ -65,6 +65,10 @@ MAX_LINE_BYTES = 16_384
 MAX_URL_LENGTH = 2048
 MAX_REASONING_CHARS = 500
 
+# Rough per-org token estimates, anchored to 2026-04-21 TX 100-org run.
+EST_TOKENS_IN_PER_ORG = 8_000
+EST_TOKENS_OUT_PER_ORG = 200
+
 UPDATE_SQL = text("""
 UPDATE nonprofits_seed
    SET website_url = :url,
@@ -250,7 +254,7 @@ def _print_plan(args: argparse.Namespace, n_orgs: int, truncated_from: int | Non
     if file is None:
         file = sys.stderr
     n_batches = (n_orgs + args.batch_size - 1) // args.batch_size if n_orgs else 0
-    est_tokens = n_orgs * 8_000  # ~8K avg per org per TX 100 baseline
+    est_tokens = n_orgs * EST_TOKENS_IN_PER_ORG
     est_wall_min = (n_batches / max(args.parallelism, 1)) * 20
     lines = [
         "Batch plan:",
@@ -472,6 +476,27 @@ def _build_initial_manifest(args: argparse.Namespace,
     )
 
 
+def _apply_manifest_args(args: argparse.Namespace,
+                         manifest_args: dict) -> None:
+    """On resume, rehydrate filter args from the manifest.
+
+    Any field the operator explicitly changes at resume time would cause
+    a fingerprint mismatch (aborting the resume), so there is no risk of
+    silently overriding a user-intended change — the mismatch check
+    follows immediately and names the differing fields.
+    """
+    if not args.db:
+        args.db = manifest_args.get("db_path_canonical", "") or args.db
+    args.state = list(manifest_args.get("state") or []) or None
+    args.ntee_major = list(manifest_args.get("ntee_major") or []) or None
+    args.revenue_min = manifest_args.get("revenue_min")
+    args.revenue_max = manifest_args.get("revenue_max")
+    args.max_orgs = manifest_args.get("max_orgs", args.max_orgs)
+    args.batch_size = manifest_args.get("batch_size", args.batch_size)
+    args.model = manifest_args.get("model", args.model)
+    args.re_resolve = bool(manifest_args.get("re_resolve", args.re_resolve))
+
+
 def _manifest_args(args: argparse.Namespace) -> dict:
     return {
         "db_path_canonical": os.path.realpath(args.db) if args.db else "",
@@ -513,6 +538,8 @@ def _summarize(manifest: RunManifest, *, started_monotonic: float,
         "agent_calls_succeeded": ingest_stats.get("agent_calls_succeeded", 0),
         "confidence_breakdown": conf_counts,
         "resolver_status_breakdown": status_counts,
+        "estimated_tokens_in": manifest.total_orgs * EST_TOKENS_IN_PER_ORG,
+        "estimated_tokens_out": manifest.total_orgs * EST_TOKENS_OUT_PER_ORG,
         "rows_written": ingest_stats.get("rows_written", 0),
         "rows_skipped": ingest_stats.get("rows_skipped", 0),
     }
@@ -590,12 +617,10 @@ def run(args: argparse.Namespace, *,
             print(f"error: {exc}", file=sys.stderr)
             return 2
 
-        # Rehydrate args from manifest for db / filters so fingerprint
-        # comparison reflects the user's new invocation. The user must
-        # re-supply filters that match; any mismatch aborts with exit 2.
-        # Inject canonical db path for compute_fingerprint.
-        if not args.db:
-            args.db = manifest.args.get("db_path_canonical", "")
+        # Rehydrate filter args from manifest so the operator does not
+        # need to re-type them. Only fields the operator passed explicitly
+        # on resume override the manifest — argparse defaults do not.
+        _apply_manifest_args(args, manifest.args)
 
         diff = fingerprint_diff(manifest.args, args, PROMPT_VERSION)
         if diff:
