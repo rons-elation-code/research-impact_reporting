@@ -14,11 +14,13 @@ Security posture (see spec 0007 § Security):
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any
 from urllib.parse import quote
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import (
     ClientError,
     EndpointConnectionError,
@@ -104,17 +106,29 @@ class S3Archive:
         self.bucket = bucket
         self.prefix = (prefix or "").strip("/")
         self._region = region
-        self._endpoint_url = endpoint_url
+        # Spec 0007: LAVANDULA_S3_ENDPOINT_URL overrides the AWS default
+        # endpoint (moto/minio/localstack testing). Kwarg wins over env.
+        effective_endpoint = (
+            endpoint_url
+            if endpoint_url is not None
+            else os.getenv("LAVANDULA_S3_ENDPOINT_URL")
+        )
+        self._endpoint_url = effective_endpoint
         self._client = client if client is not None else self._make_client(
-            region, endpoint_url
+            region, effective_endpoint
         )
 
     @staticmethod
     def _make_client(region: str | None, endpoint_url: str | None):
+        # AC8: pin boto3's retry behavior so transient S3 5xx errors are
+        # retried predictably (3 attempts total, exponential backoff via
+        # the "standard" mode) rather than inheriting ambient defaults.
+        cfg = Config(retries={"max_attempts": 3, "mode": "standard"})
         return boto3.client(
             "s3",
             region_name=region,
             endpoint_url=endpoint_url,
+            config=cfg,
         )
 
     def _key(self, sha256: str) -> str:

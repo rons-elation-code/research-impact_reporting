@@ -437,7 +437,10 @@ def process_org(
                 url_redacted=outcome.final_url_redacted or redact_url(cand.url),
                 kind="pdf-get",
                 fetch_status="server_error",
-                notes=sanitize(f"archive_put_failed:{type(exc).__name__}"),
+                notes=sanitize(
+                    f"archive_put_failed:{type(exc).__name__} "
+                    f"sha={outcome.content_sha256}"
+                ),
             )
             # AC9b: no reports row, no extract log.
             continue

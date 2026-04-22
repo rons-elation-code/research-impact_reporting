@@ -251,3 +251,91 @@ def test_get_and_head_roundtrip(moto_s3):
 def test_head_returns_none_when_missing(moto_s3):
     arch = _archive(moto_s3)
     assert arch.head(SHA) is None
+
+
+# ---------------------------------------------------------------------
+# AC8 — boto3 default retry exercised on transient 5xx
+# ---------------------------------------------------------------------
+
+def test_ac8_retry_config_is_pinned(s3_env):
+    """Client factory pins standard-mode retries (not ambient defaults)."""
+    arch = s3a.S3Archive("bucket", "pdfs", region=REGION)
+    retries = arch._client.meta.config.retries  # noqa: SLF001
+    assert retries["mode"] == "standard"
+    # botocore exposes the resolved cap under `total_max_attempts`.
+    # max_attempts=3 in Config resolves to total_max_attempts >= 3.
+    assert retries.get("total_max_attempts", 0) >= 3
+
+
+def test_ac8_503_then_success_retries(moto_s3):
+    """Inject 503 on the first two PutObject attempts; third succeeds.
+
+    Uses a before-send event hook (per plan Option A) so boto3's real
+    retry stack exercises the standard exponential backoff.
+    """
+    import io
+    import botocore.awsrequest
+
+    class _FakeRaw(io.BytesIO):
+        def stream(self, *_, **__):
+            yield self.getvalue()
+
+        def release_conn(self):
+            pass
+
+    arch = _archive(moto_s3)
+    call_count = {"n": 0}
+
+    def fake_503_then_success(request, **_):
+        call_count["n"] += 1
+        if call_count["n"] < 3:
+            body = (
+                b'<?xml version="1.0" encoding="UTF-8"?>'
+                b"<Error><Code>ServiceUnavailable</Code>"
+                b"<Message>Slow down</Message></Error>"
+            )
+            return botocore.awsrequest.AWSResponse(
+                url=request.url,
+                status_code=503,
+                headers={"Content-Type": "application/xml"},
+                raw=_FakeRaw(body),
+            )
+        return None  # fall through to moto
+
+    moto_s3.meta.events.register(
+        "before-send.s3.PutObject", fake_503_then_success
+    )
+    try:
+        arch.put(SHA, PDF_BYTES, {"ein": "123456789"})
+    finally:
+        moto_s3.meta.events.unregister(
+            "before-send.s3.PutObject", fake_503_then_success
+        )
+
+    # Two injected 503s + one real success == 3 send attempts.
+    assert call_count["n"] == 3
+    head = moto_s3.head_object(Bucket=BUCKET, Key=f"pdfs/{SHA}.pdf")
+    assert head["ServerSideEncryption"] == "AES256"
+
+
+# ---------------------------------------------------------------------
+# LAVANDULA_S3_ENDPOINT_URL override
+# ---------------------------------------------------------------------
+
+def test_endpoint_url_env_var_wired(monkeypatch):
+    monkeypatch.setenv("LAVANDULA_S3_ENDPOINT_URL", "http://localhost:9000")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    arch = s3a.S3Archive("b", "pdfs", region=REGION)
+    assert arch._endpoint_url == "http://localhost:9000"
+    assert arch._client.meta.endpoint_url == "http://localhost:9000"
+
+
+def test_endpoint_url_kwarg_overrides_env(monkeypatch):
+    monkeypatch.setenv("LAVANDULA_S3_ENDPOINT_URL", "http://from-env:9000")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test")
+    arch = s3a.S3Archive(
+        "b", "pdfs", region=REGION, endpoint_url="http://from-kwarg:9000"
+    )
+    assert arch._endpoint_url == "http://from-kwarg:9000"
