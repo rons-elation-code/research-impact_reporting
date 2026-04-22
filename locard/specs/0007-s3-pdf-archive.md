@@ -115,17 +115,46 @@ For now, nothing in the hot path reads from S3. Add a stub
 
 ### S3 object layout
 
+This bucket is the durable shared corpus for the whole Lavandula
+pipeline — not just the crawler's scratch space. Prefix names are
+reserved now so sibling data types don't collide later even though
+only `pdfs/` is populated by this spec.
+
 ```
 s3://lavandula-nonprofit-collaterals/
-├── pdfs/
-│   ├── 02ed772ae609516c7d83604c346dfb8260ea03d67df38cd0c1fb0f58994e26b0.pdf
-│   ├── 04a35eab2c85e2bc8f89fd094fb3a5449ba6897af2f15e4093c741e577f9224d.pdf
+├── pdfs/                                 ← THIS spec (0007) writes here
+│   ├── 02ed772ae609...0d9c5a.pdf         ← keyed by content sha256
 │   └── ...
+├── thumbnails/                           ← RESERVED — future gallery spec
+│   └── {sha256}.jpg                      ← first-page rendering for UI
+├── extractions/                          ← RESERVED — future extraction spec
+│   └── v1/                               ← version segment mandatory from day one
+│       └── {sha256}.json                 ← structured per-PDF extraction output
+└── derivatives/                          ← RESERVED — any other generated artifacts
+    └── {sha256}/...                      ← sub-key shape decided per-use-case
 ```
 
-Flat `pdfs/` prefix for now. If we exceed S3's request-rate limit
-(3500 PUT/s per prefix — we're nowhere close), switch to sha-prefix
-sharding: `pdfs/{sha[:2]}/{sha[2:4]}/{sha}.pdf`. Deferred.
+**Canonical production prefix**: always `pdfs/` (hard-coded default;
+operators should not pass a different prefix). Tests may override for
+isolation but production must be consistent so downstream apps can
+hard-code the layout.
+
+**Flat naming, no sharding**: plain `pdfs/{sha256}.pdf`. If we exceed
+S3's request-rate limit (3500 PUT/s per prefix — we're nowhere close),
+switch to sha-prefix sharding: `pdfs/{sha[:2]}/{sha[2:4]}/{sha}.pdf`.
+Deferred.
+
+**Shared-archive contract with future apps**:
+
+| Downstream consumer | Reads | Writes |
+|----------------------|-------|--------|
+| Crawler (this spec) | — | `pdfs/` |
+| Classifier | — | — (reads SQLite only) |
+| Gallery (future) | `pdfs/`, `thumbnails/` | — (read-only, uses presigned URLs) |
+| Extraction pipeline (future) | `pdfs/` | `extractions/v1/` |
+| Thumbnailer (future) | `pdfs/` | `thumbnails/` |
+
+The crawler never writes to anything other than `pdfs/`.
 
 ### Object metadata
 
