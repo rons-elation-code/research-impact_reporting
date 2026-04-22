@@ -4,3 +4,4 @@ ruff>=0.5
 bandit>=1.7
 pip-audit>=2.7
 pyseccomp>=0.1.2
+moto[s3]>=5.0

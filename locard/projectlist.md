@@ -173,11 +173,154 @@ projects:
     dependencies: ["0001"]
     tags: [lavandula-core, resolver, llm, deepseek, qwen]
     notes: "Spec approved 2026-04-21 after 2 review rounds + red-team (2 CRITICAL fixed: SSRF + indirect prompt injection). Plan approved 2026-04-21 after 1 review round + red-team (tag breakout HIGH fixed). Builder spawned 2026-04-21. PR #1 merged 2026-04-21 after 8 review rounds. Precision gate (≥80% on TX 100-org dataset) deferred — must run before --resolver llm used on production seeds."
+
+  - id: "0006"
+    title: "Pipeline Status Dashboard"
+    summary: "Read-only web dashboard exposing live state of seeds, resolver, crawl, classify across all SQLite DBs. Shows counts by state/NTEE/revenue band, resolver status breakdown, crawl progress, classification mix, and any running background jobs. Auto-refresh every 10s. Port 4350, FastAPI + SQLAlchemy for forward compatibility with RDS migration."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0006-pipeline-status-dashboard.md
+      plan: null
+      review: null
+    dependencies: []
+    tags: [dashboard, observability, infrastructure]
+    notes: "Prioritized 2026-04-22 to eliminate architect pings for status. Not yet specified."
+
+  - id: "0007"
+    title: "S3-Backed PDF Archive"
+    summary: "Replace local-disk PDF archive with direct-to-S3 streaming upload. Addresses two concerns: (1) disk exhaustion at scale (5K+ orgs × ~5MB × 2 PDFs = 50GB+), (2) data protection (EBS is single-point-of-failure). PDF bytes stream through memory for first-page text extraction, then PUT to S3 by SHA256 key. SQLite metadata unchanged — classifier hot path unaffected."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0007-s3-pdf-archive.md
+      plan: null
+      review: null
+    dependencies: ["0004"]
+    tags: [infrastructure, storage, s3, crawler]
+    notes: "Blocks big-crawl work on >5K orgs. Bucket: lavandula-nonprofit-collaterals (us-east-1, SSE-S3, versioned, private). Not yet specified."
+
+  - id: "0008"
+    title: "Agent Batch Runner"
+    summary: "Orchestrate Claude Code WebSearch sub-agents for URL resolution at scale. Takes an EIN list → splits into N-org chunks → spawns K agents in parallel → waits → ingests results back into seeds.db. Resumable (agents append to results file as they go), skip-already-resolved by default."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0008-agent-batch-runner.md
+      plan: null
+      review: null
+    dependencies: ["0001"]
+    tags: [resolver, orchestration, agents, haiku]
+    notes: "Replaces manual JSON-file shuffling observed in 2026-04-21 TX 100 validation. Critical for weekly batch workflow at 1K-5K orgs per week."
+
+  - id: "0009"
+    title: "Address Verification Pass"
+    summary: "Second-pass agent fetches the chosen homepage (and about/contact pages) for each resolved org and confirms the street address matches. Detects wrong-state same-name collisions (Columbus TX hospital vs Columbus NE) that the URL-discovery pass misses."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0009-address-verification.md
+      plan: null
+      review: null
+    dependencies: ["0008"]
+    tags: [resolver, verification, agents, data-quality]
+    notes: "Gap identified 2026-04-21 during Haiku agent eval — search snippets alone can't disambiguate same-name orgs in different states."
+
+  - id: "0010"
+    title: "Tiered Model Strategy"
+    summary: "Default URL-resolution agents to Haiku for the easy 80%. Route only low-confidence / null / ambiguous results to Opus for a second look. Optional cross-model voting (Haiku + Qwen API) flags disagreements for manual review. Keeps per-org cost low while preserving accuracy."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0010-tiered-model-strategy.md
+      plan: null
+      review: null
+    dependencies: ["0008"]
+    tags: [resolver, cost-optimization, routing]
+    notes: "Depends on 0008 (batch runner). Quantitative data from 2026-04-21 run: Haiku matched Opus on 90/100 TX orgs — strong evidence Haiku-first is viable."
+
+  - id: "0011"
+    title: "Operational Controls"
+    summary: "Hard budget cap per batch run (orgs + tokens). EIN cache so re-runs use cached agent results unless explicitly invalidated. Runtime warnings when approaching quota limits."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0011-operational-controls.md
+      plan: null
+      review: null
+    dependencies: ["0008"]
+    tags: [operations, cost-control, caching]
+    notes: "Protects Claude subscription budget across weekly batches."
+
+  - id: "0012"
+    title: "Agent Runner Abstraction"
+    summary: "Pluggable interface so Claude Code agents, OpenAI Swarm, or local models can be swapped as the URL-resolution backend without rewriting the pipeline. Stable input/output contract; backends register via entry-point or config."
+    status: conceived
+    priority: low
+    files:
+      spec: locard/specs/0012-agent-runner-abstraction.md
+      plan: null
+      review: null
+    dependencies: ["0008", "0010"]
+    tags: [architecture, future-proofing]
+    notes: "Do after 0008+0010 give concrete contracts to abstract. Premature now."
+
+  - id: "0013"
+    title: "SQLite → PostgreSQL (RDS) Dual-Write Migration"
+    summary: "Staged migration to managed Postgres RDS. Deploys RDS alongside existing SQLite with clean Alembic-managed schema, adds dual-write mode to db_writer so every write hits both backends, one-time backfills existing SQLite rows to RDS, then flips reads to RDS once dual-write is proven stable. Avoids a clean-cutoff pause because corpus build is continuous. Uses SQLAlchemy (already committed for 0006/0008) so the code change is minimal."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0013-rds-postgres-migration.md
+      plan: null
+      review: null
+    dependencies: ["0004", "0007"]
+    tags: [infrastructure, database, rds, migration, dual-write]
+    notes: "Timing: start in parallel with 0006 (dashboard). Option A (dual-write) chosen 2026-04-22 over clean-cutover and sync-job alternatives because corpus build is continuous (no natural cutoff) and extraction-app (0014) needs to begin before corpus is 'complete.' Crawler writes stay fast on SQLite; RDS receives every write via async queue. After 2-4 weeks of proven dual-write stability, reads flip to RDS and SQLite writes eventually retire. All new specs (0006+) must use SQLAlchemy so dual-write is a config change, not a rewrite."
+
+  - id: "0014"
+    title: "PDF Full-Page Text Extraction for Training"
+    summary: "Reads PDFs from s3://bucket/pdfs/, runs full-document text extraction (pypdf + OCR fallback via Tesseract or equivalent for scanned docs), produces structured JSON per PDF at s3://bucket/extractions/v1/. Output feeds the interview-training model pipeline. Versioned prefix (v1/) so future extractions don't clobber prior runs."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0014-pdf-extraction-training.md
+      plan: null
+      review: null
+    dependencies: ["0007", "0013"]
+    tags: [extraction, training-data, future-app]
+    notes: "Follow-on app. Depends on 0007 for S3 PDF archive and 0013 for RDS. Structured extraction output must preserve sha256 lineage from source PDF."
+
+  - id: "0015"
+    title: "Report Gallery UI"
+    summary: "Web gallery app for browsing the corpus. Reads metadata from RDS (org name, year, state, NTEE, classification), displays thumbnails from s3://bucket/thumbnails/, full PDFs via presigned S3 URLs. Supports search/filter. Multi-user, read-only, private (auth required)."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0015-report-gallery.md
+      plan: null
+      review: null
+    dependencies: ["0007", "0013", "0016"]
+    tags: [gallery, ui, future-app]
+    notes: "Follow-on app. Depends on 0013 (RDS for multi-user reads), 0007 (S3 pdfs), 0016 (thumbnails)."
+
+  - id: "0016"
+    title: "PDF Thumbnail Generator"
+    summary: "Batch job that reads PDFs from s3://bucket/pdfs/, renders the first page as a JPEG, uploads to s3://bucket/thumbnails/{sha256}.jpg. Runs either post-crawl or on-demand via lambda. Feeds the gallery UI (0015)."
+    status: conceived
+    priority: low
+    files:
+      spec: locard/specs/0016-pdf-thumbnail-generator.md
+      plan: null
+      review: null
+    dependencies: ["0007"]
+    tags: [rendering, gallery-support, future-app]
+    notes: "Needed by 0015 but independent of it. Could run as a Lambda triggered by S3 PUT events."
 ```
 
 ## Next Available Number
 
-**0006** - Reserve this number for your next project
+**0017** - Reserve this number for your next project
 
 ---
 

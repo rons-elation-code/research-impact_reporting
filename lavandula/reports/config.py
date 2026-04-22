@@ -182,3 +182,7 @@ UGC_PATH_SIGNATURES = ("/forum", "/comments", "/community/", "/discuss/")
 PARSE_VERSION = 1
 EXTRACTOR_VERSION = 1
 CLASSIFIER_VERSION = 1
+
+# --- S3 archive (spec 0007) --------------------------------------------
+DEFAULT_S3_PREFIX = "pdfs"
+MAX_S3_METADATA_URL_LEN = 1024

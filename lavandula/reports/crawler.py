@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import datetime
 import fcntl
 import json
 import logging
@@ -16,6 +17,7 @@ import os
 import re
 import sqlite3
 import sys
+import uuid
 from pathlib import Path
 from typing import Iterable
 from urllib.parse import urlsplit
@@ -43,6 +45,15 @@ from .year_extract import infer_report_year
 
 
 log = logging.getLogger("lavandula.reports.crawler")
+
+
+def _iso_utc_now() -> str:
+    return (
+        datetime.datetime.now(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 # ---------------------------------------------------------------------
@@ -269,7 +280,9 @@ def process_org(
     *,
     ein: str,
     website: str,
-    archive_dir: Path,
+    archive: "object | None" = None,
+    archive_dir: Path | None = None,
+    run_id: str = "",
     db_queue: "DBWriter | None" = None,
     client: ReportsHTTPClient | None = None,
     conn: sqlite3.Connection | None = None,
@@ -290,6 +303,12 @@ def process_org(
     """
     if client is None:
         client = _get_thread_client()
+
+    # Back-compat: callers that still pass `archive_dir` get a LocalArchive.
+    if archive is None:
+        if archive_dir is None:
+            raise ValueError("process_org requires archive or archive_dir")
+        archive = _archive.LocalArchive(archive_dir)
 
     def _write_fetch(**kwargs):
         db_writer.record_fetch(conn, db_writer=db_queue, **kwargs)
@@ -353,29 +372,22 @@ def process_org(
         outcome = fetch_pdf.download(
             cand.url, client, seed_etld1=seed_etld1, validate_structure=True
         )
-        _write_fetch(
-            ein=ein,
-            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
-            kind="pdf-get",
-            fetch_status=outcome.status,
-            status_code=None,
-            elapsed_ms=None,
-            notes=sanitize(outcome.note),
-        )
         if outcome.status != "ok" or not outcome.body:
-            continue
-        result.fetched_count += 1
-
-        try:
-            archive_path = _archive.write_pdf(
-                outcome.body,
-                outcome.content_sha256,
-                archive_dir=archive_dir,
+            _write_fetch(
+                ein=ein,
+                url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+                kind="pdf-get",
+                fetch_status=outcome.status,
+                status_code=None,
+                elapsed_ms=None,
+                notes=sanitize(outcome.note),
             )
-        except Exception as exc:
-            log.warning("archive write failed for sha=%s: %s", outcome.content_sha256, exc)
             continue
 
+        # AC9 sequence: extract text FIRST (in-memory), then PUT, then
+        # upsert_report, then record_fetch. Do not record_fetch(pdf-get=ok)
+        # until after the archive PUT succeeds — if PUT fails we log
+        # pdf-get=server_error and skip the reports row entirely (AC9b/9c).
         flags = scan_active_content(outcome.body)
 
         first_page_text = ""
@@ -403,13 +415,42 @@ def process_org(
             extract_status = "server_error"
             extract_note = sanitize(str(exc))
 
-        _write_fetch(
-            ein=ein,
-            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
-            kind="extract",
-            fetch_status=extract_status,
-            notes=extract_note or (f"page_count={page_count}" if page_count is not None else "no_pages_extracted"),
-        )
+        archive_metadata = {
+            "source-url": outcome.final_url or cand.url,
+            "ein": ein,
+            "crawl-run-id": run_id,
+            "fetched-at": _iso_utc_now(),
+            # Round-4 review: the S3 object carries its own attribution
+            # tier + discovery channel so reconciler-inserted rows land
+            # in reports_public (the view filters out platform_unverified).
+            "attribution-confidence": cand.attribution_confidence,
+            "discovered-via": _pick_discovered_via(cand),
+        }
+        try:
+            archive.put(
+                outcome.content_sha256,
+                outcome.body,
+                archive_metadata,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "archive put failed sha=%s cls=%s: %s",
+                outcome.content_sha256, type(exc).__name__, exc,
+            )
+            _write_fetch(
+                ein=ein,
+                url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+                kind="pdf-get",
+                fetch_status="server_error",
+                notes=sanitize(
+                    f"archive_put_failed:{type(exc).__name__} "
+                    f"sha={outcome.content_sha256}"
+                ),
+            )
+            # AC9b: no reports row, no extract log.
+            continue
+
+        result.fetched_count += 1
 
         report_year, report_year_source = infer_report_year(
             source_url=outcome.final_url or cand.url,
@@ -447,6 +488,26 @@ def process_org(
             extractor_version=config.EXTRACTOR_VERSION,
         )
 
+        _write_fetch(
+            ein=ein,
+            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+            kind="pdf-get",
+            fetch_status=outcome.status,
+            status_code=None,
+            elapsed_ms=None,
+            notes=sanitize(outcome.note),
+        )
+        _write_fetch(
+            ein=ein,
+            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+            kind="extract",
+            fetch_status=extract_status,
+            notes=extract_note or (
+                f"page_count={page_count}" if page_count is not None
+                else "no_pages_extracted"
+            ),
+        )
+
     db_writer.upsert_crawled_org(
         conn,
         db_writer=db_queue,
@@ -456,6 +517,55 @@ def process_org(
         confirmed_report_count=result.confirmed_report_count,
     )
     return result
+
+
+def _resolve_archive(parser: argparse.ArgumentParser, args) -> object:
+    """Validate --archive / --archive-dir and construct a backend.
+
+    AC11 CLI rules:
+      - neither → `archive destination is required`
+      - both → `use --archive or --archive-dir, not both`
+      - --archive-dir with s3:// value → specific error
+      - otherwise: s3:// → S3Archive; absolute path → LocalArchive
+    """
+    from . import s3_archive as _s3a
+
+    archive = args.archive
+    archive_dir = args.archive_dir
+
+    if archive and archive_dir:
+        parser.error("use --archive or --archive-dir, not both")
+    if not archive and not archive_dir:
+        parser.error("archive destination is required")
+
+    if archive_dir:
+        if str(archive_dir).startswith("s3://"):
+            parser.error(
+                "--archive-dir accepts only a filesystem path; "
+                "use --archive for S3"
+            )
+        value = str(archive_dir)
+    else:
+        value = str(archive)
+
+    if value.startswith("s3://"):
+        try:
+            bucket, prefix = _s3a.parse_s3_uri(value)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if not prefix:
+            prefix = config.DEFAULT_S3_PREFIX
+        elif prefix != config.DEFAULT_S3_PREFIX:
+            log.warning(
+                'non-standard S3 prefix "%s"; production convention is "%s"',
+                prefix, config.DEFAULT_S3_PREFIX,
+            )
+        return _s3a.S3Archive(bucket, prefix, region=args.s3_region)
+
+    p = Path(value)
+    if not p.is_absolute():
+        parser.error("archive value must be s3://... or an absolute path")
+    return _archive.LocalArchive(p)
 
 
 def fetch_seeds_from_0001(
@@ -481,7 +591,18 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--nonprofits-db", type=Path, default=None)
     parser.add_argument("--refresh", action="store_true")
     parser.add_argument("--data-dir", type=Path, default=config.DATA)
-    parser.add_argument("--archive-dir", type=Path, default=config.RAW)
+    parser.add_argument(
+        "--archive",
+        default=None,
+        help="Archive destination: s3://bucket/prefix or absolute path",
+    )
+    parser.add_argument(
+        "--archive-dir",
+        default=None,
+        help="[legacy] alias for --archive; accepts only filesystem paths",
+    )
+    parser.add_argument("--s3-region", default=None,
+                        help="Override AWS region for the S3 archive")
     parser.add_argument("--skip-tls-self-test", action="store_true",
                         help="(ops only) skip startup TLS self-test")
     parser.add_argument("--skip-encryption-check", action="store_true",
@@ -494,7 +615,18 @@ def run(argv: list[str] | None = None) -> int:
     if args.max_workers < 1 or args.max_workers > 32:
         parser.error("--max-workers must be between 1 and 32")
 
+    # AC11: resolve archive backend (argparse errors on bad combinations).
+    archive = _resolve_archive(parser, args)
+    run_id = uuid.uuid4().hex
+
     logger = setup_logging(config.LOGS, name="reports-crawler")
+
+    # AC7 startup probe — fail fast on misconfigured bucket / region / auth.
+    try:
+        archive.startup_probe()
+    except Exception as exc:
+        logger.error("archive startup probe failed: %s", exc)
+        return 2
 
     # AC19 flock.
     try:
@@ -584,7 +716,8 @@ def run(argv: list[str] | None = None) -> int:
                             process_org,
                             ein=ein,
                             website=website,
-                            archive_dir=args.archive_dir,
+                            archive=archive,
+                            run_id=run_id,
                             db_queue=writer,
                         ): (ein, website)
                         for ein, website in pending

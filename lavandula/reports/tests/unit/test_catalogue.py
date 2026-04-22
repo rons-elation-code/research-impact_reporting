@@ -18,7 +18,11 @@ def test_ac23_grep_forbids_raw_reports_outside_whitelist():
     the reports_public view filters by — so must bypass the view.
     """
     whitelist = {"catalogue.py", "db_writer.py", "schema.py",
-                 "classify_null.py"}
+                 "classify_null.py",
+                 # Spec 0007: reconcile_s3.py inserts orphan rows whose
+                 # bytes already live in S3 but whose DB row was lost
+                 # between PUT and the queued upsert (crash / OOM).
+                 "reconcile_s3.py"}
     # Tests directory is excluded — they inspect the DB intentionally.
     bad: list[tuple[str, int, str]] = []
     for py in REPORTS_PKG.rglob("*.py"):

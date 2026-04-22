@@ -109,4 +109,39 @@ def write_pdf(pdf_bytes: bytes, content_sha256: str, *, archive_dir: Path) -> Pa
     return target
 
 
-__all__ = ["write_pdf", "ensure_archive_dir", "ArchiveSecurityError"]
+class LocalArchive:
+    """Filesystem-backed archive backend (spec 0007).
+
+    Adapts the pre-0007 `write_pdf` path to the Archive Protocol used
+    by the crawler. Metadata is accepted but not persisted — local mode
+    is for dev/test and the reports.db is the metadata store.
+    """
+
+    scheme = "local"
+
+    def __init__(self, archive_dir):
+        self.archive_dir = Path(archive_dir)
+
+    def put(self, sha256: str, body: bytes, metadata: dict) -> None:
+        write_pdf(body, sha256, archive_dir=self.archive_dir)
+
+    def get(self, sha256: str) -> bytes:
+        path = ensure_archive_dir(self.archive_dir) / f"{sha256}.pdf"
+        return path.read_bytes()
+
+    def head(self, sha256: str) -> dict | None:
+        path = self.archive_dir / f"{sha256}.pdf"
+        if not path.exists():
+            return None
+        return {"size": path.stat().st_size}
+
+    def startup_probe(self) -> None:
+        ensure_archive_dir(self.archive_dir)
+
+
+__all__ = [
+    "write_pdf",
+    "ensure_archive_dir",
+    "ArchiveSecurityError",
+    "LocalArchive",
+]
