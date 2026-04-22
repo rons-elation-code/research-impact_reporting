@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import signal
 import sqlite3
 import subprocess
@@ -37,6 +38,7 @@ from lavandula.reports.classify import (
     classify_first_page,
     estimate_cents,
 )
+from lavandula.reports.rds_db_writer import RDSDBWriter
 
 
 class _BudgetHalt(SystemExit):
@@ -148,7 +150,7 @@ def _get_thread_classifier():
 
 
 def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
-                  budget_enabled=False, halt_event=None):
+                  budget_enabled=False, halt_event=None, rds_writer=None):
     """Worker-side classify call. Returns (sha, result_or_exc_tuple).
 
     When `budget_enabled`, wraps the classifier call with
@@ -169,6 +171,7 @@ def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
                     conn,
                     estimated_cents=est,
                     classifier_model=config.CLASSIFIER_MODEL,
+                    rds_writer=rds_writer,
                 )
         except budget.BudgetExceeded as exc:
             if halt_event is not None:
@@ -182,15 +185,15 @@ def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
             text, client=client, raise_on_error=False
         )
     except ClassifierError as exc:
-        _release_reservation(conn, db_lock, reservation_id)
+        _release_reservation(conn, db_lock, reservation_id, rds_writer)
         return sha, ("schema_error", exc)
     except Exception as exc:  # noqa: BLE001
-        _release_reservation(conn, db_lock, reservation_id)
+        _release_reservation(conn, db_lock, reservation_id, rds_writer)
         return sha, ("unexpected", exc)
 
     if budget_enabled and reservation_id is not None:
         if result.classification is None:
-            _release_reservation(conn, db_lock, reservation_id)
+            _release_reservation(conn, db_lock, reservation_id, rds_writer)
         else:
             try:
                 with db_lock:
@@ -200,20 +203,22 @@ def _classify_one(sha: str, text: str, *, conn=None, db_lock=None,
                         actual_input_tokens=getattr(result, "input_tokens", 0) or 0,
                         actual_output_tokens=getattr(result, "output_tokens", 0) or 0,
                         sha256_classified=sha,
+                        rds_writer=rds_writer,
                     )
             except Exception:  # noqa: BLE001
-                _release_reservation(conn, db_lock, reservation_id)
+                _release_reservation(conn, db_lock, reservation_id, rds_writer)
                 raise
 
     return sha, ("ok", result)
 
 
-def _release_reservation(conn, db_lock, reservation_id) -> None:
+def _release_reservation(conn, db_lock, reservation_id, rds_writer=None) -> None:
     if reservation_id is None or db_lock is None:
         return
     try:
         with db_lock:
-            budget.release(conn, reservation_id=reservation_id)
+            budget.release(conn, reservation_id=reservation_id,
+                           rds_writer=rds_writer)
     except Exception:  # noqa: BLE001,S110  # nosec B110 — best-effort rollback
         pass
 
@@ -322,6 +327,26 @@ def main() -> int:
     halt_event = threading.Event()
     halt_message = {"text": ""}
 
+    # Spec 0013 Phase 3: opt-in dual-write to RDS. When the flag is
+    # off, NO RDS engine is constructed (byte-identical pre-0013).
+    rds_writer: RDSDBWriter | None = None
+    dual_write_flag = os.getenv("LAVANDULA_DUAL_WRITE", "").strip().lower()
+    if dual_write_flag in ("1", "true", "yes", "on"):
+        try:
+            from lavandula.common.db import make_app_engine
+            engine = make_app_engine()
+            rds_writer = RDSDBWriter(engine)
+            rds_writer.start()
+            print("LAVANDULA_DUAL_WRITE on: RDS writer started",
+                  file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"LAVANDULA_DUAL_WRITE on but RDS setup failed "
+                f"({type(exc).__name__}); continuing with SQLite only",
+                file=sys.stderr,
+            )
+            rds_writer = None
+
     # fetch_log may or may not exist on the DB (full reports.db vs. a
     # test fixture). Probe once so per-row calls don't keep erroring.
     fetch_log_enabled = True
@@ -347,6 +372,7 @@ def main() -> int:
                     kind="classify",
                     fetch_status=fetch_status,
                     notes=notes or None,
+                    rds_writer=rds_writer,
                 )
                 conn.commit()
         except sqlite3.OperationalError:
@@ -397,6 +423,7 @@ def main() -> int:
                 db_lock=db_lock,
                 budget_enabled=budget_enabled,
                 halt_event=halt_event,
+                rds_writer=rds_writer,
             ): i
             for i, row in enumerate(rows, 1)
         }
@@ -516,6 +543,12 @@ def main() -> int:
         print(f"  {cls:<14} {classification_counts[cls]}")
 
     conn.close()
+    if rds_writer is not None:
+        try:
+            rds_writer.stop()
+        except Exception as exc:  # noqa: BLE001
+            print(f"rds writer stop raised ({type(exc).__name__}); ignoring",
+                  file=sys.stderr)
     if halt_event.is_set():
         print(f"\nHALT: classifier budget cap exceeded — {halt_message['text']}",
               file=sys.stderr)

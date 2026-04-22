@@ -33,6 +33,7 @@ from . import archive as _archive
 from . import budget
 from .candidate_filter import Candidate
 from .db_queue import DBWriter, DBWriterDied
+from .rds_db_writer import RDSDBWriter
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
 from .logging_utils import sanitize, setup_logging
@@ -284,6 +285,7 @@ def process_org(
     archive_dir: Path | None = None,
     run_id: str = "",
     db_queue: "DBWriter | None" = None,
+    rds_queue: "RDSDBWriter | None" = None,
     client: ReportsHTTPClient | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> OrgResult:
@@ -311,7 +313,9 @@ def process_org(
         archive = _archive.LocalArchive(archive_dir)
 
     def _write_fetch(**kwargs):
-        db_writer.record_fetch(conn, db_writer=db_queue, **kwargs)
+        db_writer.record_fetch(
+            conn, db_writer=db_queue, rds_writer=rds_queue, **kwargs,
+        )
 
     result = OrgResult(ein=ein)
     seed_etld1 = etld1(urlsplit(website).hostname or "")
@@ -461,6 +465,7 @@ def process_org(
         db_writer.upsert_report(
             conn,
             db_writer=db_queue,
+            rds_writer=rds_queue,
             content_sha256=outcome.content_sha256,
             source_url_redacted=outcome.final_url_redacted or redact_url(cand.url),
             referring_page_url_redacted=redact_url(cand.referring_page_url),
@@ -511,6 +516,7 @@ def process_org(
     db_writer.upsert_crawled_org(
         conn,
         db_writer=db_queue,
+        rds_writer=rds_queue,
         ein=ein,
         candidate_count=result.candidate_count,
         fetched_count=result.fetched_count,
@@ -706,6 +712,27 @@ def run(argv: list[str] | None = None) -> int:
             # through `writer`. `max_workers=1` preserves serial behavior.
             writer = DBWriter(str(db_path))
             writer.start()
+
+            # Spec 0013 Phase 3: opt-in dual-write to RDS. When the flag
+            # is off, NO RDS engine is constructed and behavior is
+            # byte-identical to pre-0013.
+            rds_writer: RDSDBWriter | None = None
+            dual_write_flag = os.getenv("LAVANDULA_DUAL_WRITE", "").strip().lower()
+            if dual_write_flag in ("1", "true", "yes", "on"):
+                try:
+                    from lavandula.common.db import make_app_engine
+                    engine = make_app_engine()
+                    rds_writer = RDSDBWriter(engine)
+                    rds_writer.start()
+                    logger.info("LAVANDULA_DUAL_WRITE on: RDS writer started")
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "LAVANDULA_DUAL_WRITE on but RDS engine setup "
+                        "failed (%s); continuing with SQLite only",
+                        exc.__class__.__name__,
+                    )
+                    rds_writer = None
+
             try:
                 with ThreadPoolExecutor(
                     max_workers=args.max_workers,
@@ -719,6 +746,7 @@ def run(argv: list[str] | None = None) -> int:
                             archive=archive,
                             run_id=run_id,
                             db_queue=writer,
+                            rds_queue=rds_writer,
                         ): (ein, website)
                         for ein, website in pending
                     }
@@ -737,6 +765,14 @@ def run(argv: list[str] | None = None) -> int:
                             logger.exception("ein=%s failed: %s", ein, exc)
             finally:
                 writer.stop()
+                if rds_writer is not None:
+                    try:
+                        rds_writer.stop()
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "rds writer stop raised (%s); ignoring",
+                            exc.__class__.__name__,
+                        )
                 _close_thread_clients()
         finally:
             conn.close()

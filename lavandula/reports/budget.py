@@ -23,9 +23,12 @@ from __future__ import annotations
 
 import datetime
 import sqlite3
+from typing import Any
 
 from . import classify as _classify
 from . import config
+
+_RDS_SCHEMA = "lava_impact"
 
 
 class BudgetExceeded(RuntimeError):
@@ -41,6 +44,7 @@ def check_and_reserve(
     *,
     estimated_cents: int,
     classifier_model: str,
+    rds_writer: Any = None,
 ) -> int:
     """Atomic preflight reserve: returns the reservation row id.
 
@@ -63,6 +67,7 @@ def check_and_reserve(
                 f"budget cap {config.CLASSIFIER_BUDGET_CENTS}c: running {running_total}c + "
                 f"est {estimated_cents}c would exceed"
             )
+        at_iso = _now_iso()
         cur = conn.execute(
             """
             INSERT INTO budget_ledger
@@ -70,10 +75,30 @@ def check_and_reserve(
                input_tokens, output_tokens, cents_spent, notes)
             VALUES (?, ?, 'preflight', 0, 0, ?, 'reserved')
             """,
-            (_now_iso(), classifier_model, int(estimated_cents)),
+            (at_iso, classifier_model, int(estimated_cents)),
         )
         reservation_id = int(cur.lastrowid)
         conn.execute("COMMIT")
+        if rds_writer is not None:
+            # The RDS row's autoincrement id is independent of SQLite's
+            # reservation_id; encode SQLite's id into the notes field
+            # so `settle`/`release` can locate the matching RDS row.
+            rds_note = f"reserved:{reservation_id}"
+            params = (at_iso, classifier_model, int(estimated_cents), rds_note)
+
+            def _do_rds(pg_conn: Any) -> None:
+                with pg_conn.cursor() as cur_pg:
+                    cur_pg.execute(
+                        f"""
+                        INSERT INTO {_RDS_SCHEMA}.budget_ledger
+                          (at_timestamp, classifier_model, sha256_classified,
+                           input_tokens, output_tokens, cents_spent, notes)
+                        VALUES (%s, %s, 'preflight', 0, 0, %s, %s)
+                        """,
+                        params,
+                    )
+
+            rds_writer.put(_do_rds)
         return reservation_id
     except BudgetExceeded:
         raise
@@ -92,6 +117,7 @@ def settle(
     actual_input_tokens: int,
     actual_output_tokens: int,
     sha256_classified: str,
+    rds_writer: Any = None,
 ) -> None:
     """Convert a preflight reservation to an actual spend record."""
     if len(sha256_classified) != 64:
@@ -127,8 +153,33 @@ def settle(
             pass
         raise
 
+    if rds_writer is not None:
+        rds_preflight_note = f"reserved:{reservation_id}"
+        params = (
+            actual_cents, sha256_classified,
+            int(actual_input_tokens), int(actual_output_tokens),
+            rds_preflight_note,
+        )
 
-def release(conn: sqlite3.Connection, *, reservation_id: int) -> None:
+        def _do_rds(pg_conn: Any) -> None:
+            with pg_conn.cursor() as cur_pg:
+                cur_pg.execute(
+                    f"""
+                    UPDATE {_RDS_SCHEMA}.budget_ledger
+                       SET cents_spent = %s,
+                           sha256_classified = %s,
+                           input_tokens = %s,
+                           output_tokens = %s,
+                           notes = 'settled'
+                     WHERE notes = %s AND sha256_classified = 'preflight'
+                    """,
+                    params,
+                )
+
+        rds_writer.put(_do_rds)
+
+
+def release(conn: sqlite3.Connection, *, reservation_id: int, rds_writer: Any = None) -> None:
     """Delete an unsettled preflight row (call on API failure)."""
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -143,6 +194,21 @@ def release(conn: sqlite3.Connection, *, reservation_id: int) -> None:
         except sqlite3.OperationalError:
             pass
         raise
+
+    if rds_writer is not None:
+        rds_preflight_note = f"reserved:{reservation_id}"
+
+        def _do_rds(pg_conn: Any) -> None:
+            with pg_conn.cursor() as cur_pg:
+                cur_pg.execute(
+                    f"""
+                    DELETE FROM {_RDS_SCHEMA}.budget_ledger
+                     WHERE notes = %s AND sha256_classified = 'preflight'
+                    """,
+                    (rds_preflight_note,),
+                )
+
+        rds_writer.put(_do_rds)
 
 
 def reconcile_stale_reservations(conn: sqlite3.Connection) -> int:

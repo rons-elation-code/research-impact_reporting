@@ -131,10 +131,12 @@ def test_budget_reserve_and_settle_around_each_classify(tmp_path, monkeypatch):
     original_settle = budget.settle
     original_release = budget.release
 
-    def tracking_reserve(conn_, *, estimated_cents, classifier_model):
+    def tracking_reserve(conn_, *, estimated_cents, classifier_model,
+                         rds_writer=None):
         rid = original_reserve(
             conn_, estimated_cents=estimated_cents,
             classifier_model=classifier_model,
+            rds_writer=rds_writer,
         )
         reserves.append(rid)
         return rid
@@ -143,9 +145,10 @@ def test_budget_reserve_and_settle_around_each_classify(tmp_path, monkeypatch):
         settles.append(reservation_id)
         return original_settle(conn_, reservation_id=reservation_id, **kw)
 
-    def tracking_release(conn_, *, reservation_id):
+    def tracking_release(conn_, *, reservation_id, rds_writer=None):
         releases.append(reservation_id)
-        return original_release(conn_, reservation_id=reservation_id)
+        return original_release(conn_, reservation_id=reservation_id,
+                                rds_writer=rds_writer)
 
     monkeypatch.setattr(budget, "check_and_reserve", tracking_reserve)
     monkeypatch.setattr(budget, "settle", tracking_settle)
@@ -212,7 +215,8 @@ def test_budget_exceeded_halts_run(tmp_path, monkeypatch):
 
     classify_calls = []
 
-    def always_exceeded(conn_, *, estimated_cents, classifier_model):
+    def always_exceeded(conn_, *, estimated_cents, classifier_model,
+                        rds_writer=None):
         raise budget.BudgetExceeded("over cap")
 
     monkeypatch.setattr(budget, "check_and_reserve", always_exceeded)
