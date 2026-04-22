@@ -48,9 +48,9 @@ class _FakeCursor:
             n = len(self._tables.get(t, []))
             self._queue = [(n,)]
             return
-        # PK list: SELECT "<pk>" FROM "<schema>"."<table>" LIMIT %s
+        # PK list: SELECT "<pk>" FROM "<schema>"."<table>" ORDER BY "<pk>" LIMIT %s
         m = re.search(
-            r'SELECT "[^"]+" FROM "[^"]+"\."([^"]+)" LIMIT',
+            r'SELECT "[^"]+" FROM "[^"]+"\."([^"]+)"',
             sql,
         )
         if m:
@@ -151,6 +151,23 @@ def test_unknown_table_raises(tmp_path):
             tables=["totally_made_up"],
             engine_factory=lambda: _FakeEngine(_FakePgConn({})),
         )
+
+
+def test_hard_engine_error_returns_two(tmp_path):
+    """Docstring promises exit 2 on hard (connection-level) errors."""
+    sqlite_path = _make_sqlite(tmp_path, {
+        "reports": ("content_sha256", ["s1"]),
+    })
+
+    def _raising_factory():
+        raise RuntimeError("no engine")
+
+    rc = vd.run(
+        sqlite_path=sqlite_path,
+        tables=["reports"],
+        engine_factory=_raising_factory,
+    )
+    assert rc == 2
 
 
 def test_missing_sqlite_table_is_not_drift(tmp_path, capsys):

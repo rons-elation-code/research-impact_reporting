@@ -100,8 +100,12 @@ def _postgres_count(pg_cur, schema: str, table: str) -> int:
 def _sqlite_pks(
     conn: sqlite3.Connection, table: str, pk: str, limit: int = 100000
 ) -> set[str]:
+    # Deterministic sampling: ORDER BY <pk> so both backends walk the
+    # same prefix of the sort order. Without this, LIMIT picks an
+    # arbitrary subset and the "missing PKs" list is meaningless.
     cur = conn.execute(
-        f"SELECT {_safe_ident(pk)} FROM {_safe_ident(table)} LIMIT ?",
+        f"SELECT {_safe_ident(pk)} FROM {_safe_ident(table)} "
+        f"ORDER BY {_safe_ident(pk)} LIMIT ?",
         (limit,),
     )
     return {str(r[0]) for r in cur.fetchall() if r[0] is not None}
@@ -111,8 +115,9 @@ def _postgres_pks(
     pg_cur, schema: str, table: str, pk: str, limit: int = 100000
 ) -> set[str]:
     pg_cur.execute(
-        f'SELECT "{_safe_ident(pk)}" FROM "{_safe_ident(schema)}"."{_safe_ident(table)}" '
-        f"LIMIT %s",
+        f'SELECT "{_safe_ident(pk)}" '
+        f'FROM "{_safe_ident(schema)}"."{_safe_ident(table)}" '
+        f'ORDER BY "{_safe_ident(pk)}" LIMIT %s',
         (limit,),
     )
     return {str(r[0]) for r in pg_cur.fetchall() if r[0] is not None}
@@ -249,7 +254,7 @@ def run(
     print(f"  drift count:     {total_drift}")
 
     if any_error:
-        return 1
+        return 2
     return 1 if total_drift else 0
 
 

@@ -112,9 +112,13 @@ def test_op_exception_logs_warning_and_rolls_back(caplog):
     assert w.failed_count == 1
 
 
-def test_put_on_full_queue_drops_with_warning(caplog):
-    """When the queue is full for `timeout`, put() drops and warns."""
-    # Use a tiny queue + a closure that blocks to force saturation.
+def test_put_on_full_queue_drops_immediately(caplog):
+    """When the queue is full, put() drops immediately — NO blocking.
+
+    This is the Phase 3 contract: `put` is non-blocking because it
+    runs on the crawler hot path; any wait would propagate RDS
+    latency into SQLite-authoritative writes.
+    """
     conn = _FakePgConn()
     engine = _FakeEngine(lambda: conn)
     w = RDSDBWriter(engine, maxsize=1)
@@ -126,16 +130,44 @@ def test_put_on_full_queue_drops_with_warning(caplog):
     w.start()
     try:
         w.put(slow)            # worker picks this up, blocks on `block`
-        # Give worker time to pull it off the queue before filling:
-        time.sleep(0.05)
-        w.put(slow)            # fills the 1-slot queue
+        time.sleep(0.05)        # let worker drain the queue
+        w.put(slow)             # fills the 1-slot queue
         with caplog.at_level(
             logging.WARNING, logger="lavandula.reports.rds_db_writer"
         ):
-            # This should drop, not raise.
-            w.put(slow, timeout=0.2)
+            start = time.monotonic()
+            w.put(slow)         # must return immediately, not block
+            elapsed = time.monotonic() - start
+        # Non-blocking contract: < 100ms even on a loaded CI box.
+        assert elapsed < 0.1, f"put() blocked for {elapsed:.3f}s"
         assert w.dropped_count >= 1
-        assert any("saturated" in r.message for r in caplog.records)
+        assert any("queue full" in r.message for r in caplog.records)
+    finally:
+        block.set()
+        w.stop(timeout=2.0)
+
+
+def test_put_is_non_blocking_under_sustained_saturation():
+    """Flood a saturated writer and assert every put returns fast."""
+    conn = _FakePgConn()
+    engine = _FakeEngine(lambda: conn)
+    w = RDSDBWriter(engine, maxsize=1)
+    block = threading.Event()
+
+    def slow(_c):
+        block.wait(timeout=5.0)
+
+    w.start()
+    try:
+        w.put(slow)          # worker picks this up
+        time.sleep(0.05)
+        w.put(slow)          # fills queue
+        for _ in range(50):
+            t0 = time.monotonic()
+            w.put(lambda _c: None)
+            # Each call must be non-blocking regardless of queue state.
+            assert time.monotonic() - t0 < 0.05
+        assert w.dropped_count >= 50
     finally:
         block.set()
         w.stop(timeout=2.0)

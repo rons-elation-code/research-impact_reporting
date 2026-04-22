@@ -93,11 +93,13 @@ class RDSDBWriter:
 
     # -- submission -------------------------------------------------------
 
-    def put(self, op: RDSWriteOp, *, timeout: float = 30.0) -> None:
-        """Enqueue a Postgres closure. Best-effort: never raises.
+    def put(self, op: RDSWriteOp) -> None:
+        """Enqueue a Postgres closure. Non-blocking, best-effort, never raises.
 
-        If the queue is full for `timeout` seconds, or the writer
-        thread is dead, the op is dropped with a WARNING log.
+        This is on the crawler hot path: every SQLite write site
+        mirrors through here, so we MUST NOT block. If the queue is
+        full or the writer thread is dead, the op is dropped with a
+        WARNING log and the caller continues immediately.
         """
         if self._thread is not None and not self._thread.is_alive():
             self._dropped_on_put += 1
@@ -108,13 +110,13 @@ class RDSDBWriter:
             )
             return
         try:
-            self._q.put(op, timeout=timeout)
+            self._q.put_nowait(op)
         except Full:
             self._dropped_on_put += 1
             log.warning(
-                "rds writer queue saturated for %.1fs; dropping op "
+                "rds writer queue full (size=%d); dropping op "
                 "(total dropped=%d)",
-                timeout, self._dropped_on_put,
+                self._q.maxsize, self._dropped_on_put,
             )
 
     # -- observability ----------------------------------------------------
