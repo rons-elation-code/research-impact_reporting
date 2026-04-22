@@ -203,15 +203,15 @@ projects:
   - id: "0008"
     title: "Agent Batch Runner"
     summary: "Orchestrate Claude Code WebSearch sub-agents for URL resolution at scale. Takes an EIN list → splits into N-org chunks → spawns K agents in parallel → waits → ingests results back into seeds.db. Resumable (agents append to results file as they go), skip-already-resolved by default."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0008-agent-batch-runner.md
-      plan: null
+      plan: locard/plans/0008-agent-batch-runner.md
       review: null
     dependencies: ["0001"]
     tags: [resolver, orchestration, agents, haiku]
-    notes: "Replaces manual JSON-file shuffling observed in 2026-04-21 TX 100 validation. Critical for weekly batch workflow at 1K-5K orgs per week."
+    notes: "Spec + plan approved 2026-04-22 (red-team APPROVE, 0 CRITICAL, 0 HIGH). 25 ACs. Key security: agents run with WebSearch+WebFetch only (no Bash/Read/Write), per-agent subprocess timeout, 2MB output cap, json.dumps() for input generation."
 
   - id: "0009"
     title: "Address Verification Pass"
