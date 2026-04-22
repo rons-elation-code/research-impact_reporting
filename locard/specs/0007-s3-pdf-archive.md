@@ -67,17 +67,24 @@ rest (SSE-S3), versioned, and cross-AZ replicated by default.
 
 ### Archive backend selection
 
-A single `--archive` CLI flag replaces `--archive-dir`. Value
-interpretation:
+A single `--archive` CLI flag is the canonical archive selector.
+Value interpretation:
 
 | Value | Backend | Example |
 |-------|---------|---------|
 | `s3://BUCKET/PREFIX` | S3 | `s3://lavandula-nonprofit-collaterals/pdfs` |
 | absolute filesystem path | local | `/tmp/tx-test/raw` |
 
-Old `--archive-dir` remains accepted as alias for `--archive` for
-backward compatibility during the transition. Both flags specifying
-different destinations → error at argv parse time.
+Rules:
+1. Exactly one of `--archive` or `--archive-dir` MUST be specified.
+   Neither → argv parse error: `archive destination is required`.
+2. `--archive-dir VALUE` is an alias for `--archive VALUE` and is
+   accepted only if its value is an absolute filesystem path (not an
+   `s3://` URL). This preserves backward compatibility for existing
+   runbooks and tests while phasing in the new flag.
+3. Both flags specified → argv parse error:
+   `use --archive or --archive-dir, not both`, even if they point to
+   the same value. Keeps the rule simple for operators.
 
 ### Write path (new)
 
@@ -122,13 +129,32 @@ sharding: `pdfs/{sha[:2]}/{sha[2:4]}/{sha}.pdf`. Deferred.
 
 ### Object metadata
 
-Each uploaded object carries S3 user-metadata for forensic traceability:
+Each uploaded object carries S3 user-metadata for forensic traceability.
+S3 lowercases metadata keys on receipt; the canonical stored keys are:
 
-- `x-amz-meta-source-url`: the URL the PDF was fetched from (truncated
-  to 2048 bytes per S3 limits)
-- `x-amz-meta-ein`: the owning org's EIN
-- `x-amz-meta-crawl-run-id`: the crawler invocation ID
-- `x-amz-meta-fetched-at`: ISO 8601 timestamp
+- `source-url`: the URL the PDF was fetched from (see truncation rule below)
+- `ein`: the owning org's EIN (9 digits, ASCII)
+- `crawl-run-id`: the crawler invocation ID (ASCII)
+- `fetched-at`: ISO 8601 UTC timestamp with seconds precision
+  (e.g. `2026-04-22T16:30:05Z`)
+
+The spec uses these short canonical names. boto3 prepends `x-amz-meta-`
+automatically on the wire; do not include that prefix when setting
+metadata in Python code.
+
+**Truncation and encoding rules for `source-url`**:
+
+1. S3 enforces a 2 KB total user-metadata limit per object. To stay
+   well under, the URL is truncated to **1024 characters** before
+   upload.
+2. S3 user-metadata must be US-ASCII. Non-ASCII characters in the URL
+   are percent-encoded (RFC 3986) before truncation. Truncation
+   happens after encoding to guarantee the stored value never splits
+   a percent-encoded triplet.
+3. If the URL after encoding and truncation still contains any byte
+   S3 rejects, the upload proceeds without the `source-url`
+   metadata key; a structured warning is logged. The PDF itself
+   still uploads; provenance degrades to EIN + crawl-run-id only.
 
 This lets you answer "where did this PDF come from?" from S3 alone,
 even if the reports.db is corrupted or offline.
@@ -138,12 +164,33 @@ even if the reports.db is corrupted or offline.
 | Env var / flag | Purpose | Default |
 |----------------|---------|---------|
 | `--archive s3://...` or `/path` | Archive destination | (required) |
-| `--s3-region` | AWS region override | from IAM / AWS_REGION env |
+| `--s3-region` | AWS region override for the bucket | from boto3 resolution chain |
 | `LAVANDULA_S3_ENDPOINT_URL` (env) | Override for testing (moto, minio) | AWS default |
 
-The EC2 instance role `cloud2_lavandulagroup` provides S3 credentials
-via IMDS. No AWS access keys are read from env or file. If credentials
-are unavailable at startup, fail with a clear error.
+### Region handling
+
+1. If `--s3-region` is passed, use it directly.
+2. Otherwise, use boto3's default resolution chain (AWS_REGION env,
+   `~/.aws/config`, IMDS — whichever resolves first).
+3. On startup the crawler calls `head_bucket` to learn the bucket's
+   actual region. If the bucket region differs from the configured
+   client region, the crawler fails with:
+   `bucket {name} is in region {actual}; client configured for {configured}`.
+4. If no client region resolves at all (empty chain), fail with:
+   `no AWS region configured; pass --s3-region or set AWS_REGION`.
+
+### Credential sources
+
+**Production (EC2)**: IMDS only. The instance role
+`cloud2_lavandulagroup` provides S3 credentials. No AWS access keys
+are read from env or files. If IMDS returns no credentials at
+startup, the crawler fails.
+
+**Development / CI**: boto3's default credential chain (AWS_PROFILE,
+SSO, named profile) is acceptable. Inline access keys via
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` env vars are
+discouraged but not blocked (boto3 still honors them). The production
+stance is enforced by operating environment, not by the code.
 
 ### Failure handling
 
@@ -159,63 +206,113 @@ are unavailable at startup, fail with a clear error.
 
 ### Startup probe
 
-At crawler init (once per run), when archive is S3, the crawler
-performs a `head_bucket` call. This surfaces permission / region /
-existence errors before the first org is processed, so you don't
-discover the failure after 3 hours of crawling.
+At crawler init (once per run), when the archive is S3, the crawler
+performs a single `head_bucket` call. This surfaces:
+
+- Bucket does not exist → HTTP 404 → fail fast with clear error
+- Bucket is in a different region → the boto3 response header
+  `x-amz-bucket-region` exposes the actual region; fail fast
+- IAM lacks `s3:ListBucket` / `s3:GetBucketLocation` → HTTP 403 →
+  fail fast
+- Network / IMDS failure → connection error → fail fast
+
+**What `head_bucket` does NOT prove**: `s3:PutObject` permission.
+Object-level permissions cannot be validated by a bucket-level HEAD.
+We intentionally do not perform a write-probe at startup because:
+
+1. It would require `s3:DeleteObject` in the runtime policy to clean
+   up the probe object. We specifically kept that out of least-privilege.
+2. A leftover probe object on every startup is noise.
+3. A missing `s3:PutObject` will surface immediately on the first real
+   upload, with the sha256 and source URL in the error log. That's
+   acceptable — the crawler aborts within seconds of starting real
+   work if PUT fails.
+
+The startup probe is best-effort for fast failure of common
+misconfigurations; it is not a substitute for the first real PUT.
 
 ---
 
 ## Acceptance Criteria
 
 **AC1** — When `--archive s3://bucket/prefix` is passed, downloaded
-PDFs are uploaded to S3 at key `{prefix}/{sha256}.pdf`. No bytes
-are written to local disk.
+PDFs are uploaded to S3 at key `{prefix}/{sha256}.pdf` (with the
+literal `/` separator and no leading slash on the final key). No
+bytes are written to local disk during the fetch → extract → upload
+sequence. *Offline test: moto.*
 
 **AC2** — Each S3 object has `ServerSideEncryption=AES256` applied
-(SSE-S3). Verified by `head_object` in integration test.
+(SSE-S3). Verified by `head_object`. *Offline test: moto.*
 
-**AC3** — Each S3 object carries user-metadata: `source-url`, `ein`,
-`crawl-run-id`, `fetched-at`. Verified via `head_object`.
+**AC3** — Each S3 object carries user-metadata with canonical
+lowercase keys: `source-url`, `ein`, `crawl-run-id`, `fetched-at`.
+`fetched-at` matches ISO 8601 UTC format. `source-url` is percent-
+encoded and truncated to 1024 chars. *Offline test: moto.*
 
-**AC4** — First-page text extraction happens before the S3 PUT on the
-same in-memory bytes. `first_page_text` is populated in the reports
-row even if the subsequent S3 PUT fails.
+**AC4** — First-page text extraction happens on the in-memory bytes
+**before** the S3 PUT. Extraction is a pure in-memory pypdf operation
+with no dependency on archive success.
 
 **AC5** — 50 MB size cap from TICK-002 is still enforced. A PDF
-exceeding 50 MB is rejected before any S3 PUT attempt.
+exceeding 50 MB is rejected before any S3 PUT attempt. *Offline test.*
 
 **AC6** — When `--archive /local/path` is passed, existing local
-archive behavior is unchanged (byte-identical output on the same
-input).
+archive behavior is unchanged — byte-identical output on the same
+input compared to the pre-0007 code path. *Offline regression test.*
 
-**AC7** — Crawler startup performs a `head_bucket` probe. If the
-bucket does not exist or is inaccessible, the crawler logs a clear
-error and exits with non-zero status before touching any org.
+**AC7** — Crawler startup performs exactly one `head_bucket` call
+before the first org is processed. If the bucket does not exist, is
+inaccessible, or is in a different region than the configured client,
+the crawler logs a clear error naming the specific cause and exits
+with non-zero status. *Offline test: moto + botocore stubber for
+4xx / region-mismatch cases.*
 
-**AC8** — Transient S3 5xx errors are retried via boto3 default
-retry. Test proves retry happens (mocked 503 → 503 → 200 succeeds).
+**AC8** — Transient S3 5xx errors are retried via boto3 default retry
+(3 attempts, exponential backoff). Test proves retry occurs: mocked
+`503 → 503 → 200` sequence results in a successful upload and one
+`reports` row. *Offline test: moto with fault injection, or botocore
+stubber.*
 
-**AC9** — When all S3 PUT retries fail, a `fetch_log` row is written
-with `kind='pdf-get'`, `outcome='error'`, `note` including the S3
-error class; no `reports` row is written for that sha256.
+**AC9** — Write ordering and failure semantics:
+  - **9a**: Sequence is strictly `extract_text → PUT → DBWriter.put(upsert_report) → DBWriter.put(record_fetch)`.
+  - **9b**: When all S3 PUT retries fail, a `fetch_log` row is written
+    with `kind='pdf-get'`, `outcome='error'`, `note` naming the S3
+    error class; **no `reports` row is written** for that sha256.
+  - **9c**: `first_page_text` is therefore NOT persisted when the S3
+    PUT fails. It exists only in the worker's memory and is lost when
+    the worker moves on. The sha256 in `fetch_log` is sufficient to
+    retry that URL on a later crawl.
+  *Offline test: moto with permanent PUT failure.*
 
 **AC10** — Unit tests use `moto` to mock S3; zero real AWS calls in
-the test suite. Integration tests against real S3 live behind
+the unit test suite. Integration tests against real S3 live behind
 `LAVANDULA_LIVE_S3=1` env flag, default off.
 
-**AC11** — Both `--archive-dir` (legacy) and `--archive` (new) work.
-If both are specified with different values, argv parse fails with
-a clear error. If both specify the same local path, they're treated
-as equivalent.
+**AC11** — CLI argv parsing enforces the archive-selection rules:
+  - Neither `--archive` nor `--archive-dir` → parse error
+    `archive destination is required`.
+  - Both flags → parse error `use --archive or --archive-dir, not both`.
+  - `--archive-dir` with an `s3://` value → parse error
+    `--archive-dir accepts only a filesystem path; use --archive for S3`.
+  - `--archive` with either form → accepted.
+  - `--archive-dir /path` → accepted, treated as equivalent to
+    `--archive /path`.
+  *Pure offline test: argparse only, no S3.*
 
 **AC12** — The classifier (`classify_null.py`) runs unchanged against
 a reports DB whose PDFs live in S3. No S3 reads occur during
-classification.
+classification. *Offline test: grep-based assertion that
+classify_null never imports `s3_archive`.*
 
-**AC13** — S3 object key matches `^[a-f0-9]{64}\.pdf$` exactly (sha256
-hex + `.pdf`). No sha256 from any crawl has ever produced a
-different-length digest, but defensive check stays in place.
+**AC13** — The S3 object **key basename** (the portion after the
+final `/`) matches `^[a-f0-9]{64}\.pdf$`. The key as a whole may
+include a prefix: full key `^([^/]+/)*[a-f0-9]{64}\.pdf$`. Defensive
+length check rejects any computed sha256 that isn't 64 hex chars.
+*Offline test.*
+
+**AC14** — `S3Archive.put()` never sets an `ACL` parameter on the PUT
+call. Objects inherit bucket default ACL (private). *Offline test:
+botocore stubber asserts no `ACL` key in request params.*
 
 ---
 
@@ -278,8 +375,9 @@ different-length digest, but defensive check stays in place.
 | `lavandula/reports/fetch_pdf.py` | `download()` takes an archive backend (S3 or local); routes PUT accordingly |
 | `lavandula/reports/crawler.py` | `--archive` arg; `--archive-dir` alias; backend construction at startup; `head_bucket` probe |
 | `lavandula/reports/config.py` | S3 config fields: bucket, prefix, region, endpoint_url |
-| `lavandula/reports/tests/unit/test_s3_archive_0007.py` | NEW — AC1–AC5, AC8, AC9, AC10, AC13 with moto |
-| `lavandula/reports/tests/integration/test_s3_archive_live.py` | NEW — AC7 (bucket probe), AC11 (CLI args), gated on `LAVANDULA_LIVE_S3=1` |
+| `lavandula/reports/tests/unit/test_s3_archive_0007.py` | NEW — AC1, AC2, AC3, AC5, AC6, AC7, AC8, AC9, AC11, AC12, AC13, AC14 (moto + botocore stubber; no AWS calls) |
+| `lavandula/reports/tests/unit/test_crawler_archive_argv_0007.py` | NEW — AC11 pure argparse tests |
+| `lavandula/reports/tests/integration/test_s3_archive_live.py` | NEW — end-to-end smoke test against real S3, gated on `LAVANDULA_LIVE_S3=1` |
 | `lavandula/reports/HANDOFF.md` | Update operator runbook — how to configure S3 archive |
 | `requirements.in` / `requirements.txt` | Add `boto3`, `moto` (test-only) |
 
