@@ -270,6 +270,78 @@ def test_s3_only_fallback_warns(env, tmp_path, caplog):
     assert any("RECONCILE_S3_ONLY" in r.getMessage() for r in caplog.records)
 
 
+def test_reconciled_row_is_visible_in_reports_public(env, tmp_path):
+    """Round-4 review: reconciled orphans MUST land in reports_public
+    (the view excludes platform_unverified). This exercises both the
+    'metadata carries attribution' and 'metadata missing, default
+    applied' paths and asserts both rows are view-visible after a
+    classifier fills in the public-gating columns."""
+    sha_with_md = "c" * 64
+    sha_missing_md = "d" * 64
+    with mock_aws():
+        client = boto3.client("s3", region_name=REGION)
+        client.create_bucket(Bucket=BUCKET)
+        arch = s3a.S3Archive(BUCKET, "pdfs", region=REGION, client=client)
+        # Fresh-crawl object: full metadata including attribution.
+        arch.put(sha_with_md, PDF, {
+            "source-url": "https://a.example/r.pdf",
+            "ein": "111111111",
+            "crawl-run-id": "r1",
+            "fetched-at": "2026-04-22T16:30:05Z",
+            "attribution-confidence": "own_domain",
+            "discovered-via": "homepage-link",
+        })
+        # Legacy object: missing attribution/discovered fields.
+        arch.put(sha_missing_md, PDF, {
+            "source-url": "https://b.example/r.pdf",
+            "ein": "222222222",
+            "crawl-run-id": "r2",
+            "fetched-at": "2026-04-22T16:30:05Z",
+        })
+        db = tmp_path / "reports.db"
+        conn = schema.ensure_db(db)
+        conn.close()
+
+        reconcile_s3.reconcile(
+            db_path=str(db),
+            uri=f"s3://{BUCKET}/pdfs",
+            apply=True,
+            client=client,
+        )
+
+    import sqlite3
+    conn = sqlite3.connect(db)
+    try:
+        rows = {
+            r[0]: r[1] for r in conn.execute(
+                "SELECT content_sha256, attribution_confidence FROM reports"
+            )
+        }
+        # Neither value should be platform_unverified (the view excludes it).
+        assert rows[sha_with_md] == "own_domain"
+        assert rows[sha_missing_md] == "platform_verified"
+
+        # Simulate the classifier filling in the public-gating columns
+        # so the view's other filters pass. This proves visibility is
+        # not blocked by the attribution column.
+        for sha in (sha_with_md, sha_missing_md):
+            conn.execute(
+                "UPDATE reports SET classification='annual', "
+                "classification_confidence=0.95 WHERE content_sha256=?",
+                (sha,),
+            )
+        conn.commit()
+        visible = {
+            r[0] for r in conn.execute(
+                "SELECT content_sha256 FROM reports_public"
+            )
+        }
+    finally:
+        conn.close()
+    assert sha_with_md in visible
+    assert sha_missing_md in visible
+
+
 def test_ac16_invalid_metadata_skipped(env, tmp_path, capsys):
     with mock_aws():
         client = boto3.client("s3", region_name=REGION)

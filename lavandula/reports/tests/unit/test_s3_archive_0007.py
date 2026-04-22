@@ -81,14 +81,23 @@ def test_ac3_canonical_metadata_keys(moto_s3):
         "ein": "123456789",
         "crawl-run-id": "deadbeef",
         "fetched-at": "2026-04-22T16:30:05Z",
+        "attribution-confidence": "own_domain",
+        "discovered-via": "homepage-link",
     }
     arch.put(SHA, PDF_BYTES, metadata)
     head = moto_s3.head_object(Bucket=BUCKET, Key=f"pdfs/{SHA}.pdf")
     md = head["Metadata"]
-    assert set(md) == {"source-url", "ein", "crawl-run-id", "fetched-at"}
+    # Round-4: adds attribution-confidence and discovered-via so
+    # reconciled rows can land in the reports_public view.
+    assert set(md) == {
+        "source-url", "ein", "crawl-run-id", "fetched-at",
+        "attribution-confidence", "discovered-via",
+    }
     assert md["ein"] == "123456789"
     assert md["crawl-run-id"] == "deadbeef"
     assert md["fetched-at"] == "2026-04-22T16:30:05Z"
+    assert md["attribution-confidence"] == "own_domain"
+    assert md["discovered-via"] == "homepage-link"
     # percent-encoded
     assert md["source-url"] == "https%3A%2F%2Fexample.org%2Freport.pdf"
 

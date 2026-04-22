@@ -34,6 +34,18 @@ _SHA_RE = re.compile(r"^[a-f0-9]{64}$")
 _KEY_RE = re.compile(r"^(?:.*/)?([a-f0-9]{64})\.pdf$")
 _EIN_RE = re.compile(r"^\d{9}$")
 
+# Must match schema.py CHECK constraints.
+_ALLOWED_ATTRIBUTION = {"own_domain", "platform_verified", "platform_unverified"}
+_ALLOWED_DISCOVERED_VIA = {
+    "sitemap", "homepage-link", "subpage-link", "hosting-platform",
+}
+
+# Defaults chosen so reconciled rows are visible in `reports_public`
+# (the view excludes platform_unverified). Round-4 review:
+# reconciliation MUST be a true repair, not a silent loss of visibility.
+_DEFAULT_ATTRIBUTION_ON_RECOVERY = "platform_verified"
+_DEFAULT_DISCOVERED_VIA_ON_RECOVERY = "homepage-link"
+
 
 def _iter_object_shas(client, bucket: str, prefix: str):
     """Yield (key, sha256) pairs for PDFs under prefix."""
@@ -111,7 +123,23 @@ def _valid_metadata(md: dict) -> tuple[bool, dict, str]:
         except ValueError:
             return False, {}, "bad_fetched_at"
 
-    return True, {"ein": ein, "source_url": url, "fetched_at": fetched_at}, ""
+    # Attribution + discovery (round-4): optional on legacy objects
+    # that predate the metadata extension; validated when present,
+    # defaulted when absent/invalid.
+    attribution = md.get("attribution-confidence", "")
+    discovered_via = md.get("discovered-via", "")
+    if attribution and attribution not in _ALLOWED_ATTRIBUTION:
+        attribution = ""
+    if discovered_via and discovered_via not in _ALLOWED_DISCOVERED_VIA:
+        discovered_via = ""
+
+    return True, {
+        "ein": ein,
+        "source_url": url,
+        "fetched_at": fetched_at,
+        "attribution_confidence": attribution,
+        "discovered_via": discovered_via,
+    }, ""
 
 
 def _insert_orphan_row(
@@ -122,6 +150,8 @@ def _insert_orphan_row(
     source_url: str,
     fetched_at: str,
     file_size_bytes: int,
+    attribution_confidence: str,
+    discovered_via: str,
 ) -> None:
     """Minimal row — schema NOT NULLs only. classify_null.py backfills
     the classification columns later; pdf_* flags default to 0."""
@@ -140,8 +170,8 @@ def _insert_orphan_row(
             sha,
             source_url,
             ein,
-            "homepage-link",
-            "platform_unverified",
+            discovered_via,
+            attribution_confidence,
             fetched_at or datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "application/pdf",
             max(int(file_size_bytes or 1), 1),
@@ -222,6 +252,21 @@ def reconcile(
                 print(f"ORPHAN_INVALID_METADATA sha={sha} reason={reason}")
                 continue
 
+            # Attribution + discovered_via come from S3 metadata when the
+            # object carries them (new crawls do), else default to a
+            # reports_public-visible tier so reconciled rows aren't
+            # silently dropped by the view filter (round-4 review).
+            md_attr = clean.get("attribution_confidence", "") if ok else ""
+            md_disc = clean.get("discovered_via", "") if ok else ""
+            attribution = md_attr or _DEFAULT_ATTRIBUTION_ON_RECOVERY
+            discovered_via = md_disc or _DEFAULT_DISCOVERED_VIA_ON_RECOVERY
+            if not md_attr:
+                log.warning(
+                    "RECONCILE_DEFAULT_ATTRIBUTION sha=%s using=%s "
+                    "(no attribution-confidence in S3 metadata)",
+                    sha, attribution,
+                )
+
             if apply:
                 _insert_orphan_row(
                     conn,
@@ -230,16 +275,20 @@ def reconcile(
                     source_url=source_redacted,
                     fetched_at=fetched_at,
                     file_size_bytes=size,
+                    attribution_confidence=attribution,
+                    discovered_via=discovered_via,
                 )
                 conn.commit()
                 print(
                     f"ORPHAN_APPLIED sha={sha} ein={ein} "
-                    f"source={source_redacted} attribution={source_tag}"
+                    f"source={source_redacted} attribution_src={source_tag} "
+                    f"attribution={attribution}"
                 )
             else:
                 print(
                     f"ORPHAN sha={sha} ein={ein} "
-                    f"source={source_redacted} attribution={source_tag}"
+                    f"source={source_redacted} attribution_src={source_tag} "
+                    f"attribution={attribution}"
                 )
 
         missing = db_shas - s3_shas

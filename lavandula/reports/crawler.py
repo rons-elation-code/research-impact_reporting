@@ -420,6 +420,11 @@ def process_org(
             "ein": ein,
             "crawl-run-id": run_id,
             "fetched-at": _iso_utc_now(),
+            # Round-4 review: the S3 object carries its own attribution
+            # tier + discovery channel so reconciler-inserted rows land
+            # in reports_public (the view filters out platform_unverified).
+            "attribution-confidence": cand.attribution_confidence,
+            "discovered-via": _pick_discovered_via(cand),
         }
         try:
             archive.put(
