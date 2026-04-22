@@ -27,10 +27,16 @@ class FakePgCursor:
     def __init__(self, pg: "FakePgConn") -> None:
         self.pg = pg
         self._result: list[tuple] = []
+        self.rowcount: int = -1
 
     def execute(self, sql: str, params: Any = None) -> None:
         self.pg.queries.append((sql, params))
         norm = " ".join(sql.split())
+        # Savepoint commands are no-ops for the fake; leave rowcount alone.
+        if norm.startswith(("SAVEPOINT ", "RELEASE SAVEPOINT ",
+                            "ROLLBACK TO SAVEPOINT ")):
+            self._result = []
+            return
         if norm.startswith("SELECT column_name FROM information_schema.columns"):
             _schema, table = params
             cols = self.pg.columns_by_table.get(table, [])
@@ -123,13 +129,16 @@ class FakeEngine:
 
 def _make_execute_values_recorder(
     *, fail_predicate: Callable[[str, list], bool] | None = None,
+    rowcount_for: Callable[[str, list], int] | None = None,
     track_counts: dict[str, int] | None = None,
 ) -> tuple[Callable, list[dict]]:
     """Return a fake `execute_values` + a call log.
 
     `fail_predicate(sql, rows)` returns True to raise, simulating a row
-    or batch failure. `track_counts` is a dict from table name to the
-    running count; each successful call bumps it by len(rows).
+    or batch failure. `rowcount_for(sql, rows)` overrides cur.rowcount
+    (default: len(rows)) — use it to simulate ON CONFLICT DO NOTHING
+    returning fewer (or zero) actual inserts. `track_counts` bumps a
+    running dict of dest counts by the inserted amount.
     """
     calls: list[dict] = []
 
@@ -142,10 +151,16 @@ def _make_execute_values_recorder(
         })
         if fail_predicate and fail_predicate(sql, rows):
             raise RuntimeError("simulated execute_values failure")
+        inserted = (
+            rowcount_for(sql, rows) if rowcount_for is not None else len(rows)
+        )
+        cur.rowcount = inserted
         if track_counts is not None:
             for name in list(track_counts):
                 if f'"{name}"' in sql:
-                    track_counts[name] = track_counts.get(name, 0) + len(rows)
+                    track_counts[name] = (
+                        track_counts.get(name, 0) + inserted
+                    )
                     break
         return None
 
@@ -502,7 +517,13 @@ def test_per_row_error_continues_batch(sqlite_path):
     assert rc == 3  # per-row errors > 0
     # 1 batch call + 3 row-by-row calls = 4
     assert len(calls) == 4
-    assert pg.rollbacks >= 2  # failed batch + failed row
+    # Savepoint rollbacks, not full-transaction rollbacks.
+    rollback_sp_calls = [
+        q for q, _ in pg.queries
+        if q.startswith("ROLLBACK TO SAVEPOINT ")
+    ]
+    assert len(rollback_sp_calls) >= 2  # failed batch + failed row
+    assert pg.rollbacks == 0  # whole-table rollback NOT triggered
     assert pg.commits >= 1
 
 
@@ -594,6 +615,128 @@ def test_unknown_table_name_rejected():
 # ---------------------------------------------------------------------------
 # Factory plumbing
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Review-round-1 regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_multi_batch_failure_preserves_earlier_batches(tmp_path):
+    """A failing batch must unwind ONLY itself; earlier batches stay.
+
+    Three batches of 1 row each (batch_size=1). Batch 2 fails hard (no
+    row-level retry saves it either). Assert batches 1 and 3 were
+    committed: each issued SAVEPOINT + RELEASE SAVEPOINT, and the final
+    commit() fires — no whole-table rollback.
+    """
+    p = tmp_path / "src.db"
+    conn = sqlite3.connect(p)
+    conn.executescript(_SEED_DDL)
+    conn.executemany(
+        "INSERT INTO nonprofits_seed (ein, name, state, extra_source_only) "
+        "VALUES (?,?,?,?)",
+        [
+            ("A01", "One",   "NY", "x"),
+            ("BAD", "Two",   "TX", "x"),
+            ("A03", "Three", "CA", "x"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    pg = _default_pg()
+
+    def fail_pred(sql, rows):
+        # Fail on any batch that contains the BAD pk. Covers both the
+        # initial 1-row batch attempt and the row-by-row retry for it.
+        return any(r[0] == "BAD" for r in rows)
+
+    ev, calls = _make_execute_values_recorder(
+        fail_predicate=fail_pred,
+        track_counts={"nonprofits_seed": 0},
+    )
+
+    rc = bf.run(
+        source_sqlite=str(p),
+        tables=["nonprofits_seed"],
+        batch_size=1,
+        schema="lava_impact",
+        dry_run=False,
+        apply_duplicates_ok=False,
+        engine_factory=lambda: FakeEngine(pg),
+        execute_values=ev,
+    )
+
+    # 3 batch attempts + 1 row retry for the failing singleton = 4 calls
+    assert len(calls) == 4
+    # Exit code 3 (per-row error), not 2 (table error).
+    assert rc == 3
+    # Commits fired once at end of table (not per-batch); prior batches
+    # are preserved because only their savepoints were released.
+    assert pg.commits == 1
+    assert pg.rollbacks == 0
+    # Validate the sequence of savepoint ops.
+    ops = [q for q, _ in pg.queries]
+    sp_count = sum(1 for q in ops if q.startswith("SAVEPOINT "))
+    release_count = sum(1 for q in ops if q.startswith("RELEASE SAVEPOINT "))
+    rollback_sp_count = sum(
+        1 for q in ops if q.startswith("ROLLBACK TO SAVEPOINT ")
+    )
+    # Two successful savepoints (A01 + A03) + one failing batch savepoint
+    # + one failing row savepoint = 4 SAVEPOINT; 2 RELEASE; 2 ROLLBACK TO.
+    assert sp_count == 4
+    assert release_count == 2
+    assert rollback_sp_count == 2
+
+
+def test_idempotent_rerun_reports_zero_inserted(sqlite_path, capsys):
+    """When ON CONFLICT DO NOTHING discards every row, `inserted` must
+    reflect actual inserts (0), not rows attempted."""
+    pg = _default_pg(seed_count=3)
+    # Simulate all duplicates: server reports rowcount=0.
+    ev, _calls = _make_execute_values_recorder(
+        rowcount_for=lambda sql, rows: 0,
+        track_counts={"nonprofits_seed": 3},
+    )
+
+    rc = bf.run(
+        source_sqlite=sqlite_path,
+        tables=["nonprofits_seed"],
+        batch_size=100,
+        schema="lava_impact",
+        dry_run=False,
+        apply_duplicates_ok=False,
+        engine_factory=lambda: FakeEngine(pg),
+        execute_values=ev,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Expect `inserted: 0` even though 3 rows were attempted.
+    assert "inserted:         0" in out
+
+
+def test_dry_run_auto_id_reports_skip(sqlite_path, capsys):
+    """Dry-run must mirror apply: if dest auto-id table already has rows,
+    report SKIPPED, not 'would insert N'."""
+    pg = _default_pg(fetch_log_count=7)
+    ev, calls = _make_execute_values_recorder()
+
+    rc = bf.run(
+        source_sqlite=sqlite_path,
+        tables=["fetch_log"],
+        batch_size=100,
+        schema="lava_impact",
+        dry_run=True,
+        apply_duplicates_ok=False,
+        engine_factory=lambda: FakeEngine(pg),
+        execute_values=ev,
+    )
+    assert rc == 0
+    assert calls == []
+    out = capsys.readouterr().out
+    assert "SKIPPED" in out
+    assert "would insert" not in out
 
 
 def test_uses_app_engine_by_default(monkeypatch, sqlite_path):

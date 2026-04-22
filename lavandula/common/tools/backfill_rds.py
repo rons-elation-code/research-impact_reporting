@@ -43,6 +43,12 @@ from typing import Any, Iterable, Sequence
 log = logging.getLogger("lavandula.common.tools.backfill_rds")
 
 
+def _default_execute_values():
+    """Lazy import so unit tests never need psycopg2 installed."""
+    from psycopg2.extras import execute_values  # type: ignore
+    return execute_values
+
+
 # ---------------------------------------------------------------------------
 # Table registry
 # ---------------------------------------------------------------------------
@@ -289,17 +295,31 @@ def backfill_table(
 
     total_inserted = 0
     per_row_errors = 0
+    sp_batch = "bf_batch"
+    sp_row = "bf_row"
+
+    def _released_rowcount(cur) -> int:
+        # Under `ON CONFLICT DO NOTHING`, Postgres reports the number of
+        # actually-inserted rows in cur.rowcount. `execute_values` emits
+        # a single INSERT per call so rowcount is authoritative.
+        rc = getattr(cur, "rowcount", 0) or 0
+        return rc if rc > 0 else 0
 
     try:
         for batch in _chunked(iter(src_cursor.fetchone, None), batch_size):
+            # Per-batch savepoint: a failing batch unwinds only itself,
+            # never previously-committed batches for this table.
             try:
                 with pg_conn.cursor() as cur:
+                    cur.execute(f"SAVEPOINT {sp_batch}")
                     execute_values(cur, sql, batch, page_size=batch_size)
-                total_inserted += len(batch)
+                    inserted_in_batch = _released_rowcount(cur)
+                    cur.execute(f"RELEASE SAVEPOINT {sp_batch}")
+                total_inserted += inserted_in_batch
             except Exception as batch_exc:  # noqa: BLE001
-                # Rollback the failed batch and retry row-by-row so one bad
-                # row doesn't abort the whole table.
-                pg_conn.rollback()
+                # Undo the failing batch only; prior batches remain.
+                with pg_conn.cursor() as cur:
+                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp_batch}")
                 log.warning(
                     "%s: batch of %d failed (%s); falling back row-by-row",
                     spec.name, len(batch), batch_exc.__class__.__name__,
@@ -307,10 +327,14 @@ def backfill_table(
                 for row in batch:
                     try:
                         with pg_conn.cursor() as cur:
+                            cur.execute(f"SAVEPOINT {sp_row}")
                             execute_values(cur, sql, [row], page_size=1)
-                        total_inserted += 1
+                            inserted_in_row = _released_rowcount(cur)
+                            cur.execute(f"RELEASE SAVEPOINT {sp_row}")
+                        total_inserted += inserted_in_row
                     except Exception as row_exc:  # noqa: BLE001
-                        pg_conn.rollback()
+                        with pg_conn.cursor() as cur:
+                            cur.execute(f"ROLLBACK TO SAVEPOINT {sp_row}")
                         per_row_errors += 1
                         # Log PK only; never log row contents.
                         pk_hint = _row_pk_hint(cols, row, spec.pk)
@@ -448,8 +472,7 @@ def run(
         from lavandula.common.db import make_app_engine
         engine_factory = make_app_engine
     if execute_values is None:
-        from psycopg2.extras import execute_values as _ev  # type: ignore
-        execute_values = _ev
+        execute_values = _default_execute_values()
 
     specs = _resolve_table_specs(tables)
     _safe_ident(schema)  # fail fast on bad schema name
