@@ -321,11 +321,11 @@ projects:
   - id: "0017"
     title: "Retire SQLite — Use PostgreSQL Directly"
     summary: "Remove SQLite from the runtime write path entirely. Migrate every pipeline module (seed_enumerate, resolve_websites, batch_resolve, crawler, db_writer, budget, classify_null, reconcile_s3) to write directly to RDS via the SQLAlchemy engine from Phase 1. Delete the code-coupled dual-write infrastructure from Spec 0013 Phase 3 (rds_db_writer.py, db_queue.py, rds_writer kwargs, LAVANDULA_DUAL_WRITE flag, verify_dual_write tool). Supersedes Spec 0013 Phase 3 (retained but flag-off forever) and cancels Phase 4 (read flip — obsolete when there's only one store). Schema source of truth moves to lavandula/migrations/rds/*.sql."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0017-retire-sqlite.md
-      plan: null
+      plan: locard/plans/0017-retire-sqlite.md
       review: null
     dependencies: ["0013"]
     tags: [infrastructure, database, postgres, simplification]
