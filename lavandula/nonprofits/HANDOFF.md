@@ -184,6 +184,32 @@ Derived from spec § Legal / Compliance Constraints:
   but intentionally NOT extracted. Do not extract them in a derivative
   project without reviewing the PII posture.
 
+## Agent-based URL resolution (Spec 0008)
+
+Preferred for 1K+ org batches. Uses Claude Code sub-agents restricted to
+WebSearch + WebFetch only. Results are ingested into `nonprofits_seed`
+via SQLAlchemy. A resumable per-run manifest tracks batch state; an
+advisory flock guards the run directory against concurrent runners.
+
+Basic usage:
+
+    python -m lavandula.nonprofits.tools.batch_resolve \
+        --db data/seeds.db \
+        --state NY \
+        --max-orgs 500 \
+        --batch-size 50 \
+        --parallelism 2 \
+        --model haiku
+
+Resume a killed run:
+
+    python -m lavandula.nonprofits.tools.batch_resolve \
+        --resume data/seeds.db-agent-results/run-2026-04-22T14-00-00-a1b2c3
+
+Dry-run (cost preview only, no agents spawned):
+
+    python -m lavandula.nonprofits.tools.batch_resolve --db data/seeds.db --dry-run
+
 ## Incidents log
 
 `lavandula/nonprofits/incidents/` — populated only when an incident
