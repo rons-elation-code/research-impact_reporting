@@ -1,6 +1,6 @@
 # Spec 0019: Pipeline Dashboard & Control Center
 
-**Status**: Draft
+**Status**: Review
 **Author**: Architect
 **Date**: 2026-04-23
 **Supersedes**: 0006 (Pipeline Status Dashboard, never specced)
@@ -146,6 +146,17 @@ class PipelineProcess(models.Model):
 
     class Meta:
         db_table = 'pipeline_processes'
+
+class PipelineAuditLog(models.Model):
+    """Managed by Django — audit trail for all operator actions."""
+    action = models.CharField(max_length=20)  # start, stop, config_change
+    process_name = models.CharField(max_length=50)
+    parameters = models.JSONField(default=dict)
+    source_ip = models.GenericIPAddressField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pipeline_audit_log'
 ```
 
 The process manager:
@@ -289,16 +300,51 @@ DATABASES = {
 }
 ```
 
-**Django metadata tables**: Running `manage.py migrate` will create Django's internal tables (`django_migrations`, `django_content_type`, etc.) in the `lava_impact` schema alongside `pipeline_processes`. This is acceptable — they are small, inert tables that don't interfere with pipeline operations. The alternative (separate SQLite for Django metadata) adds complexity for no practical benefit in a single-operator deployment.
+**Schema separation**: Django's managed tables (`pipeline_processes`, `pipeline_audit_log`, `django_migrations`, `auth_user`, etc.) live in a separate `lava_dashboard` schema, not `lava_impact`. This isolates Django's DDL privileges from production data. The DB user for the dashboard has:
+- `CREATE`/`ALTER`/`DROP` on `lava_dashboard` (for Django migrations)
+- `SELECT` only on `lava_impact` (read-only access to pipeline data)
+
+Settings use a database router to direct managed models to `lava_dashboard` and unmanaged models to `lava_impact`:
+
+```python
+DATABASES = {
+    'default': {  # lava_dashboard schema — Django managed tables
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': get_secret('rds-database'),
+        'USER': get_secret('rds-dashboard-user'),  # limited privileges
+        'HOST': get_secret('rds-endpoint'),
+        'PORT': get_secret('rds-port'),
+        'OPTIONS': {
+            'options': '-c search_path=lava_dashboard,public',
+        },
+    },
+    'pipeline': {  # lava_impact schema — read-only pipeline data
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': get_secret('rds-database'),
+        'USER': get_secret('rds-app-user'),
+        'HOST': get_secret('rds-endpoint'),
+        'PORT': get_secret('rds-port'),
+        'OPTIONS': {
+            'options': '-c search_path=lava_impact,public',
+        },
+    },
+}
+```
+
+A custom database router directs reads for unmanaged models to the `pipeline` DB alias.
 
 ## Security
 
-- **No public access**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel
-- **No auth in Phase 1**: Single operator, SSH-tunneled access. The SSH tunnel itself provides authentication
+- **Network binding**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel
+- **Authentication**: Django's built-in `AuthenticationMiddleware` + `LoginRequiredMixin` on all views. A single superuser created via `manage.py createsuperuser` provides defense-in-depth beyond the SSH tunnel. This prevents other local processes/users from accessing the dashboard
+- **DEBUG = False**: Hardcoded in production settings. Prevents Django's debug pages from leaking DB credentials and environment variables on errors
 - **Process execution**: Only predefined CLI commands via `COMMAND_MAP` allowlist, no arbitrary shell execution. Commands are built as `argv` arrays (never shell strings) to prevent injection. User-supplied text parameters (archive destination, etc.) are validated against strict regexes before use
-- **No secrets in browser**: SSM credentials loaded server-side only
+- **No secrets via CLI flags**: Pipeline tools load their own credentials from SSM/environment. The dashboard never passes secrets as command-line arguments (which would be visible via `ps aux`)
 - **CSRF protection**: Django's built-in CSRF middleware. HTMX configured to include CSRF token in request headers via `hx-headers` on `<body>` tag
 - **Input validation**: All form parameters validated server-side against the `COMMAND_MAP` type/range/pattern definitions. Choice fields use allowlists. Numeric fields have min/max bounds. Text fields validated against whitelisted patterns (e.g., S3 bucket URIs match `^s3://[a-z0-9]...`)
+- **Log viewing safety**: Log file paths are stored in the `PipelineProcess` model at process creation time. The view only accepts a `process_id`, looks up the stored path, and verifies it resolves (via `os.path.realpath`) to within the `lavandula/logs/dashboard/` directory before reading
+- **Audit logging**: All start/stop actions are logged to a Django-managed `PipelineAuditLog` table recording the action, parameters, timestamp, and source IP. This provides an incident response trail even with a single operator
+- **Process limits**: Maximum 3 concurrent subprocesses (one per pipeline stage). The dashboard refuses to start a process if the global count is already at the limit
 
 ## Acceptance Criteria
 
@@ -332,6 +378,8 @@ DATABASES = {
 - AC17: `python manage.py runserver 127.0.0.1:8000` starts the dashboard
 - AC18: Django project lives at `lavandula/dashboard/`
 - AC19: No additional system dependencies beyond `pip install django psycopg2-binary` (HTMX, Tailwind, Chart.js loaded from CDN)
+- AC22: All start/stop actions logged to `PipelineAuditLog` with timestamp, parameters, and source IP
+- AC23: Login required to access any dashboard page
 
 ## Testing Strategy
 
@@ -377,7 +425,7 @@ DATABASES = {
 **Codex (REQUEST_CHANGES, HIGH confidence)**:
 - Process lifecycle underspecified → **Added**: full state machine, stale PID cleanup, command verification
 - Command mapping missing → **Added**: complete `COMMAND_MAP` with types, ranges, patterns
-- Managed table strategy incomplete → **Clarified**: Django metadata in lava_impact is acceptable
+- Managed table strategy incomplete → **Revised**: separate `lava_dashboard` schema (see Round 2)
 - Missing `website_candidates_json` in model → **Fixed**: added to `NonprofitSeed`
 - Session metrics ambiguous → **Clarified**: DB deltas since `started_at`
 - Security too thin → **Expanded**: input validation, argv construction, regex patterns
@@ -385,6 +433,26 @@ DATABASES = {
 - AC contradictions (methods, bind address) → **Fixed**: AC03 shows all methods from DB, AC17 uses 127.0.0.1
 - Testing strategy missing → **Added**: full testing strategy section
 - Classifier controls wrong (Gemma vs Anthropic) → **Fixed**: matches actual classify_null CLI
+
+### Round 2 — Red Team Security Review (2026-04-23)
+
+**Gemini Red Team (REQUEST_CHANGES)**:
+
+**CRITICAL**:
+1. Zero authentication policy → **Fixed**: added Django AuthenticationMiddleware + LoginRequiredMixin + createsuperuser
+2. DB privilege over-extension / schema pollution → **Fixed**: separate `lava_dashboard` schema for Django managed tables, read-only access to `lava_impact`
+
+**HIGH**:
+3. Path traversal in log viewing → **Fixed**: log paths stored in DB at creation, validated via `os.path.realpath` against allowed directory
+4. Lack of audit logging → **Fixed**: added `PipelineAuditLog` model for all start/stop actions
+
+**MEDIUM**:
+5. Sensitive data in debug pages → **Fixed**: `DEBUG = False` hardcoded
+6. Resource exhaustion (fork bomb) → **Fixed**: max 3 concurrent subprocesses (one per pipeline stage)
+
+**LOW**:
+7. S3 regex strictness → already mitigated by argv construction (no shell interpretation)
+8. Cleartext secrets in process list → **Fixed**: documented that pipeline tools load own credentials, dashboard never passes secrets as CLI flags
 
 ## Future Phases
 
