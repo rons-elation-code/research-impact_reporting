@@ -192,9 +192,9 @@ ssh -i ~/key/InternalDev.pem -o ServerAliveInterval=30 \
 python -m lavandula.nonprofits.tools.pipeline_resolve --state TX
 ```
 
-The pipeline does NOT manage the SSH tunnel. It treats `--gemma-url` as an opaque HTTP endpoint. If the endpoint becomes unreachable mid-run, the consumer catches `ConnectionError` and retries with exponential backoff (3 attempts at 5s/10s/20s). On exhaustion, marks the current org as `resolver_status=unresolved`, `resolver_reason=inference_unavailable`, and continues to the next org.
+The pipeline does NOT manage the SSH tunnel or touch SSH keys. It treats `--gemma-url` as an opaque HTTP endpoint — the operator is responsible for establishing and maintaining connectivity (e.g., `autossh`, a systemd unit, or a manual `ssh -fN -L` command). The pipeline performs a single health check at startup (`GET /api/tags`, 5s timeout) and exits with a clear error if the endpoint is unreachable.
 
-The SSH private key (InternalDev.pem) is read from SSM at `/cloud2.lavandulagroup.com/ssh-internaldev-private-key`, materialized to a tempfile with mode 0600, used for the tunnel, and deleted after the tunnel process starts. Key material never appears in logs.
+If the endpoint becomes unreachable mid-run, the consumer catches `ConnectionError` and retries with exponential backoff (3 attempts at 5s/10s/20s). On exhaustion, marks the current org as `resolver_status=unresolved`, `resolver_reason=inference_unavailable`, and continues to the next org.
 
 ### Gemma prompt (URL disambiguation)
 
@@ -364,6 +364,12 @@ python -m lavandula.nonprofits.tools.pipeline_classify \
 
 **AC25** — Brave retry on 429/5xx does not double-count against the rate limiter. Retries reuse the same rate-limiter permit. Unit test verifies.
 
+**AC26** — Fetch stage: `ReportsHTTPClient` validates resolved IP after every redirect. Unit test verifies that a redirect chain landing on `169.254.169.254`, `10.0.0.0/8`, `172.16.0.0/12`, or `192.168.0.0/16` is blocked. (This validates existing behavior is not regressed through the new fetch path.)
+
+**AC27** — `gemma_client.py`: Disambiguation and classification calls set `response_format={"type":"json_object"}` (Ollama JSON mode) to constrain output to valid JSON. If the model does not support JSON mode, fall back to tool-use with forced tool_choice and parse the tool_use response.
+
+**AC28** — `brave_search.py` and `gemma_client.py`: API keys and SSH key material never appear in log output at any log level (DEBUG through CRITICAL). Unit test monkeypatches `logging.Handler.emit` and asserts no secret substrings appear.
+
 ---
 
 ## Traps to Avoid
@@ -414,8 +420,8 @@ Compare to Spec 0008 (agent loop): ~8K tokens/org × Haiku pricing = ~$0.10/org 
 
 | Resource | Status | Notes |
 |----------|--------|-------|
-| cloud1 (g6.2xlarge) | Running | Ollama v0.21.1, Gemma 4 E4B pulled, 9.7 GB VRAM |
-| SSH key (InternalDev.pem) | In SSM | `/cloud2.lavandulagroup.com/ssh-internaldev-private-key` |
+| cloud1 (g6.2xlarge) | Running | Ollama v0.21.1, Gemma 4 E4B pulled, 9.7 GB VRAM. Egress SG should restrict outbound to Ollama registry only — no internet access needed at runtime. |
+| SSH tunnel | Operator-managed | `ssh -fN -L 11434:localhost:11434 ubuntu@cloud1`. Pipeline does not manage the tunnel or touch SSH keys. |
 | Brave API key | In SSM | `/cloud2.lavandulagroup.com/brave-api-key` |
 | RDS (lava_prod1) | Running | Schema version 2, all target tables exist |
 | Ollama endpoint | `localhost:11434` on cloud1 | OpenAI-compatible at `/v1/chat/completions` |
