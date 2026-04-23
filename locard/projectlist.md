@@ -316,7 +316,6 @@ projects:
     dependencies: ["0007"]
     tags: [rendering, gallery-support, future-app]
     notes: "Needed by 0015 but independent of it. Could run as a Lambda triggered by S3 PUT events."
-```
 
   - id: "0017"
     title: "Retire SQLite — Use PostgreSQL Directly"
@@ -343,6 +342,7 @@ projects:
     dependencies: ["0001", "0004", "0013"]
     tags: [resolver, classifier, gemma, pipeline, cost-optimization, self-hosted]
     notes: "Validated 2026-04-23: Gemma 4 E4B + Brave resolved 9/10 previously-unresolved TX orgs. 74 tok/s, 0.5s warm latency, 9.7GB VRAM on L4 GPU."
+```
 
 ## Next Available Number
 
