@@ -339,8 +339,8 @@ def consumer(
 - `test_consumer_resolves_high_confidence` — mock Gemma returns 0.9 → resolver_status=resolved
 - `test_consumer_ambiguous` — mock Gemma returns two candidates ≥ 0.6, within 0.1 → ambiguous
 - `test_consumer_unresolved_low_confidence` — mock Gemma returns 0.5 → unresolved
-- `test_consumer_retry_on_connection_error` — mock 3 ConnectionErrors then success (AC11)
-- `test_consumer_inference_unavailable` — mock 3 ConnectionErrors, no recovery → unresolved (AC11)
+- `test_consumer_retry_on_connection_error` — mock 3 ConnectionErrors then success (AC11, covers Ollama restart/network blip)
+- `test_consumer_inference_unavailable` — mock 3 ConnectionErrors, no recovery → unresolved, reason=inference_unavailable (AC11)
 - `test_consumer_parse_error` — mock malformed Gemma response → unresolved, llm_parse_error
 - `test_consumer_db_write_failure` — mock DB exception → logged, consumer continues (AC24)
 - `test_consumer_per_org_commit` — verify commit after each org (AC8)
@@ -575,3 +575,5 @@ class TestPipelineLive:
 6. **Don't forget to handle the case where Gemma supports tool_choice but not response_format=json_object.** `GemmaClient.__init__` should probe with a trivial request (or catch 400 on first real call) and set `self._use_json_mode: bool`. All subsequent calls check this flag. Do NOT probe on every call.
 
 7. **Don't write `resolver_status=unresolved` in the producer thread AND the consumer thread for the same org.** Producer writes unresolved only for orgs that skip the queue (no results/no live). Consumer writes for orgs that went through Gemma. If an org enters the queue, only the consumer writes.
+
+8. **Don't use a bare `ssh -fN` tunnel to cloud1.** Use `autossh` (or a systemd unit wrapping it) so the tunnel auto-reconnects on drop. The pipeline runs on cloud2 where IAM/SSM/RDS are already configured. A future migration to run directly on cloud1 (eliminating the tunnel entirely) requires IAM role + SSM setup on cloud1 — tracked separately.

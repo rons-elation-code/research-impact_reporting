@@ -38,7 +38,7 @@ The fundamental insight: **search is a code problem; disambiguation is an LLM pr
 
 - Modifying the crawler (Spec 0004) or its HTTP client.
 - Changing the seed enumeration pipeline (Spec 0001).
-- Running Gemma on cloud2 (inference stays on cloud1; cloud2 orchestrates).
+- Running Gemma on cloud2 (inference stays on cloud1; cloud2 orchestrates via autossh tunnel).
 - Multi-model consensus or tiered routing (Spec 0010 — separate concern).
 - Address verification (Spec 0009 — separate pass).
 - Replacing Ollama with another inference server (vLLM, TGI, llama.cpp). Ollama is validated and sufficient.
@@ -181,20 +181,47 @@ class PipelineQueue:
 
 ### Connectivity
 
-The pipeline connects to Gemma via the `--gemma-url` flag, which defaults to `http://localhost:11434/v1`. The operator is responsible for ensuring this endpoint is reachable before starting the pipeline. Typical setup:
+The pipeline runs on cloud2 and connects to Gemma on cloud1 via an `autossh` tunnel that auto-reconnects on drop. The `--gemma-url` flag defaults to `http://localhost:11434/v1`.
+
+**Tunnel setup (one-time, systemd recommended):**
 
 ```bash
-# Operator establishes tunnel before running the pipeline
-ssh -i ~/key/InternalDev.pem -o ServerAliveInterval=30 \
-  -fN -L 11434:localhost:11434 ubuntu@cloud1.lavandulagroup.com
+# Install autossh
+sudo apt-get install -y autossh
 
-# Then run the pipeline (uses localhost:11434 by default)
+# Create systemd unit: /etc/systemd/system/gemma-tunnel.service
+[Unit]
+Description=autossh tunnel to cloud1 Ollama
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+Environment="AUTOSSH_GATETIME=0"
+ExecStart=/usr/bin/autossh -M 0 -N \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -o ExitOnForwardFailure=yes \
+  -L 11434:localhost:11434 \
+  ubuntu@cloud1.lavandulagroup.com
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+
+# Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable --now gemma-tunnel
+```
+
+```bash
+# Run the pipeline (uses localhost:11434 by default)
 python -m lavandula.nonprofits.tools.pipeline_resolve --state TX
 ```
 
-The pipeline does NOT manage the SSH tunnel or touch SSH keys. It treats `--gemma-url` as an opaque HTTP endpoint — the operator is responsible for establishing and maintaining connectivity (e.g., `autossh`, a systemd unit, or a manual `ssh -fN -L` command). The pipeline performs a single health check at startup (`GET /api/tags`, 5s timeout) and exits with a clear error if the endpoint is unreachable.
+The pipeline does NOT manage the tunnel or touch SSH keys. It treats `--gemma-url` as an opaque HTTP endpoint. The pipeline performs a single health check at startup (`GET /api/tags`, 5s timeout) and exits with a clear error if the endpoint is unreachable.
 
-If the endpoint becomes unreachable mid-run, the consumer catches `ConnectionError` and retries with exponential backoff (3 attempts at 5s/10s/20s). On exhaustion, marks the current org as `resolver_status=unresolved`, `resolver_reason=inference_unavailable`, and continues to the next org.
+If the endpoint becomes unreachable mid-run (e.g., momentary tunnel reconnect), the consumer catches `ConnectionError` and retries with exponential backoff (3 attempts at 5s/10s/20s). autossh typically reconnects within seconds, so most transient failures recover on retry. On exhaustion, marks the current org as `resolver_status=unresolved`, `resolver_reason=inference_unavailable`, and continues to the next org.
 
 ### Gemma prompt (URL disambiguation)
 
@@ -242,10 +269,10 @@ Pin to the classifier prompt as of commit 842d613 (classify.py `_SYSTEM_PROMPT`,
 | Brave returns 0 results | Set `unresolved`, reason=`no_search_results`. Skip queue. |
 | All candidates filtered by blocklist | Set `unresolved`, reason=`all_blocked`. Skip queue. |
 | All candidates fail HTTP fetch | Set `unresolved`, reason=`no_live_candidates`. Skip queue. |
-| SSH tunnel drops | Consumer retries 3x with 5s/10s/20s backoff. On exhaustion, mark current org `unresolved` reason=`inference_unavailable`. Attempt tunnel re-establishment. |
+| autossh tunnel reconnecting | Consumer retries 3x with 5s/10s/20s backoff. autossh typically reconnects within seconds. On exhaustion, mark current org `unresolved` reason=`inference_unavailable`. |
 | Gemma returns malformed tool call | Parse error → set `unresolved`, reason=`llm_parse_error`. Consumer continues. |
 | Gemma returns confidence < 0.7 | Set `unresolved` (or `ambiguous` if two candidates ≥ 0.6 within 0.1 of each other, same rule as Spec 0005). |
-| cloud1 Ollama service down | Same as tunnel drop — consumer retries, then marks `inference_unavailable`. |
+| cloud1 Ollama service down | Same as tunnel reconnect — consumer retries, then marks `inference_unavailable`. |
 | Queue full (producer too fast) | `put()` blocks until consumer drains. Natural backpressure. |
 | Queue empty (consumer too fast) | `get()` blocks until producer fills. Gemma waits — no wasted inference. |
 
@@ -334,7 +361,7 @@ python -m lavandula.nonprofits.tools.pipeline_classify \
 
 **AC10** — `pipeline_resolver.py`: `--dry-run` performs search + fetch but does not call Gemma or write to RDS.
 
-**AC11** — `pipeline_resolver.py`: SSH tunnel failure triggers retry (3 attempts). On exhaustion, marks org `inference_unavailable` and continues.
+**AC11** — `pipeline_resolver.py`: Gemma endpoint unreachable (e.g., tunnel reconnect, Ollama restart) triggers retry (3 attempts with 5/10/20s backoff). On exhaustion, marks org `inference_unavailable` and continues.
 
 **AC12** — (Manual benchmark, behind `LAVANDULA_LIVE_GEMMA=1`) End-to-end on TX 10 unresolved orgs produces ≥ 8/10 resolved (matching the 9/10 bake-off baseline). This is a manual validation gate, not an automated test.
 
@@ -368,7 +395,7 @@ python -m lavandula.nonprofits.tools.pipeline_classify \
 
 **AC27** — `gemma_client.py`: Disambiguation and classification calls set `response_format={"type":"json_object"}` (Ollama JSON mode) to constrain output to valid JSON. If the model does not support JSON mode, fall back to tool-use with forced tool_choice and parse the tool_use response.
 
-**AC28** — `brave_search.py` and `gemma_client.py`: API keys and SSH key material never appear in log output at any log level (DEBUG through CRITICAL). Unit test monkeypatches `logging.Handler.emit` and asserts no secret substrings appear.
+**AC28** — `brave_search.py` and `gemma_client.py`: API keys never appear in log output at any log level (DEBUG through CRITICAL). Unit test monkeypatches `logging.Handler.emit` and asserts no secret substrings appear.
 
 ---
 
@@ -384,7 +411,7 @@ python -m lavandula.nonprofits.tools.pipeline_classify \
 
 5. **Don't batch multiple orgs into one Gemma call.** The 3-phase agent runner did this (50 orgs per prompt). It's fragile — one parse error loses the whole batch. One org, one call, one commit.
 
-6. **Don't forget the SSH tunnel.** cloud1:11434 is not exposed to the network. The pipeline must establish the tunnel at startup and handle its failure gracefully.
+6. **Don't use a bare `ssh -fN` tunnel.** Use the `gemma-tunnel.service` systemd unit (autossh) so the tunnel auto-reconnects. The pipeline does not manage the tunnel — it only consumes `--gemma-url` as an opaque endpoint.
 
 7. **Don't share `ReportsHTTPClient` instances across threads.** The existing client uses per-thread construction (TICK-002 pattern). The pipeline's fetch parallelism must follow the same pattern.
 
@@ -420,8 +447,8 @@ Compare to Spec 0008 (agent loop): ~8K tokens/org × Haiku pricing = ~$0.10/org 
 
 | Resource | Status | Notes |
 |----------|--------|-------|
-| cloud1 (g6.2xlarge) | Running | Ollama v0.21.1, Gemma 4 E4B pulled, 9.7 GB VRAM. Egress SG should restrict outbound to Ollama registry only — no internet access needed at runtime. |
-| SSH tunnel | Operator-managed | `ssh -fN -L 11434:localhost:11434 ubuntu@cloud1`. Pipeline does not manage the tunnel or touch SSH keys. |
+| cloud1 (g6.2xlarge) | Running | Ollama v0.21.1, Gemma 4 E4B pulled, 9.7 GB VRAM. No outbound internet needed at runtime. |
+| autossh tunnel | systemd unit on cloud2 | `gemma-tunnel.service` — auto-reconnecting tunnel to cloud1:11434. See Connectivity section for setup. |
 | Brave API key | In SSM | `/cloud2.lavandulagroup.com/brave-api-key` |
 | RDS (lava_prod1) | Running | Schema version 2, all target tables exist |
 | Ollama endpoint | `localhost:11434` on cloud1 | OpenAI-compatible at `/v1/chat/completions` |
