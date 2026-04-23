@@ -7,7 +7,7 @@
 
 ## Build Order
 
-8 steps, ordered by dependency. Each step is independently testable.
+9 steps, ordered by dependency. Each step is independently testable.
 
 ---
 
@@ -154,7 +154,7 @@ Tests (mock HTTP, no live Ollama):
 
 ### Step 3 — URL normalization utility
 
-**File**: Add to `lavandula/nonprofits/brave_search.py` (or a small `url_utils.py`)
+**File**: `lavandula/nonprofits/url_utils.py` (NEW)
 
 **What**: Normalize resolved URLs before DB write.
 
@@ -247,21 +247,31 @@ def producer(
     orgs: Iterable[dict],
     *,
     queue: PipelineQueue,
+    engine: Engine,
     api_key: str,
     rate_limiter: BraveRateLimiter,
+    search_parallelism: int = 4,
     fetch_parallelism: int = 8,
     shutdown: ShutdownFlag,
 ) -> ProducerStats:
     """For each org:
-    1. Brave search (via search_and_filter)
-    2. If no results → write unresolved directly, continue
-    3. HTTP fetch candidates (ThreadPoolExecutor, fetch_parallelism threads)
+    1. Brave search (via search_and_filter, dispatched to search_pool)
+    2. If no results → write unresolved(reason=no_search_results) directly, continue
+    3. If all results filtered by blocklist → write unresolved(reason=all_blocked) directly, continue
+    4. HTTP fetch candidates (fetch_pool, fetch_parallelism threads)
        - Per-thread ReportsHTTPClient (AC21)
-    4. If no live candidates → write unresolved directly, continue
-    5. Build candidate packet → queue.put()
-    On shutdown.is_set(), stop after current org.
+    5. If no live candidates → write unresolved(reason=no_live_candidates) directly, continue
+    6. If Brave API error after 3 retries → write unresolved(reason=brave_error:{status}) directly, continue
+    7. Build candidate packet → queue.put()
+    On shutdown.is_set(), stop after current org, call queue.done().
     Finally: queue.done()
-    Returns ProducerStats(searched, enqueued, skipped_no_results, skipped_no_live).
+    Returns ProducerStats(searched, enqueued, skipped_no_results, skipped_all_blocked,
+                          skipped_no_live, brave_errors).
+
+    Search parallelism: A ThreadPoolExecutor(max_workers=search_parallelism) dispatches
+    Brave search calls. The rate_limiter.acquire() inside search() serializes actual HTTP
+    requests to the configured QPS regardless of pool size. The pool allows overlap of
+    search result processing with outbound search requests.
     """
 ```
 
@@ -276,11 +286,14 @@ def _get_http_client():
 
 **Tests**:
 - `test_producer_enqueues_packets` — mock Brave + fetch, verify packets in queue
-- `test_producer_skips_no_results` — mock empty Brave, verify unresolved written directly
-- `test_producer_skips_no_live` — mock Brave with results but all fetch fail, verify unresolved
-- `test_producer_shutdown_stops_early` — set ShutdownFlag after 3 orgs, verify queue.done() called
+- `test_producer_skips_no_results` — mock empty Brave, verify unresolved written with reason=`no_search_results`
+- `test_producer_skips_all_blocked` — mock Brave returns only linkedin.com results, verify unresolved with reason=`all_blocked`
+- `test_producer_skips_no_live` — mock Brave with results but all fetch fail, verify unresolved with reason=`no_live_candidates`
+- `test_producer_brave_error_reason` — mock Brave 500 × 3, verify unresolved with reason=`brave_error:500`
+- `test_producer_shutdown_stops_early` — set ShutdownFlag after 3 orgs, verify queue.done() called and only 3 orgs processed
 - `test_fetch_per_thread_client` — verify ReportsHTTPClient constructed per thread (AC21)
 - `test_ssrf_blocked_after_redirect` — mock redirect to 169.254.169.254, verify blocked (AC26)
+- `test_search_parallelism_pool` — mock Brave with 100ms delay, 10 orgs, search_parallelism=4, verify wall time < 10 × 100ms (searches overlap)
 
 **ACs covered**: AC3, AC7, AC21, AC23, AC26
 
@@ -303,10 +316,13 @@ def consumer(
     """Loop:
     1. packet = queue.get() → if None, break (producer done)
     2. result = gemma.disambiguate(packet org, packet candidates)
-       - On ConnectionError: retry 3x (5/10/20s). On exhaustion → unresolved, inference_unavailable (AC11)
-       - On GemmaParseError → unresolved, llm_parse_error
+       - On ConnectionError (endpoint unreachable): retry 3x (5/10/20s backoff).
+         On exhaustion → unresolved, reason=inference_unavailable (AC11).
+         This handles SSH tunnel drops, Ollama restarts, and network failures identically —
+         the pipeline treats --gemma-url as an opaque HTTP endpoint.
+       - On GemmaParseError → unresolved, reason=llm_parse_error
     3. Apply confidence thresholds → resolved/ambiguous/unresolved
-    4. Normalize URL (Step 3)
+    4. Normalize URL (url_utils.normalize_url, Step 3)
     5. Write to RDS (single UPDATE, commit) (AC8)
        - On DB error: log write_error, continue (AC24)
     Returns ConsumerStats(resolved, unresolved, ambiguous, errors).
@@ -328,7 +344,71 @@ def consumer(
 
 ---
 
-### Step 7 — CLI entry points
+### Step 7 — Classification pipeline (`pipeline_classify.py`)
+
+**File**: `lavandula/nonprofits/pipeline_classify.py` (NEW)
+
+**What**: Producer/consumer pipeline for report classification using the same queue architecture as the resolver but with a different data source and Gemma call.
+
+```python
+def classify_producer(
+    *,
+    engine: Engine,
+    queue: PipelineQueue,
+    limit: int | None = None,
+    shutdown: ShutdownFlag,
+) -> ClassifyProducerStats:
+    """Keyset pagination over reports table:
+       SELECT sha256, first_page_text FROM reports
+       WHERE classification IS NULL
+       ORDER BY sha256
+       LIMIT {page_size}
+       -- next page: WHERE sha256 > {last_sha256}
+    
+    For each report:
+    1. If shutdown.is_set(), stop and call queue.done()
+    2. Skip if first_page_text is NULL or empty → write classification=skipped
+    3. Build packet {sha256, first_page_text} → queue.put()
+    Finally: queue.done()
+    Returns ClassifyProducerStats(scanned, enqueued, skipped_no_text).
+    """
+
+def classify_consumer(
+    *,
+    queue: PipelineQueue,
+    gemma: GemmaClient,
+    engine: Engine,
+    shutdown: ShutdownFlag,
+) -> ClassifyConsumerStats:
+    """Loop:
+    1. packet = queue.get() → if None, break
+    2. result = gemma.classify(packet first_page_text)
+       - On ConnectionError: retry 3x (5/10/20s). On exhaustion → skip, log.
+       - On GemmaParseError → write classification=parse_error, continue
+    3. Write to RDS: UPDATE reports SET classification=..., classifier_model='gemma4-e4b-v1',
+       classifier_confidence=... WHERE sha256=... (single UPDATE, commit)
+       - On DB error: log, continue
+    Returns ClassifyConsumerStats(classified, errors, skipped).
+    """
+```
+
+**Test file**: `lavandula/nonprofits/tests/unit/test_pipeline_classify.py`
+
+Tests (all mock HTTP, no live Gemma):
+- `test_classify_producer_paginates` — mock DB with 50 reports, page_size=20, verify 3 queries issued (keyset pagination)
+- `test_classify_producer_skips_null_text` — report with first_page_text=NULL → skipped, not enqueued
+- `test_classify_consumer_writes_result` — mock Gemma returns annual/0.95 → DB UPDATE with classification=annual, classifier_model=gemma4-e4b-v1
+- `test_classify_consumer_retry_on_connection_error` — mock 3 ConnectionErrors then success
+- `test_classify_consumer_parse_error` — mock malformed response → classification=parse_error
+- `test_classify_consumer_db_failure` — mock DB exception → logged, continues
+- `test_classify_consumer_stops_on_sentinel` — queue with sentinel → consumer exits
+- `test_classify_shutdown_drains` — set ShutdownFlag mid-run, verify committed reports stay committed
+
+**ACs covered**: AC5, AC13 (partial), AC16 (classifier_model), AC23 (shutdown)
+
+---
+
+### Step 8 — CLI entry points
 
 **Files**: 
 - `lavandula/nonprofits/tools/pipeline_resolve.py` (NEW)
@@ -340,7 +420,6 @@ def consumer(
 ```python
 def main():
     args = parse_args()
-    # Health check Gemma endpoint (AC: exits if unreachable)
     gemma = GemmaClient(base_url=args.gemma_url, model=args.gemma_model)
     if not gemma.health_check():
         print("ERROR: Gemma endpoint unreachable at", args.gemma_url, file=sys.stderr)
@@ -353,42 +432,71 @@ def main():
     shutdown = ShutdownFlag()
     install_sigint_handler(shutdown)
     
-    # Load orgs from RDS
     orgs = load_unresolved_orgs(engine, state=args.state, limit=args.limit,
                                  status_filter=args.status_filter)
     
     if args.dry_run:
-        # Run producer only, print candidate packets to stdout
         run_dry(orgs, api_key=api_key, rate_limiter=rate_limiter,
+                search_parallelism=args.search_parallelism,
                 fetch_parallelism=args.fetch_parallelism)
         return
     
-    # Start producer in background thread
     producer_thread = threading.Thread(
-        target=producer, kwargs={...}, daemon=True)
+        target=producer, kwargs={
+            "orgs": orgs, "queue": pq, "engine": engine,
+            "api_key": api_key, "rate_limiter": rate_limiter,
+            "search_parallelism": args.search_parallelism,
+            "fetch_parallelism": args.fetch_parallelism,
+            "shutdown": shutdown,
+        }, daemon=True)
     producer_thread.start()
     
-    # Consumer in main thread
     stats = consumer(queue=pq, gemma=gemma, engine=engine, shutdown=shutdown)
     producer_thread.join(timeout=10)
     
-    # Print summary (AC18)
     print_summary(stats, wall_time, brave_queries)
 ```
 
-`pipeline_classify.py`: Same pattern, different producer (keyset pagination over `reports` where `classification IS NULL`), consumer calls `gemma.classify()`.
+`pipeline_classify.py`:
+```python
+def main():
+    args = parse_args()
+    gemma = GemmaClient(base_url=args.gemma_url, model=args.gemma_model)
+    if not gemma.health_check():
+        print("ERROR: Gemma endpoint unreachable at", args.gemma_url, file=sys.stderr)
+        sys.exit(1)
+    
+    engine = make_app_engine()
+    pq = PipelineQueue(maxsize=args.queue_size)
+    shutdown = ShutdownFlag()
+    install_sigint_handler(shutdown)
+    
+    producer_thread = threading.Thread(
+        target=classify_producer, kwargs={
+            "engine": engine, "queue": pq,
+            "limit": args.limit, "shutdown": shutdown,
+        }, daemon=True)
+    producer_thread.start()
+    
+    stats = classify_consumer(queue=pq, gemma=gemma, engine=engine, shutdown=shutdown)
+    producer_thread.join(timeout=10)
+    
+    print_classify_summary(stats, wall_time)
+```
 
-**Tests**:
+**Tests** (in `test_pipeline_resolve.py` and `test_pipeline_classify.py`):
 - `test_dry_run_no_gemma_call` — verify Gemma never called in dry-run (AC10)
 - `test_resume_skips_resolved` — pre-populate DB with resolved org, verify skipped (AC9)
 - `test_summary_printed` — capture stdout, verify counts present (AC18)
 - `test_exits_if_gemma_unreachable` — mock health_check False → SystemExit
+- `test_pipeline_sigint_drain_and_commit` — spawn producer+consumer with 20 mock orgs, raise SIGINT after 5, verify: (a) orgs 1-5 committed in DB, (b) summary printed, (c) process exits cleanly (AC23 end-to-end)
+- `test_crash_resume_durability` — process 10 orgs, kill after org 5 commit, restart with --resume, verify orgs 1-5 still in DB and orgs 6-10 get processed (AC8 + AC9)
 
-**ACs covered**: AC9, AC10, AC18
+**ACs covered**: AC8, AC9, AC10, AC18, AC23
 
 ---
 
-### Step 8 — Integration test
+### Step 9 — Integration test
 
 **File**: `lavandula/nonprofits/tests/integration/test_pipeline_live.py` (NEW)
 
@@ -417,27 +525,27 @@ class TestPipelineLive:
 |----|------|------|
 | AC1 | 1 | test_search_returns_results |
 | AC2 | 1 | test_rate_limiter_enforced |
-| AC3 | 1,5 | test_zero_results, test_producer_skips_no_results |
+| AC3 | 1,5 | test_zero_results, test_producer_skips_no_results, test_producer_skips_all_blocked |
 | AC4 | 2 | test_disambiguate_valid_response |
-| AC5 | 2 | test_classify_valid_response |
+| AC5 | 2,7 | test_classify_valid_response, test_classify_consumer_writes_result |
 | AC6 | 2 | test_max_tokens_is_2000 |
 | AC7 | 4,5 | test_qsize_tracks_depth, test_producer_enqueues_packets |
-| AC8 | 6 | test_consumer_per_org_commit |
-| AC9 | 7 | test_resume_skips_resolved |
-| AC10 | 7 | test_dry_run_no_gemma_call |
+| AC8 | 6,8 | test_consumer_per_org_commit, test_crash_resume_durability |
+| AC9 | 8 | test_resume_skips_resolved, test_crash_resume_durability |
+| AC10 | 8 | test_dry_run_no_gemma_call |
 | AC11 | 6 | test_consumer_retry_on_connection_error, test_consumer_inference_unavailable |
-| AC12 | 8 | test_resolve_tx_10 (manual) |
-| AC13 | 8 | test_classify_10_reports (manual) |
+| AC12 | 9 | test_resolve_tx_10 (manual) |
+| AC13 | 7,9 | test_classify_consumer_writes_result, test_classify_10_reports (manual) |
 | AC14 | 1 | test_api_key_not_logged |
 | AC15 | 2 | test_disambiguate_valid_response (verifies tag wrapping) |
-| AC16 | 6 | test_consumer_resolves_high_confidence (verifies method column) |
-| AC17 | 1,2,8 | all unit tests mock; integration behind flag |
-| AC18 | 7 | test_summary_printed |
+| AC16 | 6,7 | test_consumer_resolves_high_confidence (method column), test_classify_consumer_writes_result (classifier_model) |
+| AC17 | 1,2,9 | all unit tests mock; integration behind flag |
+| AC18 | 8 | test_summary_printed |
 | AC19 | 1 | test_blocklist_suffix_match |
 | AC20 | 1 | test_blocklist_gov_exemption |
 | AC21 | 5 | test_fetch_per_thread_client |
 | AC22 | 2 | test_delimiter_collision_stripped |
-| AC23 | 4,7 | test_sigint_sets_flag, test_pipeline_sigint (end-to-end) |
+| AC23 | 4,7,8 | test_sigint_sets_flag, test_classify_shutdown_drains, test_pipeline_sigint_drain_and_commit |
 | AC24 | 6 | test_consumer_db_write_failure |
 | AC25 | 1 | test_retry_does_not_double_count_rate_limit |
 | AC26 | 5 | test_ssrf_blocked_after_redirect |
@@ -458,6 +566,6 @@ class TestPipelineLive:
 
 5. **Don't retry Brave searches on 400 (bad request).** Only retry on 429 (rate limit) and 5xx (server error). 400 means the query is malformed — retrying won't help.
 
-6. **Don't forget to handle the case where Gemma supports tool_choice but not response_format=json_object.** Try JSON mode first; if the endpoint returns 400, fall back to forced tool_choice. Cache the capability for the rest of the run.
+6. **Don't forget to handle the case where Gemma supports tool_choice but not response_format=json_object.** `GemmaClient.__init__` should probe with a trivial request (or catch 400 on first real call) and set `self._use_json_mode: bool`. All subsequent calls check this flag. Do NOT probe on every call.
 
 7. **Don't write `resolver_status=unresolved` in the producer thread AND the consumer thread for the same org.** Producer writes unresolved only for orgs that skip the queue (no results/no live). Consumer writes for orgs that went through Gemma. If an org enters the queue, only the consumer writes.
