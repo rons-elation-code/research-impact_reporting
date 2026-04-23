@@ -331,9 +331,22 @@ projects:
     tags: [infrastructure, database, postgres, simplification]
     notes: "Decision 2026-04-22 after demonstrating that code-coupled dual-write is fragile-by-design (breaks every time a new write path forgets to thread rds_writer kwarg). Phase 3 shipped covered only crawler paths; seed/resolver writes were SQLite-only. Plan chosen: truncate RDS, migrate code, test 15-org pipeline, truncate again, backfill from archival SQLite. pg_dump backup at lavandula/nonprofits/data/rds-backups/ + RDS automated 7-day backup cover restore. 15 ACs."
 
+  - id: "0018"
+    title: "Gemma Pipeline Resolver & Classifier"
+    summary: "Replace agent-loop URL resolver (0008) and DeepSeek three-phase resolver (0005) with a code-driven pipeline: Brave Search → filter → HTTP fetch → Gemma 4 E4B (self-hosted on cloud1) disambiguates. Same queue pattern for report classification. 20-100x cost reduction vs agent loop."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0018-gemma-pipeline-resolver.md
+      plan: null
+      review: null
+    dependencies: ["0001", "0004", "0013"]
+    tags: [resolver, classifier, gemma, pipeline, cost-optimization, self-hosted]
+    notes: "Validated 2026-04-23: Gemma 4 E4B + Brave resolved 9/10 previously-unresolved TX orgs. 74 tok/s, 0.5s warm latency, 9.7GB VRAM on L4 GPU."
+
 ## Next Available Number
 
-**0018** - Reserve this number for your next project
+**0019** - Reserve this number for your next project
 
 ---
 
