@@ -32,7 +32,6 @@ Build a Django web application that serves as the operations cockpit for the Lav
 
 ## Non-Goals
 
-- Real-time streaming logs (tail -f equivalent) — too complex for Phase 1
 - User management / multi-tenancy — single operator for now
 - Mobile-responsive design — desktop browser only
 - Report creation or editing — that's Phase 3
@@ -93,6 +92,7 @@ class NonprofitSeed(models.Model):
     city = models.TextField(null=True)
     state = models.TextField(null=True)
     website_url = models.TextField(null=True)
+    website_candidates_json = models.TextField(null=True)
     resolver_status = models.TextField(null=True)
     resolver_confidence = models.FloatField(null=True)
     resolver_method = models.TextField(null=True)
@@ -149,11 +149,57 @@ class PipelineProcess(models.Model):
 ```
 
 The process manager:
-1. Builds the CLI command from form parameters
-2. Spawns via `subprocess.Popen` with stdout/stderr to log files
-3. Records PID in `PipelineProcess`
-4. Polls PID liveness on dashboard refresh
-5. Sends SIGTERM on stop
+1. Acquires a row-level lock (`select_for_update`) on the `PipelineProcess` row to prevent double-start races
+2. Builds the CLI command from form parameters using a strict allowlist (see Command Mapping below)
+3. Spawns via `subprocess.Popen` with `cwd` set to the project root and `PYTHONPATH` explicitly set, stdout/stderr redirected to `lavandula/logs/dashboard/{name}_{timestamp}.log`
+4. Records PID and full command line in `PipelineProcess`
+5. On dashboard refresh, verifies PID liveness AND validates `/proc/{pid}/cmdline` matches the expected command to guard against PID reuse
+6. On stop: sends SIGTERM, waits up to 10 seconds, then SIGKILL if still alive
+7. On dashboard startup: scans all `running` rows, validates each PID is still alive and matches; marks stale entries as `stopped`
+
+**Process states**: `running` (PID alive and verified), `stopped` (graceful shutdown or stale PID cleanup), `error` (process exited with non-zero code or was killed)
+
+### Command Mapping
+
+Each pipeline process maps to a fixed CLI command with a strict parameter allowlist. No arbitrary shell execution — the process manager constructs `argv` arrays, never shell strings.
+
+```python
+COMMAND_MAP = {
+    "resolver": {
+        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.cli_resolve"],
+        "params": {
+            "state": {"type": "choice", "choices": [US_STATES], "flag": "--state"},
+            "resolver": {"type": "choice", "choices": ["codex", "codex-mini", "gemini", "claude"], "flag": "--resolver"},
+            "limit": {"type": "int", "min": 0, "max": 100000, "flag": "--limit"},
+            "fresh_only": {"type": "bool", "flag": "--fresh-only"},
+            "delay": {"type": "float", "min": 0.0, "max": 60.0, "flag": "--delay"},
+            "timeout": {"type": "int", "min": 10, "max": 600, "flag": "--timeout"},
+        },
+    },
+    "crawler": {
+        "cmd": ["python3", "-m", "lavandula.reports.crawler"],
+        "params": {
+            "archive": {"type": "text", "pattern": r"^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[a-zA-Z0-9._-]+)*$", "flag": "--archive"},
+            "limit": {"type": "int", "min": 0, "max": 100000, "flag": "--limit"},
+            "max_workers": {"type": "int", "min": 1, "max": 32, "flag": "--max-workers"},
+            "skip_encryption_check": {"type": "bool", "flag": "--skip-encryption-check"},
+            "skip_tls_self_test": {"type": "bool", "flag": "--skip-tls-self-test"},
+        },
+    },
+    "classifier": {
+        "cmd": ["python3", "-m", "lavandula.reports.tools.classify_null"],
+        "params": {
+            "limit": {"type": "int", "min": 0, "max": 100000, "flag": "--limit"},
+            "max_workers": {"type": "int", "min": 1, "max": 32, "flag": "--max-workers"},
+            "re_classify": {"type": "bool", "flag": "--re-classify"},
+        },
+    },
+}
+```
+
+### Log Viewing
+
+Each process writes stdout/stderr to `lavandula/logs/dashboard/{name}_{timestamp}.log`. The detail view for each process shows the **last 100 lines** of the current log file, refreshed via HTMX along with other status data. This provides basic ops visibility without the complexity of real-time streaming.
 
 ## Dashboard Views
 
@@ -164,10 +210,12 @@ Shows aggregate pipeline health at a glance:
 | Section | Content |
 |---------|---------|
 | **Seed Pool** | Total orgs, by state, by status (NULL / resolved / unresolved / ambiguous) |
-| **Resolver** | Running? Model, rate, resolved/unresolved counts this session |
-| **Crawler** | Running? Orgs crawled, reports found, PDFs archived |
+| **Resolver** | Running? Model, resolved/unresolved counts since `started_at` |
+| **Crawler** | Running? Orgs crawled, reports found since `started_at` |
 | **Classifier** | Running? Reports classified, by classification type |
 | **Reports** | Total reports, by classification, by year |
+
+"Session" metrics are DB deltas: count rows where the relevant timestamp >= `PipelineProcess.started_at`. For resolver, this is `resolver_updated_at >= started_at`. For crawler, `crawled_orgs.last_crawled_at >= started_at`. For classifier, `reports` rows classified since `started_at`.
 
 Each section links to its detail page. HTMX polls every 5 seconds for count updates.
 
@@ -202,13 +250,12 @@ Each section links to its detail page. HTMX polls every 5 seconds for count upda
 
 ### 4. Classifier Controls (`/classifier/`)
 
-**Status panel**: Current process state, PID, uptime.
+**Status panel**: Current process state, PID, uptime, reports classified this session.
 
 **Control form**:
 - Limit (integer, 0 = no limit)
-- Queue size (integer)
-- Gemma URL (text)
-- Gemma model (text)
+- Max workers (integer, 1-32)
+- Re-classify (checkbox — re-classify rows that already have a classification)
 - Start / Stop buttons
 
 **Results table**: Recent classifications with sha256, org EIN, classification, confidence.
@@ -222,17 +269,19 @@ Paginated table of all nonprofits with:
 
 ## Database Configuration
 
-Django connects to the existing RDS instance using the same SSM-sourced credentials as the pipeline:
+Django connects to the existing RDS instance using the same SSM-sourced credentials as the pipeline. Credentials are loaded via `lavandula.common.secrets` (the existing SSM helper) to stay consistent with other pipeline tools.
 
 ```python
 # settings.py
+from lavandula.common.secrets import get_secret
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': '<from SSM: rds-database>',
-        'USER': '<from SSM: rds-app-user>',
-        'HOST': '<from SSM: rds-endpoint>',
-        'PORT': '<from SSM: rds-port>',
+        'NAME': get_secret('rds-database'),
+        'USER': get_secret('rds-app-user'),
+        'HOST': get_secret('rds-endpoint'),
+        'PORT': get_secret('rds-port'),
         'OPTIONS': {
             'options': '-c search_path=lava_impact,public',
         },
@@ -240,31 +289,33 @@ DATABASES = {
 }
 ```
 
-The `pipeline_processes` table is the only Django-managed table. It lives in `lava_impact` alongside everything else.
+**Django metadata tables**: Running `manage.py migrate` will create Django's internal tables (`django_migrations`, `django_content_type`, etc.) in the `lava_impact` schema alongside `pipeline_processes`. This is acceptable — they are small, inert tables that don't interfere with pipeline operations. The alternative (separate SQLite for Django metadata) adds complexity for no practical benefit in a single-operator deployment.
 
 ## Security
 
-- **No public access**: Binds to 127.0.0.1 or internal VPC only
-- **No auth in Phase 1**: Single operator, SSH-tunneled access
-- **Process execution**: Only predefined CLI commands, no arbitrary shell execution
+- **No public access**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel
+- **No auth in Phase 1**: Single operator, SSH-tunneled access. The SSH tunnel itself provides authentication
+- **Process execution**: Only predefined CLI commands via `COMMAND_MAP` allowlist, no arbitrary shell execution. Commands are built as `argv` arrays (never shell strings) to prevent injection. User-supplied text parameters (archive destination, etc.) are validated against strict regexes before use
 - **No secrets in browser**: SSM credentials loaded server-side only
-- **CSRF protection**: Django's built-in middleware (enabled by default)
+- **CSRF protection**: Django's built-in CSRF middleware. HTMX configured to include CSRF token in request headers via `hx-headers` on `<body>` tag
+- **Input validation**: All form parameters validated server-side against the `COMMAND_MAP` type/range/pattern definitions. Choice fields use allowlists. Numeric fields have min/max bounds. Text fields validated against whitelisted patterns (e.g., S3 bucket URIs match `^s3://[a-z0-9]...`)
 
 ## Acceptance Criteria
 
 ### Dashboard
-- AC01: Overview page loads in <2s showing seed/resolver/crawler/classifier stats
+- AC01: Overview page loads showing seed/resolver/crawler/classifier stats
 - AC02: Stats auto-refresh via HTMX every 5 seconds without full page reload
-- AC03: Resolver status breakdown shows counts by method (haiku, deepseek, gemma, codex variants)
+- AC03: Resolver status breakdown shows counts by `resolver_method` (all methods present in DB: haiku, gemma, codex-gpt54-v1, codex-gpt54mini-v1, gemini-flash-v1, claude-opus-v1, etc.)
 - AC04: Reports breakdown shows counts by classification and year
 
 ### Process Controls
-- AC05: Resolver can be started from the UI with model selection and all CLI arguments
-- AC06: Crawler can be started from the UI with archive destination and limit
-- AC07: Classifier can be started from the UI with Gemma endpoint config
-- AC08: Running processes can be stopped from the UI via SIGTERM
+- AC05: Resolver can be started from the UI with model selection and CLI arguments per Command Mapping
+- AC06: Crawler can be started from the UI with archive destination, limit, and max-workers
+- AC07: Classifier can be started from the UI with limit and max-workers
+- AC08: Running processes can be stopped from the UI (SIGTERM → 10s wait → SIGKILL)
 - AC09: Process status shows running/stopped/error with PID and uptime
-- AC10: Starting a process that's already running shows an error, doesn't spawn a duplicate
+- AC10: Starting a process that's already running shows an error, doesn't spawn a duplicate (enforced via `select_for_update`)
+- AC20: Each process detail page shows last 100 lines of the current log file
 
 ### Org Browser
 - AC11: Orgs table paginates at 50 rows per page
@@ -272,27 +323,68 @@ The `pipeline_processes` table is the only Django-managed table. It lives in `la
 - AC13: Org detail view shows full resolver_reason and website_candidates_json
 
 ### Integration
-- AC14: Django reads from existing lava_impact tables without migrations
-- AC15: Process manager correctly detects process death (PID no longer running)
+- AC14: Django reads from existing lava_impact tables without running migrations against them
+- AC15: Process manager correctly detects process death (PID no longer running or `/proc/{pid}/cmdline` mismatch)
 - AC16: Dashboard works when no processes are running (all stopped state)
+- AC21: Dashboard startup cleans up stale `running` rows from previous dashboard sessions
 
 ### Infrastructure
-- AC17: `python manage.py runserver 0.0.0.0:8000` starts the dashboard
+- AC17: `python manage.py runserver 127.0.0.1:8000` starts the dashboard
 - AC18: Django project lives at `lavandula/dashboard/`
-- AC19: No additional system dependencies beyond `pip install django psycopg2-binary`
+- AC19: No additional system dependencies beyond `pip install django psycopg2-binary` (HTMX, Tailwind, Chart.js loaded from CDN)
+
+## Testing Strategy
+
+### Unit Tests
+- **Command builder**: Verify `COMMAND_MAP` produces correct `argv` arrays for all parameter combinations. Verify invalid parameters are rejected (out-of-range, bad patterns, injection attempts)
+- **Process state machine**: Test state transitions (stopped→running, running→stopped, running→error). Test stale PID cleanup on startup
+- **PID verification**: Mock `/proc/{pid}/cmdline` reads. Test PID reuse detection (cmdline mismatch)
+- **Log tail**: Test reading last N lines from log files, including empty/missing/still-being-written files
+
+### View Tests
+- **Dashboard views**: Use Django's test client to verify each page renders, returns correct HTTP status, and includes expected template context
+- **Form validation**: Submit forms with valid/invalid data, verify server-side validation matches `COMMAND_MAP` constraints
+- **HTMX fragments**: Verify polling endpoints return HTML fragments (not full pages)
+
+### Integration Tests
+- **Unmanaged model smoke tests**: Verify Django can read from `nonprofits_seed`, `reports`, `crawled_orgs` without errors. Use a test database with the lava_impact schema
+- **Process lifecycle**: Start a dummy long-running process, verify PID tracking, stop it, verify cleanup (use a simple `sleep` command as the test process)
 
 ## Traps to Avoid
 
-1. **Don't run Django migrations on lava_impact tables** — use `managed = False` for all existing tables. Only `pipeline_processes` is Django-managed.
-2. **Don't store secrets in settings.py** — load from SSM at startup, same as other pipeline tools.
+1. **Don't run Django migrations on lava_impact tables** — use `managed = False` for all existing tables. Only `pipeline_processes` (and Django metadata) are Django-managed.
+2. **Don't store secrets in settings.py** — load from SSM via `lavandula.common.secrets`, same as other pipeline tools.
 3. **Don't build a SPA** — server-rendered templates + HTMX keeps it simple and fast.
 4. **Don't implement websockets in Phase 1** — HTMX polling is sufficient. Django Channels is a Phase 2+ addition.
 5. **Don't over-engineer process management** — subprocess + PID is adequate for single-host. Celery/supervisord is Phase 2+ if we go multi-host.
 6. **Don't duplicate the `search_path` schema** — Django's `OPTIONS` sets `search_path` at connection time so all queries hit `lava_impact`.
+7. **Don't build CLI commands as shell strings** — always construct `argv` arrays to prevent command injection.
+8. **Don't forget CSRF + HTMX** — configure `hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'` on the body tag so HTMX POST requests include the Django CSRF token.
 
 ## Consultation Log
 
-*(To be filled after consultation)*
+### Round 1 — Spec Review (2026-04-23)
+
+**Gemini (APPROVE, HIGH confidence)**:
+- Add log tail viewing for ops visibility → **Added**: last 100 lines in detail views
+- PID identity verification via `/proc/[pid]/cmdline` → **Added**: to process manager
+- Django metadata tables will pollute lava_impact → **Addressed**: documented as acceptable for single-operator
+- Concurrency/race conditions on double-start → **Added**: `select_for_update` locking
+- Environment/PYTHONPATH for subprocess spawning → **Added**: explicit cwd/PYTHONPATH in process manager
+- Graceful → forceful shutdown → **Added**: SIGTERM → 10s wait → SIGKILL
+- Minor: log directory, SSM via secrets.py, CSRF+HTMX → **All addressed**
+
+**Codex (REQUEST_CHANGES, HIGH confidence)**:
+- Process lifecycle underspecified → **Added**: full state machine, stale PID cleanup, command verification
+- Command mapping missing → **Added**: complete `COMMAND_MAP` with types, ranges, patterns
+- Managed table strategy incomplete → **Clarified**: Django metadata in lava_impact is acceptable
+- Missing `website_candidates_json` in model → **Fixed**: added to `NonprofitSeed`
+- Session metrics ambiguous → **Clarified**: DB deltas since `started_at`
+- Security too thin → **Expanded**: input validation, argv construction, regex patterns
+- Failure/concurrency cases → **Added**: select_for_update, stale cleanup, SIGKILL fallback
+- AC contradictions (methods, bind address) → **Fixed**: AC03 shows all methods from DB, AC17 uses 127.0.0.1
+- Testing strategy missing → **Added**: full testing strategy section
+- Classifier controls wrong (Gemma vs Anthropic) → **Fixed**: matches actual classify_null CLI
 
 ## Future Phases
 
