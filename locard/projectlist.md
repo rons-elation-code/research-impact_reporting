@@ -342,7 +342,6 @@ projects:
     dependencies: ["0001", "0004", "0013"]
     tags: [resolver, classifier, gemma, pipeline, cost-optimization, self-hosted]
     notes: "Validated 2026-04-23: Gemma 4 E4B + Brave resolved 9/10 previously-unresolved TX orgs. 74 tok/s, 0.5s warm latency, 9.7GB VRAM on L4 GPU. PR #10 merged 2026-04-23 after 3 review rounds. 14 new files, 78 unit tests. Manual validation (AC12/AC13) pending — requires autossh tunnel + live Gemma."
-```
 
   - id: "0019"
     title: "Pipeline Dashboard & Control Center (Django)"
@@ -356,6 +355,7 @@ projects:
     dependencies: ["0013", "0017"]
     tags: [dashboard, django, operations, interviewer-foundation]
     notes: "Supersedes 0006 (read-only FastAPI dashboard, never specced). Scope: Phase 1 = pipeline dashboard + controls, Phase 2 = report data extraction viewer, Phase 3 = interviewer MVP."
+```
 
 ## Next Available Number
 
