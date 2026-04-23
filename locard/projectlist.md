@@ -320,7 +320,7 @@ projects:
   - id: "0017"
     title: "Retire SQLite — Use PostgreSQL Directly"
     summary: "Remove SQLite from the runtime write path entirely. Migrate every pipeline module (seed_enumerate, resolve_websites, batch_resolve, crawler, db_writer, budget, classify_null, reconcile_s3) to write directly to RDS via the SQLAlchemy engine from Phase 1. Delete the code-coupled dual-write infrastructure from Spec 0013 Phase 3 (rds_db_writer.py, db_queue.py, rds_writer kwargs, LAVANDULA_DUAL_WRITE flag, verify_dual_write tool). Supersedes Spec 0013 Phase 3 (retained but flag-off forever) and cancels Phase 4 (read flip — obsolete when there's only one store). Schema source of truth moves to lavandula/migrations/rds/*.sql."
-    status: implementing
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0017-retire-sqlite.md
@@ -328,7 +328,7 @@ projects:
       review: null
     dependencies: ["0013"]
     tags: [infrastructure, database, postgres, simplification]
-    notes: "Decision 2026-04-22 after demonstrating that code-coupled dual-write is fragile-by-design (breaks every time a new write path forgets to thread rds_writer kwarg). Phase 3 shipped covered only crawler paths; seed/resolver writes were SQLite-only. Plan chosen: truncate RDS, migrate code, test 15-org pipeline, truncate again, backfill from archival SQLite. pg_dump backup at lavandula/nonprofits/data/rds-backups/ + RDS automated 7-day backup cover restore. 15 ACs."
+    notes: "Decision 2026-04-22 after demonstrating that code-coupled dual-write is fragile-by-design (breaks every time a new write path forgets to thread rds_writer kwarg). Phase 3 shipped covered only crawler paths; seed/resolver writes were SQLite-only. Plan chosen: truncate RDS, migrate code, test 15-org pipeline, truncate again, backfill from archival SQLite. pg_dump backup at lavandula/nonprofits/data/rds-backups/ + RDS automated 7-day backup cover restore. 15 ACs. Marked integrated 2026-04-23 by human."
 
   - id: "0018"
     title: "Gemma Pipeline Resolver & Classifier"
