@@ -36,6 +36,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--state", required=True, help="Filter to orgs in this state")
     p.add_argument("--limit", type=int, default=0, help="Max orgs to process (0 = no limit)")
     p.add_argument("--status-filter", default="unresolved", help="Which resolver_status to re-process")
+    p.add_argument("--fresh-only", action="store_true", help="Only process orgs with resolver_status IS NULL (skip previously attempted)")
     p.add_argument("--brave-qps", type=float, default=1.0, help="Brave API queries per second")
     p.add_argument("--search-parallelism", type=int, default=4, help="Concurrent Brave search requests")
     p.add_argument("--fetch-parallelism", type=int, default=8, help="Concurrent HTTP fetch requests")
@@ -83,6 +84,7 @@ def main(argv: list[str] | None = None) -> None:
             state=args.state,
             limit=limit,
             status_filter=args.status_filter,
+            fresh_only=args.fresh_only,
         )
         log.info("Loaded %d orgs to process", len(orgs))
 

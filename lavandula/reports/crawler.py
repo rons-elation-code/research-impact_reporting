@@ -545,6 +545,8 @@ def run(argv: list[str] | None = None) -> int:
                         help="(ops only) skip startup TLS self-test")
     parser.add_argument("--skip-encryption-check", action="store_true",
                         help="(ops only) skip encryption-at-rest check")
+    parser.add_argument("--limit", type=int, default=0,
+                        help="Max orgs to crawl (0 = no limit)")
     parser.add_argument("--max-workers", type=int, default=8,
                         help="Per-org parallelism (TICK-002). Min 1, max 32. "
                              "Default 8. Use 1 for deterministic serial runs.")
@@ -623,6 +625,9 @@ def run(argv: list[str] | None = None) -> int:
                 if should_skip_ein(engine, ein=ein, refresh=args.refresh):
                     continue
                 pending.append((ein, website))
+
+            if args.limit > 0:
+                pending = pending[:args.limit]
 
             try:
                 with ThreadPoolExecutor(
