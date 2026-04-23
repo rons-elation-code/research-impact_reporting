@@ -2,15 +2,13 @@
 
 Normalizes URLs before persisting to the database:
 - Strip tracking query parameters (utm_*, fbclid, gclid, ref)
-- Prefer HTTPS when available
+- Prefer HTTPS when available (probed via ReportsHTTPClient for SSRF safety)
 - Trailing slash: include for bare domains, omit for paths
 """
 from __future__ import annotations
 
 import logging
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
-
-import requests
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +41,12 @@ def normalize_url(url: str, *, check_https: bool = True) -> str:
 
     scheme = parts.scheme
     if scheme == "http" and check_https:
-        https_url = urlunsplit(("https", parts.netloc, path, new_query, ""))
+        https_url = urlunsplit(("https", parts.netloc, "/", "", ""))
         try:
-            resp = requests.head(https_url, timeout=5, allow_redirects=True)
-            if resp.status_code == 200:
+            from lavandula.reports.http_client import ReportsHTTPClient
+            client = ReportsHTTPClient(allow_insecure_cleartext=False)
+            result = client.head(https_url, kind="pdf-head")
+            if result.http_status == 200:
                 scheme = "https"
         except Exception:
             pass

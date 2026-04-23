@@ -104,7 +104,7 @@ class TestClassifyConsumer:
         engine = self._make_simple_engine()
         shutdown = ShutdownFlag()
 
-        pq.put({"sha256": "abc123", "first_page_text": "Annual report 2025..."})
+        pq.put({"content_sha256": "abc123", "first_page_text": "Annual report 2025..."})
         pq.done()
 
         mock_gemma = MagicMock()
@@ -125,7 +125,7 @@ class TestClassifyConsumer:
         engine = self._make_simple_engine()
         shutdown = ShutdownFlag()
 
-        pq.put({"sha256": "abc", "first_page_text": "text"})
+        pq.put({"content_sha256": "abc", "first_page_text": "text"})
         pq.done()
 
         mock_gemma = MagicMock()
@@ -147,7 +147,7 @@ class TestClassifyConsumer:
         engine = self._make_simple_engine()
         shutdown = ShutdownFlag()
 
-        pq.put({"sha256": "abc", "first_page_text": "text"})
+        pq.put({"content_sha256": "abc", "first_page_text": "text"})
         pq.done()
 
         mock_gemma = MagicMock()
@@ -167,7 +167,7 @@ class TestClassifyConsumer:
         engine.begin.return_value.__enter__ = MagicMock(side_effect=RuntimeError("db fail"))
         engine.begin.return_value.__exit__ = MagicMock(return_value=False)
 
-        pq.put({"sha256": "abc", "first_page_text": "text"})
+        pq.put({"content_sha256": "abc", "first_page_text": "text"})
         pq.done()
 
         mock_gemma = MagicMock()

@@ -223,8 +223,8 @@ class TestParseError:
 
 
 class TestJsonModeOrToolChoice:
-    def test_json_mode_or_tool_choice(self):
-        """AC27: request includes tool_choice."""
+    def test_json_mode_and_tool_choice(self):
+        """AC27: request includes both response_format=json_object AND tool_choice."""
         client = _make_client()
         with patch("lavandula.nonprofits.gemma_client.requests.post") as mock_post:
             mock_resp = MagicMock()
@@ -241,4 +241,5 @@ class TestJsonModeOrToolChoice:
             )
 
             body = mock_post.call_args.kwargs.get("json") or mock_post.call_args[1].get("json")
-            assert "tool_choice" in body or "response_format" in body
+            assert "tool_choice" in body
+            assert body["response_format"] == {"type": "json_object"}

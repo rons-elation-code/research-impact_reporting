@@ -55,26 +55,28 @@ class TestTrailingSlash:
 
 class TestHttpsUpgrade:
     def test_https_upgrade(self):
-        with patch("lavandula.nonprofits.url_normalize.requests.head") as mock_head:
-            mock_resp = MagicMock()
-            mock_resp.status_code = 200
-            mock_head.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_result = MagicMock()
+        mock_result.http_status = 200
+        mock_client.head.return_value = mock_result
 
+        with patch("lavandula.reports.http_client.ReportsHTTPClient", return_value=mock_client):
             result = normalize_url("http://foo.org/", check_https=True)
 
         assert result.startswith("https://")
 
     def test_no_upgrade_when_https_fails(self):
-        with patch("lavandula.nonprofits.url_normalize.requests.head") as mock_head:
-            mock_head.side_effect = ConnectionError("refused")
+        mock_client = MagicMock()
+        mock_client.head.side_effect = ConnectionError("refused")
 
+        with patch("lavandula.reports.http_client.ReportsHTTPClient", return_value=mock_client):
             result = normalize_url("http://foo.org/", check_https=True)
 
         assert result.startswith("http://")
 
     def test_already_https_no_check(self):
-        with patch("lavandula.nonprofits.url_normalize.requests.head") as mock_head:
+        with patch("lavandula.reports.http_client.ReportsHTTPClient") as mock_cls:
             result = normalize_url("https://foo.org/", check_https=True)
 
-        mock_head.assert_not_called()
+        mock_cls.assert_not_called()
         assert result == "https://foo.org/"

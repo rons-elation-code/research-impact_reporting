@@ -28,6 +28,7 @@ from sqlalchemy.engine import Engine
 from .brave_search import (
     BraveRateLimiter,
     BraveSearchError,
+    search,
     search_and_filter,
 )
 from .gemma_client import (
@@ -265,10 +266,10 @@ def producer(
 
             stats.searched += 1
 
-            # Stage 1-2: Search + filter
+            # Stage 1: Search
             try:
-                results = search_and_filter(
-                    name, city, state,
+                raw_results = search(
+                    f'"{re.sub(r"\"", "", name).strip()}" {city} {state}',
                     api_key=api_key,
                     rate_limiter=rate_limiter,
                 )
@@ -279,9 +280,28 @@ def producer(
                 _write_unresolved(engine, ein, f"brave_error:{status_code}")
                 continue
 
-            if not results:
+            if not raw_results:
                 stats.skipped_no_results += 1
                 _write_unresolved(engine, ein, "no_search_results")
+                continue
+
+            # Stage 2: Filter blocklist
+            from .brave_search import is_blocked
+            from urllib.parse import urlsplit as _urlsplit
+            results = []
+            for r in raw_results:
+                try:
+                    host = _urlsplit(r.url).hostname or ""
+                except Exception:
+                    continue
+                if not is_blocked(host, name):
+                    results.append(r)
+                    if len(results) >= 3:
+                        break
+
+            if not results:
+                stats.skipped_all_blocked += 1
+                _write_unresolved(engine, ein, "all_blocked")
                 continue
 
             # Stage 3: Fetch candidates in parallel
@@ -435,9 +455,15 @@ def consumer(
                 pass
 
         # Determine status — Gemma returns one URL+confidence per org.
+        # Ambiguous: confidence 0.6-0.7 indicates the model is torn between
+        # candidates (maps to the spec's "two candidates ≥ 0.6 within 0.1"
+        # expressed as model uncertainty in the single-tool-call pattern).
         if confidence >= 0.7 and url:
             status = "resolved"
             stats.resolved += 1
+        elif confidence >= 0.6 and url:
+            status = "ambiguous"
+            stats.ambiguous += 1
         else:
             status = "unresolved"
             url = None

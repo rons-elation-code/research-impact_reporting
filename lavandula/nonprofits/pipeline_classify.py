@@ -48,7 +48,7 @@ def classify_producer(
 ) -> ClassifyProducerStats:
     """Keyset pagination over reports with NULL classification, enqueue for Gemma."""
     stats = ClassifyProducerStats()
-    last_sha256 = ""
+    last_cursor = ""
     remaining = limit
 
     try:
@@ -57,9 +57,9 @@ def classify_producer(
                 break
 
             sql = (
-                f"SELECT sha256, first_page_text FROM {_SCHEMA}.reports "
-                "WHERE classification IS NULL AND sha256 > :cursor "
-                "ORDER BY sha256 LIMIT :page_size"
+                f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.reports"
+                "WHERE classification IS NULL AND content_sha256 > :cursor"
+                "ORDER BY content_sha256 LIMIT :page_size"
             )
             page_size = _PAGE_SIZE
             if remaining is not None:
@@ -68,18 +68,18 @@ def classify_producer(
             with engine.connect() as conn:
                 rows = conn.execute(
                     text(sql),
-                    {"cursor": last_sha256, "page_size": page_size},
+                    {"cursor": last_cursor, "page_size": page_size},
                 ).fetchall()
 
             if not rows:
                 break
 
-            for sha256, first_page_text in rows:
+            for content_sha256, first_page_text in rows:
                 if shutdown.is_set():
                     break
 
                 stats.scanned += 1
-                last_sha256 = sha256
+                last_cursor = content_sha256
 
                 if not first_page_text or not first_page_text.strip():
                     stats.skipped_no_text += 1
@@ -90,15 +90,15 @@ def classify_producer(
                                     f"UPDATE {_SCHEMA}.reports SET "
                                     "classification='skipped', "
                                     "classifier_model=:model "
-                                    "WHERE sha256=:sha256"
+                                    "WHERE content_sha256=:csha"
                                 ),
-                                {"model": RESOLVER_METHOD, "sha256": sha256},
+                                {"model": RESOLVER_METHOD, "csha": content_sha256},
                             )
                     except Exception:
-                        log.exception("DB write error for sha256=%s", sha256)
+                        log.exception("DB write error for content_sha256=%s", content_sha256)
                     continue
 
-                pq.put({"sha256": sha256, "first_page_text": first_page_text})
+                pq.put({"content_sha256": content_sha256, "first_page_text": first_page_text})
                 stats.enqueued += 1
 
                 if remaining is not None:
@@ -138,7 +138,7 @@ def classify_consumer(
         if packet is _SENTINEL:
             break
 
-        sha256 = packet["sha256"]
+        content_sha256 = packet["content_sha256"]
         first_page_text = packet["first_page_text"]
 
         result = None
@@ -153,12 +153,12 @@ def classify_consumer(
             except http_requests.ConnectionError:
                 if attempt > len(_RETRY_DELAYS):
                     log.error(
-                        "Gemma unreachable after %d attempts for sha256=%s",
-                        attempt, sha256,
+                        "Gemma unreachable after %d attempts for content_sha256=%s",
+                        attempt, content_sha256,
                     )
                     result = None
             except GemmaParseError as exc:
-                log.warning("Gemma parse error for sha256=%s: %s", sha256, exc)
+                log.warning("Gemma parse error for content_sha256=%s: %s", content_sha256, exc)
                 result = {"_parse_error": True}
                 break
 
@@ -175,12 +175,12 @@ def classify_consumer(
                             f"UPDATE {_SCHEMA}.reports SET "
                             "classification='parse_error', "
                             "classifier_model=:model "
-                            "WHERE sha256=:sha256"
+                            "WHERE content_sha256=:csha"
                         ),
-                        {"model": RESOLVER_METHOD, "sha256": sha256},
+                        {"model": RESOLVER_METHOD, "csha": content_sha256},
                     )
             except Exception:
-                log.exception("DB write error for sha256=%s", sha256)
+                log.exception("DB write error for content_sha256=%s", content_sha256)
             continue
 
         classification = result.get("classification", "other")
@@ -194,19 +194,19 @@ def classify_consumer(
                         "classification=:cls, "
                         "classification_confidence=:conf, "
                         "classifier_model=:model "
-                        "WHERE sha256=:sha256"
+                        "WHERE content_sha256=:csha"
                     ),
                     {
                         "cls": classification,
                         "conf": confidence,
                         "model": RESOLVER_METHOD,
-                        "sha256": sha256,
+                        "csha": content_sha256,
                     },
                 )
             stats.classified += 1
         except Exception:
             stats.errors += 1
-            log.exception("DB write error for sha256=%s", sha256)
+            log.exception("DB write error for content_sha256=%s", content_sha256)
 
     return stats
 

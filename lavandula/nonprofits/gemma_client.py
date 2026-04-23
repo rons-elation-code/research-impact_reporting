@@ -121,7 +121,6 @@ class GemmaClient:
     def __init__(self, *, base_url: str, model: str) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
-        self._use_json_mode: bool | None = None
 
     def health_check(self) -> bool:
         """Check if the Ollama endpoint is reachable."""
@@ -226,6 +225,7 @@ class GemmaClient:
                 "type": "function",
                 "function": {"name": tool["function"]["name"]},
             },
+            "response_format": {"type": "json_object"},
             "max_tokens": 2000,
             "temperature": 0,
         }
