@@ -333,11 +333,11 @@ projects:
   - id: "0018"
     title: "Gemma Pipeline Resolver & Classifier"
     summary: "Replace agent-loop URL resolver (0008) and DeepSeek three-phase resolver (0005) with a code-driven pipeline: Brave Search → filter → HTTP fetch → Gemma 4 E4B (self-hosted on cloud1) disambiguates. Same queue pattern for report classification. 20-100x cost reduction vs agent loop."
-    status: conceived
+    status: specified
     priority: high
     files:
       spec: locard/specs/0018-gemma-pipeline-resolver.md
-      plan: null
+      plan: locard/plans/0018-gemma-pipeline-resolver.md
       review: null
     dependencies: ["0001", "0004", "0013"]
     tags: [resolver, classifier, gemma, pipeline, cost-optimization, self-hosted]

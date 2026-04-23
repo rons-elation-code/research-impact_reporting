@@ -1,4 +1,8 @@
 {
+  "shell": {
+    "architect": "claude --model claude-opus-4-6",
+    "builder": "claude --model claude-opus-4-6"
+  },
   "agentFarm": {
     "requireAuth": false,
     "requireAuthLocalhost": false,
