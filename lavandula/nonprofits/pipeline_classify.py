@@ -57,8 +57,8 @@ def classify_producer(
                 break
 
             sql = (
-                f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.reports"
-                "WHERE classification IS NULL AND content_sha256 > :cursor"
+                f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.reports "
+                "WHERE classification IS NULL AND content_sha256 > :cursor "
                 "ORDER BY content_sha256 LIMIT :page_size"
             )
             page_size = _PAGE_SIZE
