@@ -14,13 +14,23 @@ from dataclasses import dataclass
 from typing import Iterable
 from urllib.parse import urljoin, urlsplit
 
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup, Tag  # type: ignore
 
 from . import config
 from .redirect_policy import etld1
 from .url_redact import canonicalize_url
 
 CANDIDATE_CAP_PER_ORG = config.CANDIDATE_CAP_PER_ORG
+
+
+def _effective_anchor_text(a: Tag) -> str:
+    """Combine visible text, title, aria-label, and img alt into one string."""
+    visible = a.get_text(" ", strip=True) or ""
+    title = (a.get("title") or "").strip()
+    aria = (a.get("aria-label") or "").strip()
+    alts = " ".join((img.get("alt") or "").strip() for img in a.find_all("img"))
+    parts = [p for p in (visible, title, aria, alts.strip()) if p]
+    return " ".join(parts).strip()
 MAX_PARSED_LINKS_PER_PAGE = config.MAX_PARSED_LINKS_PER_PAGE
 MAX_PDFS_PER_REPORT_SUBPAGE = config.MAX_PDFS_PER_REPORT_SUBPAGE
 
@@ -273,7 +283,7 @@ def extract_candidates(
     for a in anchors:
         href_raw = a.get("href") or ""
         href = urljoin(base_url, href_raw.strip())
-        anchor_text = a.get_text(" ", strip=True) or ""
+        anchor_text = _effective_anchor_text(a)
         # TICK-001: enforce per-subpage PDF cap BEFORE _classify_link
         # for links that would only pass via the relaxed rule.
         effective_parent_flag = parent_is_report_anchor
