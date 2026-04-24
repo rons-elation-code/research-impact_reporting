@@ -30,12 +30,12 @@ def test_ac2_anchor_and_path_filter():
     )
     paths = sorted({c.url.split("example.org", 1)[1] for c in candidates})
     # Spec 0020: taxonomy expands keyword set; /donate now matches
-    # via /donate strong path, /press matches via weak path.
+    # via /donate strong path. /press is weak and lacks backing signal
+    # (no anchor keyword match, no positive filename) so it's dropped.
     assert paths == [
         "/about/impact/",
         "/annual-report",
         "/donate",
-        "/press",
         "/reports/2024.pdf",
         "/year-in-review-2024.pdf",
     ]

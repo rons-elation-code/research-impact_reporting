@@ -196,10 +196,11 @@ def test_ac8_i18n_non_locale_prefix_not_deduped():
 
 
 def test_ac9_path_keyword_resources():
+    """Spec 0020: /resources is a weak path — requires anchor keyword match."""
     from lavandula.reports.candidate_filter import extract_candidates
     html = (
         '<html><body>'
-        '<a href="/resources/guide">Resources</a>'
+        '<a href="/resources/annual-report-2024.pdf">Annual Report</a>'
         '</body></html>'
     )
     candidates = extract_candidates(
@@ -229,10 +230,11 @@ def test_ac9_anchor_keyword_our_work():
 
 
 def test_ac9_path_keyword_press():
+    """Spec 0020: /press is a weak path — requires backing signal to pass."""
     from lavandula.reports.candidate_filter import extract_candidates
     html = (
         '<html><body>'
-        '<a href="/press">Press</a>'
+        '<a href="/press/annual-report-2024.pdf">Annual Report</a>'
         '</body></html>'
     )
     candidates = extract_candidates(
