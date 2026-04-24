@@ -619,7 +619,15 @@ Single builder, focused work:
 
 ## Consultation Log
 
-### Round 1 — Gemini plan review (2026-04-24)
+### First Consultation (After Initial Draft)
+**Date**: 2026-04-24
+**Models Consulted**: Gemini ✅
+**Commands**:
+```
+consult --model gemini --type plan-review plan 0020
+```
+
+Round 1 — Gemini plan review
 
 **Verdict: APPROVE, HIGH confidence.**
 
@@ -635,7 +643,16 @@ Additional refinements from the plan re-read:
 3. **Basename extraction spec**: explicitly unquote + lowercase in `_basename_from_url` so case-differences in URL paths don't cause spurious mismatches between the filename signal and the path signal.
 4. Added two tests: `test_rejects_uppercase_keyword` and `test_runtime_view_lowercases_anchor_signals`.
 
-### Round 2 — Gemini red-team plan review (2026-04-24, via gemini-2.5-flash due to quota constraints on -pro and flash-preview)
+### Red Team Security Review (MANDATORY)
+**Date**: 2026-04-24
+**Model**: Gemini 2.5 Flash (fallback from pro and flash-preview due to quota exhaustion)
+**Commands**:
+```
+# consult --model gemini --type red-team-plan plan 0020 (hit quota; reran via direct gemini CLI)
+gemini --yolo --model gemini-2.5-flash -o text -p "<red-team-plan template + plan>"
+```
+
+Round 2 — Gemini red-team plan review
 
 **Verdict: REQUEST_CHANGES, HIGH confidence. CRITICAL 0, HIGH 0, MEDIUM 1, LOW 1.**
 

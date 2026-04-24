@@ -325,7 +325,13 @@ This spec introduces no DB schema changes. Rollback is a pure code revert: `git 
 
 ## Consultation Log
 
-### Round 1 — Gemini spec review (2026-04-24)
+### First Consultation (After Initial Draft)
+**Date**: 2026-04-24
+**Models Consulted**: Gemini ✅ (flash fallback from pro due to quota)
+**Commands**:
+```
+consult --model gemini --type spec-review spec 0020
+```
 
 **Verdict: APPROVE, HIGH confidence.**
 
@@ -345,7 +351,12 @@ Additional self-review refinements (not raised by Gemini):
 9. AC12 conflated offline heuristic validation with live-crawl regression → **Split** into AC12 (offline fixture grading) and AC13 (live re-crawl with Fordham-specific target ≤ 15).
 10. **Added** explicit Rollback section — pure code revert, no DB migration, taxonomy YAML stays committed.
 
-### Round 2 — Gemini red-team review (2026-04-24)
+### Red Team Security Review (MANDATORY)
+**Date**: 2026-04-24
+**Commands**:
+```
+consult --model gemini --type red-team-spec spec 0020
+```
 
 **Verdict: APPROVE, HIGH confidence. CRITICAL 0, HIGH 2, MEDIUM 2, LOW 1.**
 
