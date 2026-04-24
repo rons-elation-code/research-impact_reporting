@@ -11,30 +11,33 @@ Operating the Lavandula pipeline requires SSH sessions, manual CLI invocations, 
 
 ## Goals
 
-Build a Django web application that serves as the operations cockpit for the Lavandula pipeline. The app has three phases, each building on the last:
+Build a Django web application that serves as the operations cockpit for the Lavandula pipeline. This spec covers operating the **entire** pipeline (seed, resolver, crawler, classifier) from the browser — monitoring all stages and controlling all processes. Future iterations layer on data viewing and report authoring features; they do not add new pipeline stages.
 
-### Phase 1: Pipeline Dashboard & Controls (this spec)
-- Real-time visibility into pipeline state across all stages
-- Start/stop/configure pipeline processes from the browser
+The app is delivered in three iterations, each building on the last:
+
+### Iteration 1: Operations Cockpit (this spec)
+- Real-time visibility into pipeline state across all stages (seed, resolver, crawler, classifier)
+- Start/stop/configure every pipeline process from the browser
 - Model-agnostic resolver controls (codex, codex-mini, gemini, claude)
+- Org browser with filtering and resolver-result detail
 
-### Phase 2: Report Data Viewer (future spec)
+### Iteration 2: Report Data Viewer (future spec)
 - Browse extracted report data and styling
 - View PDF pages alongside extracted text/structure
 - Tag and annotate reports for training data
 
-### Phase 3: Report Interviewer MVP (future spec)
+### Iteration 3: Report Interviewer MVP (future spec)
 - Structured form wizard for creating impact/annual reports
 - Pulls styling and structure templates from extracted reports
 - Simple text input (speech-to-text layered in later)
 
-**This spec covers Phase 1 only.**
+**This spec covers Iteration 1 only.** "Phase" terminology is avoided to prevent confusion with pipeline *stages*.
 
 ## Non-Goals
 
 - User management / multi-tenancy — single operator for now
 - Mobile-responsive design — desktop browser only
-- Report creation or editing — that's Phase 3
+- Report creation or editing — that's Iteration 3
 - Replacing the CLI tools — the dashboard calls them, doesn't replace them
 
 ## Architecture
@@ -43,10 +46,10 @@ Build a Django web application that serves as the operations cockpit for the Lav
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Framework | Django 5.x | Forms, ORM, admin, session handling, template engine — all needed for Phase 2-3 |
+| Framework | Django 5.x | Forms, ORM, admin, session handling, template engine — all needed for Iterations 2-3 |
 | Database | Existing PostgreSQL (lava_prod1) | Django ORM pointed at lava_impact schema via unmanaged models |
 | Process management | subprocess + PID tracking | Django starts/stops pipeline CLIs, tracks PIDs in DB |
-| Real-time updates | HTMX polling (5s) | Simple, no websocket infrastructure needed for Phase 1 |
+| Real-time updates | HTMX polling (5s) | Simple, no websocket infrastructure needed for Iteration 1 |
 | CSS | Tailwind CSS (CDN) | Fast to build, no build step |
 | Charts | Chart.js (CDN) | Lightweight, good for status breakdowns |
 
@@ -403,8 +406,8 @@ A custom database router directs reads for unmanaged models to the `pipeline` DB
 1. **Don't run Django migrations on lava_impact tables** — use `managed = False` for all existing tables. Only `pipeline_processes` (and Django metadata) are Django-managed.
 2. **Don't store secrets in settings.py** — load from SSM via `lavandula.common.secrets`, same as other pipeline tools.
 3. **Don't build a SPA** — server-rendered templates + HTMX keeps it simple and fast.
-4. **Don't implement websockets in Phase 1** — HTMX polling is sufficient. Django Channels is a Phase 2+ addition.
-5. **Don't over-engineer process management** — subprocess + PID is adequate for single-host. Celery/supervisord is Phase 2+ if we go multi-host.
+4. **Don't implement websockets in Iteration 1** — HTMX polling is sufficient. Django Channels is an Iteration 2+ addition.
+5. **Don't over-engineer process management** — subprocess + PID is adequate for single-host. Celery/supervisord is Iteration 2+ if we go multi-host.
 6. **Don't duplicate the `search_path` schema** — Django's `OPTIONS` sets `search_path` at connection time so all queries hit `lava_impact`.
 7. **Don't build CLI commands as shell strings** — always construct `argv` arrays to prevent command injection.
 8. **Don't forget CSRF + HTMX** — configure `hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'` on the body tag so HTMX POST requests include the Django CSRF token.
@@ -454,15 +457,15 @@ A custom database router directs reads for unmanaged models to the `pipeline` DB
 7. S3 regex strictness → already mitigated by argv construction (no shell interpretation)
 8. Cleartext secrets in process list → **Fixed**: documented that pipeline tools load own credentials, dashboard never passes secrets as CLI flags
 
-## Future Phases
+## Future Iterations
 
-### Phase 2: Report Data Viewer
+### Iteration 2: Report Data Viewer
 - PDF page viewer with extracted text overlay
 - Structure/styling extraction display
 - Training data annotation interface
 - Depends on 0014 (PDF extraction)
 
-### Phase 3: Report Interviewer MVP
+### Iteration 3: Report Interviewer MVP
 - Structured form wizard (Django forms)
 - Section-by-section question flow
 - Template styling from extracted reports
