@@ -359,11 +359,11 @@ projects:
   - id: "0020"
     title: "Data-driven crawler taxonomy & precision improvements"
     summary: "Phase 1 of collateral-taxonomy rollout: convert approved taxonomy (lavandula/docs/collateral_taxonomy.md) to YAML as source of truth for keyword lists and signal weights, refactor crawler to read from YAML, add filename heuristic grading with 3-tier triage, add alt/title/aria-label to anchor extraction, tier path keywords (strong=pass-alone, weak=require-anchor). Enables PM-level taxonomy edits without code changes."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0020-data-driven-crawler-taxonomy.md
-      plan: null
+      plan: locard/plans/0020-data-driven-crawler-taxonomy.md
       review: null
     dependencies: ["0004", "0018"]
     tags: [crawler, taxonomy, precision, data-driven, config]
