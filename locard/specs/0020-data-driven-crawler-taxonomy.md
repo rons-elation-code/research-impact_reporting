@@ -333,7 +333,7 @@ This spec introduces no DB schema changes. Rollback is a pure code revert: `git 
 consult --model gemini --type spec-review spec 0020
 ```
 
-**Verdict: APPROVE, HIGH confidence.**
+**Verdict**: APPROVE (HIGH confidence)
 
 Key findings and resolutions:
 
@@ -358,7 +358,7 @@ Additional self-review refinements (not raised by Gemini):
 consult --model gemini --type red-team-spec spec 0020
 ```
 
-**Verdict: APPROVE, HIGH confidence. CRITICAL 0, HIGH 2, MEDIUM 2, LOW 1.**
+**Verdict**: APPROVE (HIGH confidence — CRITICAL 0, HIGH 2, MEDIUM 2, LOW 1)
 
 All findings addressed:
 

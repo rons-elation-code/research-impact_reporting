@@ -629,7 +629,7 @@ consult --model gemini --type plan-review plan 0020
 
 Round 1 — Gemini plan review
 
-**Verdict: APPROVE, HIGH confidence.**
+**Verdict**: APPROVE (HIGH confidence)
 
 Single finding, addressed:
 
@@ -654,7 +654,7 @@ gemini --yolo --model gemini-2.5-flash -o text -p "<red-team-plan template + pla
 
 Round 2 — Gemini red-team plan review
 
-**Verdict: REQUEST_CHANGES, HIGH confidence. CRITICAL 0, HIGH 0, MEDIUM 1, LOW 1.**
+**Verdict**: REQUEST_CHANGES → addressed (HIGH confidence — CRITICAL 0, HIGH 0, MEDIUM 1, LOW 1; all findings applied)
 
 Both findings addressed:
 
