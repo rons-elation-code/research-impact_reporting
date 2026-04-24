@@ -80,62 +80,103 @@ def _build_prompt(org: dict) -> str:
     )
 
 
-def _run_codex(prompt: str, config: dict, timeout: int) -> dict | None:
+class _RunResult:
+    """Carries either a parsed dict or a diagnostic reason on failure.
+
+    Reasons used:
+      cli_timeout          — subprocess exceeded timeout
+      cli_exec_error       — subprocess raised an unexpected OS/Python exception
+      cli_nonzero_exit     — subprocess returned non-zero (with stderr captured)
+      cli_empty_response   — stdout was empty despite zero exit
+      cli_parse_error      — stdout was non-empty but no valid JSON object
+    """
+    __slots__ = ("data", "reason", "detail")
+
+    def __init__(self, data: dict | None = None, reason: str | None = None, detail: str = ""):
+        self.data = data
+        self.reason = reason
+        self.detail = detail
+
+
+def _run_codex(prompt: str, config: dict, timeout: int) -> _RunResult:
     with tempfile.NamedTemporaryFile(suffix=".txt", delete=False, mode="w") as f:
         outpath = f.name
 
     cmd = config["cmd"] + [config["output_flag"], outpath, prompt]
     try:
-        subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
         )
-        result_text = Path(outpath).read_text().strip()
     except subprocess.TimeoutExpired:
-        log.warning("Codex timed out")
-        return None
+        log.warning("Codex timed out after %ds", timeout)
+        Path(outpath).unlink(missing_ok=True)
+        return _RunResult(reason="cli_timeout")
     except Exception as exc:
-        log.warning("Codex error: %s", exc)
-        return None
+        log.warning("Codex exec error: %s", exc)
+        Path(outpath).unlink(missing_ok=True)
+        return _RunResult(reason="cli_exec_error", detail=str(exc))
+
+    try:
+        if proc.returncode != 0:
+            log.warning("Codex nonzero exit %d; stderr=%s", proc.returncode, (proc.stderr or "")[:200])
+            return _RunResult(reason="cli_nonzero_exit", detail=f"exit={proc.returncode}")
+        result_text = Path(outpath).read_text().strip()
     finally:
         Path(outpath).unlink(missing_ok=True)
 
-    return _parse_json(result_text)
+    return _finish(result_text)
 
 
-def _run_gemini(prompt: str, config: dict, timeout: int) -> dict | None:
+def _run_gemini(prompt: str, config: dict, timeout: int) -> _RunResult:
     # Gemini CLI requires -p to be immediately followed by the prompt argument,
     # so we append "-p" and the prompt last, after all other flags.
     cmd = config["cmd"] + config.get("extra_args", []) + ["-p", prompt]
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
         )
-        output = result.stdout.strip()
     except subprocess.TimeoutExpired:
-        log.warning("Gemini timed out")
-        return None
+        log.warning("Gemini timed out after %ds", timeout)
+        return _RunResult(reason="cli_timeout")
     except Exception as exc:
-        log.warning("Gemini error: %s", exc)
-        return None
+        log.warning("Gemini exec error: %s", exc)
+        return _RunResult(reason="cli_exec_error", detail=str(exc))
 
-    return _parse_json(output)
+    if proc.returncode != 0:
+        log.warning("Gemini nonzero exit %d; stderr=%s", proc.returncode, (proc.stderr or "")[:200])
+        return _RunResult(reason="cli_nonzero_exit", detail=f"exit={proc.returncode}")
+
+    return _finish((proc.stdout or "").strip())
 
 
-def _run_claude(prompt: str, config: dict, timeout: int) -> dict | None:
+def _run_claude(prompt: str, config: dict, timeout: int) -> _RunResult:
     cmd = config["cmd"] + config.get("extra_args", []) + [prompt]
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout,
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
         )
-        output = result.stdout.strip()
     except subprocess.TimeoutExpired:
-        log.warning("Claude timed out")
-        return None
+        log.warning("Claude timed out after %ds", timeout)
+        return _RunResult(reason="cli_timeout")
     except Exception as exc:
-        log.warning("Claude error: %s", exc)
-        return None
+        log.warning("Claude exec error: %s", exc)
+        return _RunResult(reason="cli_exec_error", detail=str(exc))
 
-    return _parse_json(output)
+    if proc.returncode != 0:
+        log.warning("Claude nonzero exit %d; stderr=%s", proc.returncode, (proc.stderr or "")[:200])
+        return _RunResult(reason="cli_nonzero_exit", detail=f"exit={proc.returncode}")
+
+    return _finish((proc.stdout or "").strip())
+
+
+def _finish(output: str) -> _RunResult:
+    """Common post-exec handling: empty-check then JSON parse."""
+    if not output:
+        return _RunResult(reason="cli_empty_response")
+    parsed = _parse_json(output)
+    if parsed is None:
+        return _RunResult(reason="cli_parse_error")
+    return _RunResult(data=parsed)
 
 
 _RUNNERS = {
@@ -360,28 +401,30 @@ def main(argv: list[str] | None = None) -> None:
 
             log.info("[%d/%d] %s, %s, %s (ein=%s)", i, len(orgs), name, city, state, ein)
 
-            result = runner(prompt, config, args.timeout)
+            run_result = runner(prompt, config, args.timeout)
 
-            if result is None:
-                log.warning("No result for ein=%s, marking unresolved", ein)
+            if run_result.data is None:
+                log.warning("No result for ein=%s (%s): marking unresolved",
+                            ein, run_result.reason)
                 _write_result(engine, ein, {
                     "resolver_status": "unresolved",
                     "resolver_confidence": 0.0,
-                    "resolver_reason": "cli_timeout_or_parse_error",
+                    "resolver_reason": run_result.reason,
                 }, method)
                 errors += 1
             else:
-                _write_result(engine, ein, result, method)
-                status = result.get("resolver_status", "unresolved")
-                url = result.get("website_url")
-                conf = result.get("resolver_confidence", 0)
+                payload = run_result.data
+                _write_result(engine, ein, payload, method)
+                status = payload.get("resolver_status", "unresolved")
+                url = payload.get("website_url")
+                conf = payload.get("resolver_confidence", 0)
                 if status == "resolved":
                     resolved += 1
                     log.info("  RESOLVED: %s (conf=%.2f)", url, conf)
                 else:
                     unresolved += 1
                     log.info("  UNRESOLVED (conf=%.2f): %s",
-                             conf, result.get("resolver_reason", "")[:80])
+                             conf, payload.get("resolver_reason", "")[:80])
 
             if i < len(orgs) and args.delay > 0:
                 time.sleep(args.delay)
