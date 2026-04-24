@@ -1,6 +1,6 @@
 # Spec 0020: Data-Driven Crawler Taxonomy & Precision Improvements
 
-**Status**: Draft
+**Status**: Review
 **Author**: Architect
 **Date**: 2026-04-24
 **Depends on**: 0004 (report crawler), 0018 (Gemma pipeline), `lavandula/docs/collateral_taxonomy.md` (approved 2026-04-24)
@@ -113,11 +113,22 @@ filename_negative_signals:
 
 ### YAML Validator
 
-A Pydantic model (with `model_config = ConfigDict(frozen=True)` to prevent runtime mutation) validates the YAML at load time. Validation failures are fatal — the crawler refuses to start rather than silently running with partial config. Validator enforces:
+A Pydantic model (with `model_config = ConfigDict(frozen=True)` to prevent runtime mutation) validates the YAML at load time. Validation failures are fatal — the crawler refuses to start rather than silently running with partial config.
+
+**YAML loading safety**: the loader MUST use `yaml.safe_load()` (or `yaml.load(stream, Loader=CSafeLoader)`) — never the default `yaml.load()`, which can execute arbitrary Python via tags such as `!!python/object/apply:os.system` and has been a source of RCE in other projects. Code review must enforce this; a lint rule or explicit unit test for unsafe loader usage is included in the test suite.
+
+**Version pinning**: the YAML must declare `version: 1`. The loader refuses YAML with a version it doesn't recognize; future schema changes require a parallel `version: 2` loader so an older crawler can't silently misinterpret a newer YAML file.
+
+**String-matching semantics**: all `filename_signals`, `anchor_signals`, and path keywords are matched as **case-insensitive substrings**, not regex patterns. This is documented in the YAML header comment and validator descriptions so PMs don't mistakenly use regex metacharacters. Regex-like entries (e.g., `.*report`) are flagged by the validator.
+
+Validator enforces:
 
 - Every `material_type` has `id`, `group`, `tier` (one of `web` / `mixed` / `internal`)
 - No duplicate IDs across material_types, event_types, or tags
 - `path_keywords.weak` items cannot appear in `path_keywords.strong`
+- **No keyword appears in both `filename_positive` and `filename_negative`** — would produce non-deterministic grading
+- Every keyword is at least 3 characters long (prevents `"ar"` matching `"smart"`, etc.)
+- No keyword contains regex metacharacters (`.`, `*`, `+`, `?`, `[`, `(`, `|`, `\`, `^`, `$`) outside of literal hyphens and alphanumerics
 - Thresholds are in `[0.0, 1.0]` and satisfy `accept > weak_path_min > reject`
 - **Defensive bounds** to prevent accidental PM-level misconfiguration:
   - `filename_score_accept >= 0.5` (can't set an "accept-everything" threshold)
@@ -125,6 +136,7 @@ A Pydantic model (with `model_config = ConfigDict(frozen=True)` to prevent runti
   - `base_score == 0.5` (not tunable — structural assumption)
 - Signal weight magnitudes within `[0.0, 1.0]`
 - Every `event_type.path_keywords` entry is automatically aggregated into the global strong-path set at load time — YAML editors do not duplicate them in both places
+- **Path matching is case-insensitive**: URLs are lowercased before substring match so `/Annual-Report/` and `/annual-report/` both match
 
 ### Crawler refactor: taxonomy loader
 
@@ -244,7 +256,9 @@ Every candidate-evaluation decision writes a JSON line to a rotating file at `lo
 }
 ```
 
-Log rotation: daily file per run date (`logs/crawler_decisions-2026-04-24.jsonl`). Retention policy out of scope for this spec — set to 90 days manually for now.
+**Log rotation**: uses Python's `logging.handlers.TimedRotatingFileHandler` with `when='midnight'`, `backupCount=90`. This gives automated rotation and hard-bounded disk usage (~90 daily files; oldest is evicted automatically). Base filename `logs/crawler_decisions.jsonl`; rotated files become `crawler_decisions.jsonl.2026-04-24`, `.2026-04-23`, etc. No manual cleanup required.
+
+Disk footprint worst-case at ~50 kB per decision record × 5000 decisions/day × 90 days = ~22 GB. If this becomes a concern, switch to compressed rotation (`TimedRotatingFileHandler` supports `.gz` via a post-rotate hook) or tighten `backupCount`.
 
 This log is the measurement substrate for the next iteration. We can grep for specific orgs, compute the rate at which the heuristic agrees with the eventual classifier verdict on fetched items, and tune weights empirically.
 
@@ -254,6 +268,9 @@ This log is the measurement substrate for the next iteration. We can grep for sp
 - AC01: `lavandula/docs/collateral_taxonomy.yaml` exists, validates against the Pydantic schema, and covers every material type in the approved `.md` reference (excluding the 4 explicitly out-of-scope categories).
 - AC02: Crawler fails fast with a clear error message if the YAML is malformed or fails validation.
 - AC03: `lavandula/reports/config.py` no longer hardcodes `ANCHOR_KEYWORDS` or `PATH_KEYWORDS` — both are derived from `taxonomy.current()`.
+- AC16: Taxonomy loader uses `yaml.safe_load()` (not `yaml.load()`). Unit test asserts this: attempt to load a YAML payload containing `!!python/object/apply:os.system ['rm -rf /']` raises a validation error rather than executing.
+- AC17: YAML declares `version: 1`; loader rejects unknown versions with a clear error.
+- AC18: Validator rejects: duplicate keywords across positive/negative lists, keywords shorter than 3 chars, keywords containing regex metacharacters, and strong/weak path overlaps.
 
 ### Anchor extraction
 - AC04: Image-link reports with alt text (`<a href="x.pdf"><img alt="2024 Annual Report"/></a>`) are retained as candidates even when visible anchor text is empty. Unit test covers this case.
@@ -295,6 +312,9 @@ This spec introduces no DB schema changes. Rollback is a pure code revert: `git 
 5. **Don't over-tune filename keywords to the 378-doc baseline.** Over-fitting to one org (Fordham) would hurt recall elsewhere. Keep the keyword lists aligned with the approved taxonomy, not with the observed junk.
 6. **Don't skip the instrumentation.** Without the decision log, we can't measure whether filename triage agrees with classifier verdicts — which is how we justify further tuning later.
 7. **Don't couple the taxonomy YAML to the crawler's internal types.** The YAML is domain-facing (PMs read it). Crawler-internal structures (frozensets, Pydantic models) are derived from it.
+8. **Don't call `yaml.load()`** — always `yaml.safe_load()`. Using the unsafe loader allows RCE via `!!python/object/apply` tags in a committed YAML file, which becomes a supply-chain vulnerability once PMs (who may not understand the distinction) can edit the file.
+9. **Don't try to support regex in filename keywords.** Substring match only. If a keyword has regex metacharacters, the validator rejects it at load time — this is intentional, to keep the PM mental model simple and to eliminate ReDoS risk from pathological PM edits.
+10. **Don't rely on manual log cleanup.** `TimedRotatingFileHandler` with `backupCount` enforces disk bounds automatically. A "clean this up later" policy will eventually wedge the host.
 
 ## Implementation Notes
 
@@ -324,3 +344,24 @@ Additional self-review refinements (not raised by Gemini):
 8. Thresholds were tunable without bounds → **Added** defensive validator rules (`accept >= 0.5`, `reject <= 0.5`) to prevent "accept-everything" / "reject-everything" misconfigurations from PM-level YAML edits.
 9. AC12 conflated offline heuristic validation with live-crawl regression → **Split** into AC12 (offline fixture grading) and AC13 (live re-crawl with Fordham-specific target ≤ 15).
 10. **Added** explicit Rollback section — pure code revert, no DB migration, taxonomy YAML stays committed.
+
+### Round 2 — Gemini red-team review (2026-04-24)
+
+**Verdict: APPROVE, HIGH confidence. CRITICAL 0, HIGH 2, MEDIUM 2, LOW 1.**
+
+All findings addressed:
+
+**HIGH #1 — Insecure YAML deserialization (potential RCE)**. Default `yaml.load()` can execute arbitrary Python via tags such as `!!python/object/apply:os.system`. → **Mandated** `yaml.safe_load()` in the loader. AC16 asserts this via a unit test that attempts to load a malicious YAML payload and confirms it raises rather than executes.
+
+**HIGH #2 — Log file disk exhaustion**. Original spec said "90 days manually" for retention, which will eventually fill disk. → **Replaced** with `logging.handlers.TimedRotatingFileHandler` with `backupCount=90` for automated bounded retention. Added disk-footprint estimate (~22 GB worst-case) and compression escape-hatch.
+
+**MEDIUM #1 — Substring vs regex ambiguity**. PMs editing YAML might assume regex support. → **Documented** substring-only semantics in YAML header comment and Pydantic validator. Validator now **rejects** keywords containing regex metacharacters at load time, eliminating both ambiguity and ReDoS attack surface.
+
+**MEDIUM #2 — Duplicate keyword across positive/negative lists**. Would produce non-deterministic grading. → **Added** validator rule rejecting keywords that appear in both lists.
+
+**LOW #1 — YAML version enforcement**. Older crawler shouldn't parse newer YAML silently. → **Added** `version: 1` declaration and loader that refuses unknown versions.
+
+Additional self-review refinements from red-team pass:
+
+- **Keyword length minimum**: added validator rule (≥ 3 chars) to prevent `"ar"` matching `"smart"`, `"campaign-ar"`, etc.
+- **Case-insensitive path matching**: documented and enforced — URLs lowercased before substring match so `/Annual-Report/` and `/annual-report/` behave identically.
