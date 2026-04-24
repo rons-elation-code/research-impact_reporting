@@ -109,12 +109,14 @@ class NonprofitSeed(models.Model):
 class Report(models.Model):
     content_sha256 = models.TextField(primary_key=True)
     source_org_ein = models.TextField()
+    source_url_redacted = models.TextField(null=True)
     classification = models.TextField(null=True)
     classification_confidence = models.FloatField(null=True)
     archived_at = models.TextField()
     file_size_bytes = models.BigIntegerField()
     page_count = models.IntegerField(null=True)
     report_year = models.IntegerField(null=True)
+    first_page_text = models.TextField(null=True)  # needed by Iteration 2 viewer
 
     class Meta:
         managed = False
@@ -223,11 +225,11 @@ Shows aggregate pipeline health at a glance:
 
 | Section | Content |
 |---------|---------|
-| **Seed Pool** | Total orgs, by state, by status (NULL / resolved / unresolved / ambiguous) |
+| **Seed Pool** | Read-only stats: total orgs, by state, by status (NULL / resolved / unresolved / ambiguous). Not a running stage — seed enumeration is a bounded one-off batch (spec 0001). No Start/Stop control in Iteration 1. |
 | **Resolver** | Running? Model, resolved/unresolved counts since `started_at` |
 | **Crawler** | Running? Orgs crawled, reports found since `started_at` |
 | **Classifier** | Running? Reports classified, by classification type |
-| **Reports** | Total reports, by classification, by year |
+| **Reports** | Total reports, by classification, by year. Links to Reports Browser for row-level detail. |
 
 "Session" metrics are DB deltas: count rows where the relevant timestamp >= `PipelineProcess.started_at`. For resolver, this is `resolver_updated_at >= started_at`. For crawler, `crawled_orgs.last_crawled_at >= started_at`. For classifier, `reports` rows classified since `started_at`.
 
@@ -260,7 +262,9 @@ Each section links to its detail page. HTMX polls every 5 seconds for count upda
 - Skip TLS self-test (checkbox)
 - Start / Stop buttons
 
-**Results table**: Recently crawled orgs with candidate/fetched/confirmed counts.
+**Results tables** (two):
+- **Recently crawled orgs**: org, candidate count, fetched count, confirmed report count, last-crawled timestamp.
+- **Recently archived reports**: filename (extracted from URL basename), org, file size, source URL, classification (if available), archived timestamp. Filename is the human-readable identifier — SHAs are kept for click-through detail only.
 
 ### 4. Classifier Controls (`/classifier/`)
 
@@ -272,7 +276,7 @@ Each section links to its detail page. HTMX polls every 5 seconds for count upda
 - Re-classify (checkbox — re-classify rows that already have a classification)
 - Start / Stop buttons
 
-**Results table**: Recent classifications with sha256, org EIN, classification, confidence.
+**Results table**: Recent classifications with filename (from URL basename), org, classification, confidence, classified timestamp. SHA kept internally for links but not displayed as a column — filename is the human-readable identifier.
 
 ### 5. Org Browser (`/orgs/`)
 
@@ -280,6 +284,14 @@ Paginated table of all nonprofits with:
 - Filters: state, resolver_status, resolver_method
 - Columns: EIN, name, city, state, URL, status, confidence, method, timestamp
 - Click-through to detail view showing full resolver_reason and candidates
+
+### 6. Reports Browser (`/reports/`)
+
+Paginated table of all classified reports, parallel in shape to the Org Browser. Separates "browsing the output" from the Classifier page's "running the classifier" concern.
+
+- Filters: org (EIN or name search), classification, report_year, archived_at date range
+- Columns: filename (URL basename), org, classification, confidence, year, size, archived_at
+- Click-through to detail view showing: full source URL, SHA, first_page_text, PDF metadata, S3 key. Download link via signed S3 URL (see Iteration 2 notes).
 
 ## Database Configuration
 
@@ -370,6 +382,13 @@ A custom database router directs reads for unmanaged models to the `pipeline` DB
 - AC11: Orgs table paginates at 50 rows per page
 - AC12: Orgs filterable by state, resolver_status, resolver_method
 - AC13: Org detail view shows full resolver_reason and website_candidates_json
+
+### Reports Browser
+- AC24: Reports table paginates at 50 rows per page
+- AC25: Reports filterable by org, classification, report_year, archived_at range
+- AC26: Reports table displays filename (URL basename) as the primary human-readable identifier
+- AC27: Report detail view exposes a "Download" action that returns a signed S3 URL valid for 5 minutes
+- AC28: Crawler and Classifier results tables display filename in place of raw SHA256
 
 ### Integration
 - AC14: Django reads from existing lava_impact tables without running migrations against them
@@ -464,6 +483,7 @@ A custom database router directs reads for unmanaged models to the `pipeline` DB
 - Structure/styling extraction display
 - Training data annotation interface
 - Depends on 0014 (PDF extraction)
+- **PDF byte access**: to be resolved in Iteration 2 spec — two candidate approaches: (a) generate short-lived signed S3 URLs per-request and redirect the client, (b) proxy through a Django view that streams bytes. Iteration 1 does not serve PDF bytes; the Reports Browser detail view uses the signed-URL approach as its "Download" action.
 
 ### Iteration 3: Report Interviewer MVP
 - Structured form wizard (Django forms)
@@ -471,3 +491,4 @@ A custom database router directs reads for unmanaged models to the `pipeline` DB
 - Template styling from extracted reports
 - Text input initially, speech-to-text layered in
 - AI-assisted suggestions as training data grows
+- **User model**: Iteration 1 uses a single superuser. Iteration 3 will have multiple users (different interviewers, report authors). Django's default `auth_user` model supports this trivially — no schema migration required at Iteration 1, just adding users via admin later.
