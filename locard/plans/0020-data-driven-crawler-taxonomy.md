@@ -114,13 +114,18 @@ class TaxonomyRaw(BaseModel):
         return self
 
 def _check_keyword_rules(t: "TaxonomyRaw") -> None:
-    """Min length 3, no regex metachars, case-insensitive-friendly."""
+    """Min length 3, no regex metachars, lowercase only, case-insensitive-friendly."""
     def check_list(name: str, kws: tuple[str, ...]) -> None:
         for kw in kws:
             if len(kw) < 3:
                 raise ValueError(f"{name}: keyword {kw!r} shorter than 3 chars")
             if any(c in _REGEX_META for c in kw):
                 raise ValueError(f"{name}: keyword {kw!r} contains regex metacharacters")
+            if kw != kw.lower():
+                raise ValueError(
+                    f"{name}: keyword {kw!r} contains uppercase — all keywords must be "
+                    f"lowercase (matching is case-insensitive, so mixed case is ambiguous)"
+                )
 
     for mt in t.material_types:
         check_list(f"material_types[{mt.id}].filename_signals.strong_positive", mt.filename_signals.strong_positive)
@@ -185,32 +190,38 @@ def load_taxonomy(path: Path) -> Taxonomy:
     return _build_runtime_view(raw)
 
 def _build_runtime_view(raw: TaxonomyRaw) -> Taxonomy:
-    # Auto-aggregate event_type.path_keywords into strong set
-    strong = set(raw.path_keywords.strong)
+    # INVARIANT: every keyword in the runtime view is lowercased. The validator
+    # rejects uppercase, but anchor_signals (human-readable phrases) are allowed
+    # to contain display casing, so we lowercase on aggregation here as a belt-
+    # and-suspenders measure.
+
+    # Auto-aggregate event_type.path_keywords into strong set; lowercase all
+    strong = {kw.lower() for kw in raw.path_keywords.strong}
     for et in raw.event_types:
-        strong |= set(et.path_keywords)
-    weak = frozenset(raw.path_keywords.weak)
+        strong |= {kw.lower() for kw in et.path_keywords}
+    weak = frozenset(kw.lower() for kw in raw.path_keywords.weak)
 
     # Anchor keywords drawn from both material_types and event_types
     anchors: set[str] = set()
     for mt in raw.material_types:
-        anchors |= set(mt.anchor_signals)
+        anchors |= {s.lower() for s in mt.anchor_signals}
     for et in raw.event_types:
-        anchors |= set(et.anchor_signals)
+        anchors |= {s.lower() for s in et.anchor_signals}
 
-    # Filename positive map
+    # Filename positive/negative maps — all keywords lowercased for case-insensitive
+    # matching (basenames are lowercased in filename_grader.normalize too).
     filename_positive: dict[str, float] = {}
     for mt in raw.material_types:
         for kw in mt.filename_signals.strong_positive:
-            filename_positive[kw] = raw.signal_weights.strong_positive
+            filename_positive[kw.lower()] = raw.signal_weights.strong_positive
         for kw in mt.filename_signals.medium_positive:
-            filename_positive.setdefault(kw, raw.signal_weights.medium_positive)
+            filename_positive.setdefault(kw.lower(), raw.signal_weights.medium_positive)
 
     filename_negative: dict[str, float] = {}
     for kw in raw.filename_negative_signals.strong:
-        filename_negative[kw] = raw.signal_weights.strong_negative
+        filename_negative[kw.lower()] = raw.signal_weights.strong_negative
     for kw in raw.filename_negative_signals.medium:
-        filename_negative.setdefault(kw, raw.signal_weights.medium_negative)
+        filename_negative.setdefault(kw.lower(), raw.signal_weights.medium_negative)
 
     return Taxonomy(
         raw=raw,
@@ -244,6 +255,8 @@ def bind(t: Taxonomy) -> None:
 - `test_rejects_threshold_reject_above_half` — `reject = 0.6` raises.
 - `test_rejects_short_keyword` — keyword `"ar"` in positive list raises.
 - `test_rejects_regex_metachar_keyword` — keyword `".*report"` raises.
+- `test_rejects_uppercase_keyword` — keyword `"Annual-Report"` (filename_signals strong_positive) raises with a clear "keywords must be lowercase" error.
+- `test_runtime_view_lowercases_anchor_signals` — anchor_signals in the YAML may contain display-cased phrases like `"Annual Report"`; verify `Taxonomy.anchor_keywords` contains only lowercased entries.
 - `test_rejects_strong_weak_path_overlap` — `"/media"` in both strong and weak raises.
 - `test_rejects_positive_negative_collision` — same keyword in both lists raises.
 - `test_rejects_duplicate_ids` — two material_types with id `"annual_report"` raises.
@@ -401,11 +414,13 @@ def bind(t: Taxonomy) -> None:
   - Import `grade_filename` and `Taxonomy`.
   - Add helper `_basename_from_url(url: str) -> str` (use `urlparse` + `unquote` on the last path segment; return `""` if path has no segments).
   - In `_classify_link`, compute:
-    - `basename = _basename_from_url(href)`
+    - `basename = _basename_from_url(href)` — returns unquoted, lowercased last path segment (via `unquote(url.split("/")[-1]).lower()`); empty string if path is missing
     - `filename_score = grade_filename(basename, tax)` (only when `basename` is non-empty and looks like a filename; otherwise default to `tax.thresholds.base_score`)
-    - `strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)`
+    - `path_lower = url.path.lower()` — **case-insensitive path matching** per spec
+    - `strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)` — keywords already lowercased at load time (invariant)
     - `weak_path_hit = any(kw in path_lower for kw in tax.path_keywords_weak)`
-    - `path_lower = url.path.lower()` — **case-insensitive path matching** per spec.
+
+**Normalization invariant**: both the keywords in `tax.path_keywords_*` and the comparison target `path_lower` are lowercase. Same invariant holds for filename signals (`grade_filename.normalize` lowercases the basename; `tax.filename_positive`/`filename_negative` are lowercased at load time). Matching code must never add a `.lower()` on the keyword side — keywords are already normalized and an extra `.lower()` is a mistake that masks YAML problems.
   - Triage sequence:
     1. If `filename_score <= tax.thresholds.filename_score_reject`: return `Decision.DROP_FILENAME_REJECT`.
     2. If `filename_score >= tax.thresholds.filename_score_accept`: return `Decision.ACCEPT_FILENAME_STRONG`.
@@ -573,4 +588,18 @@ Single builder, focused work:
 
 ## Consultation Log
 
-*(To be filled after consultation)*
+### Round 1 — Gemini plan review (2026-04-24)
+
+**Verdict: APPROVE, HIGH confidence.**
+
+Single finding, addressed:
+
+1. **Keyword normalization at load time**. The runtime Taxonomy view must lowercase all keywords so mixed-case YAML entries match lowercased URL basenames and paths. → **Applied in two places**:
+   - Validator now **rejects** uppercase in keyword lists (`filename_signals`, `path_keywords`, `filename_negative_signals` — all the machine-matched lists). `anchor_signals` (human-readable phrases) may contain display casing in the YAML and are lowercased at runtime-view build time as belt-and-suspenders.
+   - `_build_runtime_view` lowercases all aggregations so the invariant holds even if validator rules loosen in future.
+
+Additional refinements from the plan re-read:
+
+2. **Explicit normalization invariant in sub-phase 1.5**: both keyword and comparison target are lowercased; matching code should never add an extra `.lower()` on the keyword side (that masks YAML problems). Made the invariant a named rule so reviewers catch violations.
+3. **Basename extraction spec**: explicitly unquote + lowercase in `_basename_from_url` so case-differences in URL paths don't cause spurious mismatches between the filename signal and the path signal.
+4. Added two tests: `test_rejects_uppercase_keyword` and `test_runtime_view_lowercases_anchor_signals`.
