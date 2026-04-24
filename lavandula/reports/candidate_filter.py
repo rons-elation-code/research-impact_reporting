@@ -10,17 +10,41 @@ Per-page parse cap is MAX_PARSED_LINKS_PER_PAGE (10_000) per AC8.1.
 """
 from __future__ import annotations
 
+import enum
 from dataclasses import dataclass
 from typing import Iterable
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
-from bs4 import BeautifulSoup  # type: ignore
+from bs4 import BeautifulSoup, Tag  # type: ignore
 
 from . import config
+from .decisions_log import log_decision
+from .filename_grader import grade_filename
 from .redirect_policy import etld1
+from .taxonomy import current as _current_taxonomy
 from .url_redact import canonicalize_url
 
+
+class Decision(enum.Enum):
+    ACCEPT_FILENAME_STRONG = "accept_filename_strong"
+    ACCEPT_MIDDLE = "accept_middle"
+    DROP_FILENAME_REJECT = "drop_filename_reject"
+    DROP_NO_SIGNAL = "drop_no_signal"
+    ACCEPT_PLATFORM = "accept_platform"
+    DROP_CROSS_ORIGIN = "drop_cross_origin"
+
 CANDIDATE_CAP_PER_ORG = config.CANDIDATE_CAP_PER_ORG
+
+
+def _effective_anchor_text(a: Tag) -> str:
+    """Combine visible text, title, aria-label, and img alt into one string."""
+    visible = a.get_text(" ", strip=True) or ""
+    title = (a.get("title") or "").strip()
+    aria = (a.get("aria-label") or "").strip()
+    alts = " ".join((img.get("alt") or "").strip() for img in a.find_all("img"))
+    parts = [p for p in (visible, title, aria, alts.strip()) if p]
+    return " ".join(parts).strip()
+
 MAX_PARSED_LINKS_PER_PAGE = config.MAX_PARSED_LINKS_PER_PAGE
 MAX_PDFS_PER_REPORT_SUBPAGE = config.MAX_PDFS_PER_REPORT_SUBPAGE
 
@@ -143,6 +167,12 @@ def _path_matches(path: str) -> bool:
     return any(kw in p for kw in config.PATH_KEYWORDS)
 
 
+def _basename_from_url(url: str) -> str:
+    path = urlsplit(url).path or ""
+    segment = unquote(path.rsplit("/", 1)[-1]).strip()
+    return segment
+
+
 def _pdf_like(url: str) -> bool:
     return urlsplit(url).path.lower().endswith(".pdf")
 
@@ -161,6 +191,7 @@ def _classify_link(
     seed_etld1: str,
     discovered_via: str,
     parent_is_report_anchor: bool = False,
+    ein: str = "",
 ) -> Candidate | None:
     """Return a Candidate if `href` matches any filter, else None.
 
@@ -208,13 +239,68 @@ def _classify_link(
     if is_cross_origin and not is_cms_match:
         return None
 
+    tax = _current_taxonomy()
+
+    # Filename heuristic grading
+    basename = _basename_from_url(href)
+    filename_score = (
+        grade_filename(basename, tax) if basename else tax.thresholds.base_score
+    )
+
     anchor_hit = _anchor_matches(anchor)
-    path_hit = _path_matches(parsed.path)
+
+    # Tiered path matching — case-insensitive
+    path_lower = (parsed.path or "").lower()
+    strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)
+    weak_path_hit = any(kw in path_lower for kw in tax.path_keywords_weak)
+
+    def _log(decision: Decision) -> None:
+        log_decision({
+            "ein": ein,
+            "url": href,
+            "referring_page": referring_page_url,
+            "basename": basename,
+            "filename_score": round(filename_score, 3),
+            "triage": (
+                "accept" if filename_score >= tax.thresholds.filename_score_accept
+                else "reject" if filename_score <= tax.thresholds.filename_score_reject
+                else "middle"
+            ),
+            "strong_path_hit": strong_path_hit,
+            "weak_path_hit": weak_path_hit,
+            "anchor_text": anchor or "",
+            "anchor_hit": anchor_hit,
+            "decision": decision.value,
+        })
+
+    # Three-tier filename triage
+    if filename_score <= tax.thresholds.filename_score_reject:
+        _log(Decision.DROP_FILENAME_REJECT)
+        return None
+
     pdf_with_anchor = _pdf_like(href) and anchor_hit
     # TICK-001: relaxed PDF acceptance on report-anchor subpages.
     pdf_on_report_subpage = parent_is_report_anchor and _pdf_like(href)
-    if not (anchor_hit or path_hit or pdf_with_anchor or pdf_on_report_subpage):
+
+    if filename_score >= tax.thresholds.filename_score_accept:
+        decision = Decision.ACCEPT_FILENAME_STRONG
+    elif anchor_hit or strong_path_hit:
+        decision = Decision.ACCEPT_MIDDLE
+    elif (
+        weak_path_hit
+        and (
+            anchor_hit
+            or filename_score >= tax.thresholds.filename_score_weak_path_min
+        )
+    ):
+        decision = Decision.ACCEPT_MIDDLE
+    elif pdf_with_anchor or pdf_on_report_subpage:
+        decision = Decision.ACCEPT_MIDDLE
+    else:
+        _log(Decision.DROP_NO_SIGNAL)
         return None
+
+    _log(decision)
 
     if is_cms_match:
         # TICK-002: CMS-subdomain PDF, treated as verified-platform
@@ -248,6 +334,7 @@ def extract_candidates(
     referring_page_url: str,
     discovered_via: str = "homepage-link",
     parent_is_report_anchor: bool = False,
+    ein: str = "",
 ) -> list[Candidate]:
     """Parse `html`, iterate `<a>` tags up to MAX_PARSED_LINKS_PER_PAGE,
     return a deduped list capped at CANDIDATE_CAP_PER_ORG.
@@ -273,7 +360,7 @@ def extract_candidates(
     for a in anchors:
         href_raw = a.get("href") or ""
         href = urljoin(base_url, href_raw.strip())
-        anchor_text = a.get_text(" ", strip=True) or ""
+        anchor_text = _effective_anchor_text(a)
         # TICK-001: enforce per-subpage PDF cap BEFORE _classify_link
         # for links that would only pass via the relaxed rule.
         effective_parent_flag = parent_is_report_anchor
@@ -294,6 +381,7 @@ def extract_candidates(
             seed_etld1=seed_etld1,
             discovered_via=discovered_via,
             parent_is_report_anchor=effective_parent_flag,
+            ein=ein,
         )
         if c is None:
             continue
@@ -390,8 +478,26 @@ def classify_sitemap_url(
         # Any other cross-origin host → drop (AC10).
         return None
 
-    # Same-eTLD+1 non-platform URL: accept if PDF or path keyword matches.
-    if not (_pdf_like(url) or _path_matches(parsed.path)):
+    # Same-eTLD+1 non-platform URL: apply tiered path + filename filter.
+    tax = _current_taxonomy()
+    path_lower = (parsed.path or "").lower()
+    strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)
+    weak_path_hit = any(kw in path_lower for kw in tax.path_keywords_weak)
+    basename = _basename_from_url(url)
+    filename_score = (
+        grade_filename(basename, tax) if basename else tax.thresholds.base_score
+    )
+    if filename_score <= tax.thresholds.filename_score_reject:
+        return None
+    pass_ = (
+        _pdf_like(url)
+        or strong_path_hit
+        or (
+            weak_path_hit
+            and filename_score >= tax.thresholds.filename_score_weak_path_min
+        )
+    )
+    if not pass_:
         return None
 
     return Candidate(

@@ -10,12 +10,12 @@ BASIC_HTML = """
   <a href="/about/impact/">Our Impact</a>             <!-- match -->
   <a href="/reports/2024.pdf">2024 Annual</a>         <!-- match -->
   <a href="/careers">Careers</a>                      <!-- no -->
-  <a href="/donate">Donate</a>                        <!-- no -->
+  <a href="/donate">Donate</a>                        <!-- match (taxonomy) -->
   <a href="/news">News</a>                            <!-- no -->
   <a href="/blog">Blog</a>                            <!-- no -->
   <a href="/volunteer">Volunteer</a>                  <!-- no -->
   <a href="/year-in-review-2024.pdf">Year in Review</a> <!-- match via anchor -->
-  <a href="/press">Press</a>                          <!-- no -->
+  <a href="/press">Press</a>                          <!-- match (weak path) -->
 </body></html>
 """
 
@@ -29,12 +29,13 @@ def test_ac2_anchor_and_path_filter():
         referring_page_url="https://example.org/",
     )
     paths = sorted({c.url.split("example.org", 1)[1] for c in candidates})
-    # TICK-002 Fix 5 added /press to PATH_KEYWORDS, so /press now
-    # matches.
+    # Spec 0020: taxonomy expands keyword set; /donate now matches
+    # via /donate strong path. /press is weak and lacks backing signal
+    # (no anchor keyword match, no positive filename) so it's dropped.
     assert paths == [
         "/about/impact/",
         "/annual-report",
-        "/press",
+        "/donate",
         "/reports/2024.pdf",
         "/year-in-review-2024.pdf",
     ]

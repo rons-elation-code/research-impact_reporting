@@ -43,6 +43,10 @@ log = logging.getLogger(__name__)
 _SCHEMA = "lava_impact"
 _SENTINEL = None
 _RETRY_DELAYS = [5, 10, 20]
+_LEGAL_SUFFIX_RE = re.compile(
+    r"\s+(?:Inc|Corp|Corporation|LLC|Ltd|Co|Foundation|Trust|Assn|Association|Pc)\s*$",
+    re.I,
+)
 
 
 # ── Pipeline Queue ────────────────────────────────────────────────────────────
@@ -266,11 +270,13 @@ def producer(
 
             stats.searched += 1
 
-            # Stage 1: Search
+            # Stage 1: Search — unquoted, legal suffix stripped
+            clean_name = _LEGAL_SUFFIX_RE.sub("", name).strip()
             try:
                 raw_results = search(
-                    f'"{re.sub(r"\"", "", name).strip()}" {city} {state}',
+                    f'{clean_name} {city} {state}',
                     api_key=api_key,
+                    count=20,
                     rate_limiter=rate_limiter,
                 )
             except BraveSearchError as exc:
@@ -494,6 +500,7 @@ def load_unresolved_orgs(
     state: str,
     limit: int | None = None,
     status_filter: str = "unresolved",
+    fresh_only: bool = False,
 ) -> list[dict]:
     """Load orgs from nonprofits_seed that need resolution."""
     sql = (
@@ -502,7 +509,9 @@ def load_unresolved_orgs(
         f"WHERE state=:state"
     )
 
-    if status_filter == "unresolved":
+    if fresh_only:
+        sql += " AND resolver_status IS NULL"
+    elif status_filter == "unresolved":
         sql += " AND (resolver_status IS NULL OR resolver_status = 'unresolved')"
     else:
         sql += " AND resolver_status = :status_filter"

@@ -268,7 +268,7 @@ projects:
   - id: "0013"
     title: "SQLite → PostgreSQL (RDS) Dual-Write Migration"
     summary: "Staged migration to managed Postgres RDS. Deploys RDS alongside existing SQLite with clean Alembic-managed schema, adds dual-write mode to db_writer so every write hits both backends, one-time backfills existing SQLite rows to RDS, then flips reads to RDS once dual-write is proven stable. Avoids a clean-cutoff pause because corpus build is continuous. Uses SQLAlchemy (already committed for 0006/0008) so the code change is minimal."
-    status: implementing
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0013-rds-postgres-migration.md
@@ -276,7 +276,7 @@ projects:
       review: null
     dependencies: ["0004", "0007"]
     tags: [infrastructure, database, rds, migration, dual-write]
-    notes: "Timing: start in parallel with 0006 (dashboard). Option A (dual-write) chosen 2026-04-22 over clean-cutover and sync-job alternatives because corpus build is continuous (no natural cutoff) and extraction-app (0014) needs to begin before corpus is 'complete.' Crawler writes stay fast on SQLite; RDS receives every write via async queue. After 2-4 weeks of proven dual-write stability, reads flip to RDS and SQLite writes eventually retire. All new specs (0006+) must use SQLAlchemy so dual-write is a config change, not a rewrite."
+    notes: "Timing: start in parallel with 0006 (dashboard). Option A (dual-write) chosen 2026-04-22 over clean-cutover and sync-job alternatives because corpus build is continuous (no natural cutoff) and extraction-app (0014) needs to begin before corpus is 'complete.' Crawler writes stay fast on SQLite; RDS receives every write via async queue. After 2-4 weeks of proven dual-write stability, reads flip to RDS and SQLite writes eventually retire. All new specs (0006+) must use SQLAlchemy so dual-write is a config change, not a rewrite. Marked integrated 2026-04-23 by human."
 
   - id: "0014"
     title: "PDF Full-Page Text Extraction for Training"
@@ -320,7 +320,7 @@ projects:
   - id: "0017"
     title: "Retire SQLite — Use PostgreSQL Directly"
     summary: "Remove SQLite from the runtime write path entirely. Migrate every pipeline module (seed_enumerate, resolve_websites, batch_resolve, crawler, db_writer, budget, classify_null, reconcile_s3) to write directly to RDS via the SQLAlchemy engine from Phase 1. Delete the code-coupled dual-write infrastructure from Spec 0013 Phase 3 (rds_db_writer.py, db_queue.py, rds_writer kwargs, LAVANDULA_DUAL_WRITE flag, verify_dual_write tool). Supersedes Spec 0013 Phase 3 (retained but flag-off forever) and cancels Phase 4 (read flip — obsolete when there's only one store). Schema source of truth moves to lavandula/migrations/rds/*.sql."
-    status: implementing
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0017-retire-sqlite.md
@@ -328,12 +328,12 @@ projects:
       review: null
     dependencies: ["0013"]
     tags: [infrastructure, database, postgres, simplification]
-    notes: "Decision 2026-04-22 after demonstrating that code-coupled dual-write is fragile-by-design (breaks every time a new write path forgets to thread rds_writer kwarg). Phase 3 shipped covered only crawler paths; seed/resolver writes were SQLite-only. Plan chosen: truncate RDS, migrate code, test 15-org pipeline, truncate again, backfill from archival SQLite. pg_dump backup at lavandula/nonprofits/data/rds-backups/ + RDS automated 7-day backup cover restore. 15 ACs."
+    notes: "Decision 2026-04-22 after demonstrating that code-coupled dual-write is fragile-by-design (breaks every time a new write path forgets to thread rds_writer kwarg). Phase 3 shipped covered only crawler paths; seed/resolver writes were SQLite-only. Plan chosen: truncate RDS, migrate code, test 15-org pipeline, truncate again, backfill from archival SQLite. pg_dump backup at lavandula/nonprofits/data/rds-backups/ + RDS automated 7-day backup cover restore. 15 ACs. Marked integrated 2026-04-23 by human."
 
   - id: "0018"
     title: "Gemma Pipeline Resolver & Classifier"
     summary: "Replace agent-loop URL resolver (0008) and DeepSeek three-phase resolver (0005) with a code-driven pipeline: Brave Search → filter → HTTP fetch → Gemma 4 E4B (self-hosted on cloud1) disambiguates. Same queue pattern for report classification. 20-100x cost reduction vs agent loop."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0018-gemma-pipeline-resolver.md
@@ -341,12 +341,38 @@ projects:
       review: null
     dependencies: ["0001", "0004", "0013"]
     tags: [resolver, classifier, gemma, pipeline, cost-optimization, self-hosted]
-    notes: "Validated 2026-04-23: Gemma 4 E4B + Brave resolved 9/10 previously-unresolved TX orgs. 74 tok/s, 0.5s warm latency, 9.7GB VRAM on L4 GPU."
+    notes: "Validated 2026-04-23: Gemma 4 E4B + Brave resolved 9/10 previously-unresolved TX orgs. 74 tok/s, 0.5s warm latency, 9.7GB VRAM on L4 GPU. PR #10 merged 2026-04-23 after 3 review rounds. 14 new files, 78 unit tests. Manual validation (AC12/AC13) pending — requires autossh tunnel + live Gemma."
+
+  - id: "0019"
+    title: "Pipeline Dashboard & Control Center (Django)"
+    summary: "Django web app serving as operations cockpit: real-time pipeline progress (seed, resolver, crawler, classifier), process controls (start/stop/configure with model selection), and foundation for future report interviewer. Replaces read-only 0006 concept. Supersedes 0006."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0019-pipeline-dashboard.md
+      plan: null
+      review: null
+    dependencies: ["0013", "0017"]
+    tags: [dashboard, django, operations, interviewer-foundation]
+    notes: "Supersedes 0006 (read-only FastAPI dashboard, never specced). Scope: Phase 1 = pipeline dashboard + controls, Phase 2 = report data extraction viewer, Phase 3 = interviewer MVP."
+
+  - id: "0020"
+    title: "Data-driven crawler taxonomy & precision improvements"
+    summary: "Phase 1 of collateral-taxonomy rollout: convert approved taxonomy (lavandula/docs/collateral_taxonomy.md) to YAML as source of truth for keyword lists and signal weights, refactor crawler to read from YAML, add filename heuristic grading with 3-tier triage, add alt/title/aria-label to anchor extraction, tier path keywords (strong=pass-alone, weak=require-anchor). Enables PM-level taxonomy edits without code changes."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0020-data-driven-crawler-taxonomy.md
+      plan: locard/plans/0020-data-driven-crawler-taxonomy.md
+      review: null
+    dependencies: ["0004", "0018"]
+    tags: [crawler, taxonomy, precision, data-driven, config]
+    notes: "Driven by observed junk in 2026-04-23 crawl (Fordham returned 207 false-positive PDFs via /media path keyword). Taxonomy approved 2026-04-24. Phase 1 ships precision/recall improvements; Phase 2 (classifier expansion) and Phase 3 (DB rename + dashboard) follow."
 ```
 
 ## Next Available Number
 
-**0019** - Reserve this number for your next project
+**0021** - Reserve this number for your next project
 
 ---
 
