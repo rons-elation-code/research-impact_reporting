@@ -286,18 +286,22 @@ This log is the measurement substrate for the next iteration. We can grep for sp
 - AC10: Strong path keyword (`/annual-report`) alone still causes acceptance.
 
 ### Instrumentation
-- AC11: Every fetch decision writes a log record with `basename`, `filename_score`, `triage`, `decision`, and signal-hit flags.
+- AC11: Every fetch decision writes a log record with `ein`, `url_redacted`, `referring_page_redacted` (when known), `basename`, `filename_score`, `triage`, `decision`, `reason`, and signal-hit flags (`strong_path_hit`, `weak_path_hit`, `anchor_hit`). URL fields go through `url_redact.redact_url`; per-org grouping requires `ein` to actually be populated by the call site, which means `discover.py` must thread it through to `_classify_link`.
 
 ### Measurable outcome
 
 Two measurements, each distinct:
 
-- AC12 (**offline heuristic validation**): Running `grade_filename` against the 378 archived-doc basenames from 2026-04-23 produces ≥ 90% agreement with a held-aside manual or classifier label: every file in the `accept` tier (filename_score ≥ 0.8) is a genuine report or event collateral; every file in the `reject` tier (filename_score ≤ 0.2) is genuine junk. Single contested case is allowed; more requires re-tuning keyword weights.
-- AC13 (**live-crawl regression check**): Re-running the crawler against the same 24 orgs archives **≤ 25%** of the original 378 PDFs (i.e., ≤ 95 docs). Fordham specifically drops from 207 to **≤ 15**. All previously archived docs with `filename_score ≥ 0.8` from the 2026-04-23 run are retained.
+- AC12 (**offline heuristic validation**): Running `grade_filename` against the 378 archived-doc basenames from 2026-04-23 produces ≥ 90% agreement with a held-aside manual or classifier label: every file in the `accept` tier (filename_score ≥ 0.8) is a genuine report or event collateral; every file in the `reject` tier (filename_score ≤ 0.2) is genuine junk. Single contested case is allowed; more requires re-tuning keyword weights. **Evidence is produced by `lavandula/reports/tools/grade_baseline.py` (see AC20)** and committed alongside its CSV output for reviewer inspection.
+- AC13 (**Fordham regression as proof-of-mechanism**): The committed Fordham HTML fixture set, replayed through `extract_candidates` with the new triage and tiering, accepts **≤ 15** candidates (down from the 207 archived in the 2026-04-23 run). Of the 41 items in the prior run with `filename_score ≥ 0.8`, every one that appears in the captured fixture pages is retained. The broader 24-org "≤ 25% of 378 across all orgs" expectation is **not** tested directly in this spec — it is an outcome we expect to observe in the next live crawl, not a hard CI gate.
 
 ### No regressions
 - AC14: Existing crawler unit tests pass unchanged.
 - AC15: Existing integration tests pass, possibly with test fixtures updated to reflect tiered behavior.
+
+### Operator artifacts
+- AC19: `lavandula/reports/README.md` documents the taxonomy editing workflow (where the YAML lives, what `grade_baseline.py` does, where decision logs go, the edit→PR→merge→restart cycle for taxonomy changes). Target audience: a PM editing keyword lists without dev help.
+- AC20: `lavandula/reports/tools/grade_baseline.py` is committed and runnable; it reads `lavandula/review_uploads/session_filenames_graded.csv`, applies `grade_filename` with the committed YAML taxonomy, writes a CSV with `filename, heuristic_score, heuristic_triage, prior_graded_score, prior_triage, agreement` columns, and prints the AC12 agreement percentage on tails. Output CSV committed alongside the script for reviewer inspection.
 
 ### Rollback
 
@@ -376,3 +380,18 @@ Additional self-review refinements from red-team pass:
 
 - **Keyword length minimum**: added validator rule (≥ 3 chars) to prevent `"ar"` matching `"smart"`, `"campaign-ar"`, etc.
 - **Case-insensitive path matching**: documented and enforced — URLs lowercased before substring match so `/Annual-Report/` and `/annual-report/` behave identically.
+
+### Round 3 — Spec/plan sync audit (2026-04-24, post-builder-PR)
+
+**Verdict**: TIGHTEN (HIGH confidence — no behavior change, only AC formalization)
+
+After the first builder PR (#11), an audit found that the plan committed to four deliverables that the spec hadn't elevated to acceptance criteria. The builder shipped the spec ACs as green while skipping the plan-only items, exposing a protocol gap.
+
+Tightening applied (no behavior change for the builder; same plan deliverables, now formalized as ACs):
+
+1. **AC11 expanded** to enumerate the full log-record field set (`ein`, `url_redacted`, `referring_page_redacted`, `basename`, `filename_score`, `triage`, `decision`, `reason`, signal-hit flags) and to require that `discover.py` thread `ein` to the `_classify_link` call site. Previously read as "basename + score + triage + decision + signal-hit flags," which let the builder ship `ein` allowlisted but never populated.
+2. **AC13 narrowed** to "Fordham regression as proof-of-mechanism." Previously implied a 24-org test that was never operationalized in the plan; tightened to the Fordham fixture the plan actually delivers, with the broader 24-org figure recast as a post-merge expectation rather than a CI gate.
+3. **AC19 added** for the `lavandula/reports/README.md` operator-workflow documentation that was plan 1.8 only.
+4. **AC20 added** for the `lavandula/reports/tools/grade_baseline.py` script and committed CSV output that was plan 1.4's mechanism for satisfying AC12.
+
+Net effect: spec now contains 20 ACs (up from 18). Builder workload unchanged — every new AC formalizes a deliverable that was already in the plan but not in the spec's AC list.
