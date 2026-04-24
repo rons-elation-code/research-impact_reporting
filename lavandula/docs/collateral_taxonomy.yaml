@@ -1,0 +1,788 @@
+# Collateral Taxonomy — machine-readable source of truth for crawler keyword
+# lists, signal weights, and tier assignments.
+#
+# Matching semantics: all filename_signals, anchor_signals, and path_keywords
+# are matched as CASE-INSENSITIVE SUBSTRINGS, not regex patterns. Do not use
+# regex metacharacters (.*+?[]()|\^$) — the validator rejects them.
+#
+# Companion human-readable reference: collateral_taxonomy.md
+
+version: 1
+
+thresholds:
+  filename_score_accept: 0.8
+  filename_score_reject: 0.2
+  filename_score_weak_path_min: 0.5
+  base_score: 0.5
+
+signal_weights:
+  strong_positive: 0.3
+  medium_positive: 0.15
+  strong_negative: -0.4
+  medium_negative: -0.1
+  year_bonus: 0.1
+
+# ---------------------------------------------------------------------------
+# Material types — organized by group
+# ---------------------------------------------------------------------------
+material_types:
+
+  # --- Reports ---
+  - id: annual_report
+    group: reports
+    tier: web
+    filename_signals:
+      strong_positive: [annual-report, yearly-report]
+      medium_positive: [annual]
+    anchor_signals:
+      - annual report
+      - yearly report
+      - annual
+      - accountability
+      - financials
+      - transparency
+      - results
+    description: "Org-wide annual report"
+
+  - id: impact_report
+    group: reports
+    tier: web
+    filename_signals:
+      strong_positive: [impact-report]
+      medium_positive: [impact]
+    anchor_signals:
+      - impact report
+      - our impact
+      - impact
+      - story report
+    description: "Impact/outcomes-focused report"
+
+  - id: year_in_review
+    group: reports
+    tier: web
+    filename_signals:
+      strong_positive: [year-in-review, yir]
+    anchor_signals:
+      - year in review
+    description: "Year in review publication"
+
+  - id: community_benefit_report
+    group: reports
+    tier: web
+    filename_signals:
+      strong_positive: [community-benefit-report]
+      medium_positive: [community-benefit]
+    anchor_signals:
+      - community benefit report
+      - community report
+      - stakeholder report
+    description: "Health-system community benefit report (IRS Schedule H)"
+
+  - id: donor_impact_report
+    group: reports
+    tier: internal
+    description: "Personalized donor impact statement"
+
+  - id: endowed_fund_report
+    group: reports
+    tier: internal
+    description: "Annual stewardship report on a named fund"
+
+  # --- Capital Campaign / Fundraising Campaign Materials ---
+  - id: campaign_case_statement
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [case-statement]
+    anchor_signals:
+      - case statement
+    description: "External polished case brochure"
+
+  - id: campaign_case_for_support
+    group: campaign
+    tier: mixed
+    filename_signals:
+      strong_positive: [case-for-support]
+    anchor_signals:
+      - case for support
+    description: "Comprehensive internal case document"
+
+  - id: campaign_prospectus
+    group: campaign
+    tier: mixed
+    filename_signals:
+      strong_positive: [prospectus]
+    description: "Gift-opportunity-specific prospectus"
+
+  - id: campaign_gift_opportunities_menu
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [gift-opportunities, naming-opportunities]
+    anchor_signals:
+      - gift opportunities
+      - naming opportunities
+    description: "Naming schedule / gift menu"
+
+  - id: campaign_progress_update
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [campaign-update]
+    anchor_signals:
+      - campaign update
+      - campaign progress
+    description: "Campaign progress update piece"
+
+  - id: campaign_identity_package
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [campaign-identity]
+    description: "Campaign brand guide / identity system"
+
+  - id: campaign_master_brochure
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [campaign-brochure]
+    anchor_signals:
+      - campaign brochure
+    description: "Top-of-funnel campaign brochure"
+
+  - id: campaign_pledge_form
+    group: campaign
+    tier: mixed
+    filename_signals:
+      strong_positive: [pledge, commitment-form]
+    description: "Campaign pledge/commitment form"
+
+  - id: campaign_groundbreaking_piece
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [groundbreaking]
+    description: "Campaign milestone keepsake"
+
+  - id: campaign_launch_package
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [campaign-launch]
+    description: "Public campaign launch materials"
+
+  - id: fundraising_campaign_brochure
+    group: campaign
+    tier: web
+    filename_signals:
+      strong_positive: [fundraising-campaign, capital-campaign]
+    anchor_signals:
+      - capital campaign
+      - fundraising campaign
+    description: "Broader fundraising campaign material"
+
+  - id: feasibility_study_report
+    group: campaign
+    tier: internal
+    description: "Pre-campaign feasibility testing document"
+
+  # --- Invitations and event paper ---
+  - id: save_the_date
+    group: invitations
+    tier: mixed
+    filename_signals:
+      strong_positive: [save-the-date]
+      medium_positive: [std]
+    description: "Save-the-date card"
+
+  - id: event_invitation
+    group: invitations
+    tier: mixed
+    filename_signals:
+      strong_positive: [invitation, invite]
+    description: "Formal event invitation"
+
+  - id: rsvp_reply_card
+    group: invitations
+    tier: internal
+    description: "RSVP reply device"
+
+  - id: event_announcement
+    group: invitations
+    tier: web
+    filename_signals:
+      medium_positive: [announcement]
+    description: "Event announcement"
+
+  # --- Programs and journals (event print) ---
+  - id: event_program
+    group: programs_journals
+    tier: mixed
+    filename_signals:
+      strong_positive: [program, playbill]
+    description: "Event run-of-show or playbill"
+
+  - id: tribute_journal
+    group: programs_journals
+    tier: mixed
+    filename_signals:
+      strong_positive: [tribute, journal, ad-book, commemorative]
+    anchor_signals:
+      - tribute journal
+      - ad book
+    description: "Ad book / commemorative journal"
+
+  - id: honoree_tribute_page
+    group: programs_journals
+    tier: internal
+    description: "Individual tribute page"
+
+  # --- Auction materials ---
+  - id: live_auction_catalog
+    group: auction
+    tier: web
+    filename_signals:
+      strong_positive: [auction, bid-book, live-auction]
+      medium_positive: [catalog, catalogue]
+    anchor_signals:
+      - auction catalog
+      - bid book
+      - live auction
+    description: "Live auction bid book"
+
+  - id: silent_auction_materials
+    group: auction
+    tier: mixed
+    filename_signals:
+      strong_positive: [silent-auction]
+    description: "Silent auction materials"
+
+  - id: auction_lot_display_card
+    group: auction
+    tier: internal
+    description: "At-event lot signage"
+
+  - id: online_auction_microsite_design
+    group: auction
+    tier: web
+    description: "Web-native auction experience"
+
+  # --- Appeals (direct mail and digital) ---
+  - id: appeal_letter
+    group: appeals
+    tier: internal
+    description: "Direct mail appeal letter"
+
+  - id: appeal_reply_device
+    group: appeals
+    tier: internal
+    description: "Donation form insert"
+
+  - id: appeal_insert
+    group: appeals
+    tier: internal
+    description: "Secondary appeal piece / lift note"
+
+  - id: appeal_outer_envelope
+    group: appeals
+    tier: internal
+    description: "Designed outer envelope"
+
+  - id: digital_appeal
+    group: appeals
+    tier: web
+    filename_signals:
+      strong_positive: [appeal, spring-appeal, annual-fund]
+      medium_positive: [year-end]
+    anchor_signals:
+      - appeal
+      - annual fund
+    description: "Email/landing-page/social appeal"
+
+  - id: pledge_form
+    group: appeals
+    tier: mixed
+    description: "Downloadable pledge/commitment form"
+
+  - id: response_card
+    group: appeals
+    tier: internal
+    description: "Generic donation reply device"
+
+  # --- Sponsorship ---
+  - id: sponsor_prospectus
+    group: sponsorship
+    tier: web
+    filename_signals:
+      strong_positive: [sponsorship, sponsor-prospectus, sponsor-package]
+    anchor_signals:
+      - sponsorship
+      - sponsor
+      - sponsorship opportunities
+    description: "Pre-sale sponsor pitch"
+
+  - id: sponsor_benefits_sheet
+    group: sponsorship
+    tier: internal
+    description: "Sponsor fulfillment / deliverables"
+
+  # --- Major gifts ---
+  - id: major_gift_proposal
+    group: major_gifts
+    tier: internal
+    description: "Bespoke donor proposal"
+
+  - id: cultivation_piece
+    group: major_gifts
+    tier: internal
+    description: "Donor visit leave-behind"
+
+  - id: donor_deck
+    group: major_gifts
+    tier: internal
+    description: "Slideshow pitch deck"
+
+  # --- Planned giving ---
+  - id: planned_giving_brochure
+    group: planned_giving
+    tier: web
+    filename_signals:
+      strong_positive: [planned-giving, legacy, bequest, gift-vehicle]
+      medium_positive: [cga, crt, qcd]
+    anchor_signals:
+      - planned giving
+      - legacy giving
+      - bequest
+    description: "General planned-giving program intro"
+
+  - id: bequest_guide
+    group: planned_giving
+    tier: web
+    filename_signals:
+      strong_positive: [bequest-guide, bequest-language]
+    description: "Sample bequest language guide"
+
+  - id: legacy_society_newsletter
+    group: planned_giving
+    tier: mixed
+    filename_signals:
+      strong_positive: [legacy-news]
+    description: "Planned-giving donor newsletter"
+
+  - id: gift_vehicle_one_pager
+    group: planned_giving
+    tier: web
+    description: "CGA/CRT/QCD/DAF explainer"
+
+  # --- Stewardship ---
+  - id: named_fund_brochure
+    group: stewardship
+    tier: mixed
+    description: "Endowed fund acquisition piece"
+
+  - id: donor_acknowledgment
+    group: stewardship
+    tier: internal
+    description: "Thank-you letter design"
+
+  # --- Periodic publications ---
+  - id: donor_newsletter
+    group: periodic
+    tier: web
+    filename_signals:
+      strong_positive: [newsletter]
+    anchor_signals:
+      - newsletter
+    description: "Donor-focused print newsletter"
+
+  - id: planned_giving_newsletter
+    group: periodic
+    tier: web
+    filename_signals:
+      medium_positive: [quarterly]
+    description: "Quarterly planned-giving newsletter"
+
+  - id: program_newsletter
+    group: periodic
+    tier: web
+    description: "Membership/constituent newsletter"
+
+  - id: magazine
+    group: periodic
+    tier: web
+    filename_signals:
+      strong_positive: [magazine]
+    anchor_signals:
+      - magazine
+    description: "Alumni/patient/member magazine"
+
+  - id: annual_letter
+    group: periodic
+    tier: web
+    filename_signals:
+      medium_positive: [annual-letter]
+    description: "President/CEO annual letter"
+
+  # --- Membership and giving society ---
+  - id: membership_acquisition_brochure
+    group: membership
+    tier: web
+    filename_signals:
+      strong_positive: [membership, member-benefits]
+    anchor_signals:
+      - membership
+    description: "Membership recruitment brochure"
+
+  - id: membership_renewal_notice
+    group: membership
+    tier: internal
+    description: "Membership renewal notice"
+
+  - id: member_welcome_kit
+    group: membership
+    tier: internal
+    filename_signals:
+      strong_positive: [welcome-kit]
+    description: "New member welcome package"
+
+  - id: giving_society_material
+    group: membership
+    tier: web
+    filename_signals:
+      strong_positive: [giving-society, friends-of]
+    anchor_signals:
+      - giving society
+      - friends of
+    description: "Giving society cultivation piece"
+
+  # --- Day-of-event materials (all internal except course_map) ---
+  - id: menu_card
+    group: day_of_event
+    tier: internal
+    description: "Event menu card"
+
+  - id: table_card
+    group: day_of_event
+    tier: internal
+    description: "Table card / table number"
+
+  - id: place_card
+    group: day_of_event
+    tier: internal
+    description: "Place card"
+
+  - id: seating_chart
+    group: day_of_event
+    tier: internal
+    description: "Seating chart"
+
+  - id: name_badge
+    group: day_of_event
+    tier: internal
+    description: "Name badge"
+
+  - id: event_signage
+    group: day_of_event
+    tier: internal
+    description: "Step-and-repeat, directional, stage signage"
+
+  - id: bid_paddle
+    group: day_of_event
+    tier: internal
+    description: "Bid paddle / bid number card"
+
+  - id: fund_a_need_graphic
+    group: day_of_event
+    tier: internal
+    description: "Screen graphic for live fund-a-need"
+
+  - id: hole_sponsor_sign
+    group: day_of_event
+    tier: internal
+    description: "Golf hole sponsor sign"
+
+  - id: pairing_sheet
+    group: day_of_event
+    tier: internal
+    description: "Golf pairing sheet / scorecard"
+
+  - id: tee_gift_card
+    group: day_of_event
+    tier: internal
+    description: "Golf tee gift card"
+
+  - id: course_map
+    group: day_of_event
+    tier: mixed
+    description: "Walk/run/ride course map"
+
+  - id: bib_design
+    group: day_of_event
+    tier: internal
+    description: "Walk/run bib design"
+
+  - id: finisher_certificate
+    group: day_of_event
+    tier: internal
+    description: "Finisher certificate"
+
+  # --- Peer-to-peer fundraising ---
+  - id: team_fundraising_kit
+    group: peer_to_peer
+    tier: mixed
+    description: "P2P team fundraising kit"
+
+  - id: participant_welcome_pack
+    group: peer_to_peer
+    tier: internal
+    description: "Participant welcome package"
+
+  # --- Program/services collateral ---
+  - id: program_brochure
+    group: program_services
+    tier: web
+    filename_signals:
+      strong_positive: [program-brochure, services-guide]
+    anchor_signals:
+      - our work
+      - what we do
+    description: "Program/services information brochure"
+
+  # --- Sector-specific ---
+  - id: viewbook
+    group: sector_specific
+    tier: web
+    filename_signals:
+      strong_positive: [viewbook]
+    anchor_signals:
+      - yearbook
+      - viewbook
+    description: "Higher-ed / independent school admissions viewbook"
+
+  - id: grateful_patient_appeal
+    group: sector_specific
+    tier: mixed
+    description: "Health-system grateful patient appeal"
+
+  - id: physician_referral_to_philanthropy
+    group: sector_specific
+    tier: internal
+    description: "Health-system internal referral"
+
+  - id: parent_fund_appeal
+    group: sector_specific
+    tier: mixed
+    filename_signals:
+      strong_positive: [parent-fund]
+    description: "Higher-ed / school parent fund appeal"
+
+  - id: reunion_giving_piece
+    group: sector_specific
+    tier: mixed
+    filename_signals:
+      strong_positive: [reunion]
+    description: "Higher-ed reunion giving piece"
+
+  - id: patron_recognition_wall_artwork
+    group: sector_specific
+    tier: internal
+    description: "Permanent patron recognition installation"
+
+  # --- Other ---
+  - id: other_collateral
+    group: other
+    tier: web
+    description: "Catch-all"
+
+  - id: not_relevant
+    group: other
+    tier: web
+    description: "Classifier negative class"
+
+
+# ---------------------------------------------------------------------------
+# Event types (secondary axis)
+# ---------------------------------------------------------------------------
+event_types:
+  - id: gala
+    path_keywords: [/gala]
+    anchor_signals: [gala, annual gala]
+
+  - id: ball
+    path_keywords: [/ball]
+    anchor_signals: [ball, charity ball]
+
+  - id: benefit_event
+    path_keywords: [/benefit]
+    anchor_signals: [benefit, benefit event]
+
+  - id: breakfast_fundraiser
+    path_keywords: [/breakfast]
+    anchor_signals: [breakfast]
+
+  - id: luncheon
+    path_keywords: [/luncheon]
+    anchor_signals: [luncheon]
+
+  - id: dinner_fundraiser
+    path_keywords: [/dinner]
+    anchor_signals: [dinner]
+
+  - id: cocktail_reception
+    path_keywords: [/cocktail]
+    anchor_signals: [cocktail reception]
+
+  - id: golf_tournament
+    path_keywords: [/golf, /tournament]
+    anchor_signals: [golf tournament, golf classic, golf outing]
+
+  - id: walk_run_event
+    path_keywords: [/walk, /run]
+    anchor_signals: [walkathon, fun run]
+
+  - id: ride_event
+    path_keywords: [/ride]
+    anchor_signals: [charity ride, bikeathon]
+
+  - id: fashion_show
+    path_keywords: [/fashion-show]
+    anchor_signals: [fashion show]
+
+  - id: food_wine_event
+    path_keywords: [/wine-tasting, /cookoff]
+    anchor_signals: [wine tasting, cookoff]
+
+  - id: derby_polo_regatta
+    path_keywords: [/derby, /polo, /regatta]
+    anchor_signals: [derby, polo, regatta]
+
+  - id: telethon
+    anchor_signals: [telethon]
+
+  - id: radiothon
+    anchor_signals: [radiothon]
+
+  - id: auction_event
+    path_keywords: [/auction]
+    anchor_signals: [auction]
+
+
+# ---------------------------------------------------------------------------
+# Path keywords — strong pass alone, weak require anchor or filename match
+# ---------------------------------------------------------------------------
+path_keywords:
+  strong:
+    # Reports
+    - /annual-report
+    - /annual_report
+    - /annualreport
+    - /impact
+    - /our-impact
+    - /transparency
+    - /financials
+    - /about/results
+    - /year-in-review
+    - /reports
+    # Campaign
+    - /capital-campaign
+    - /campaign
+    - /our-campaign
+    - /the-campaign
+    - /fundraising-campaign
+    - /case-for-support
+    - /case-statement
+    - /gift-opportunities
+    - /naming-opportunities
+    # Planned giving
+    - /planned-giving
+    - /legacy
+    - /bequest
+    - /endowment
+    - /estate-planning
+    # Sponsorship
+    - /sponsorship
+    - /sponsor
+    - /sponsors
+    - /sponsorship-opportunities
+    # Publications
+    - /newsletter
+    - /magazine
+    - /publications
+    - /about/publications
+    # Events
+    - /events
+    - /our-events
+    - /upcoming-events
+    - /special-events
+    # Membership
+    - /membership
+    - /friends-of
+    - /giving-society
+    - /societies
+    # Giving pages
+    - /ways-to-give
+    - /giving
+    - /donate
+    - /support-us
+    - /how-to-help
+    # Campaigns / appeals
+    - /giving-tuesday
+    - /year-end
+    - /annual-appeal
+    # Misc previously in PATH_KEYWORDS
+    - /our-work
+    - /news-and-insights
+
+  weak:
+    - /media
+    - /press
+    - /resources
+    - /downloads
+    - /library
+    - /documents
+    - /files
+    - /assets
+    - /uploads
+
+
+# ---------------------------------------------------------------------------
+# Filename negative signals — strong and medium
+# ---------------------------------------------------------------------------
+filename_negative_signals:
+  strong:
+    - form
+    - application
+    - waiver
+    - consent
+    - release
+    - policy
+    - policies
+    - guidelines
+    - handbook
+    - manual
+    - terms
+    - privacy
+    - coloring
+    - campus-map
+    - facility-map
+    - directions
+    - schedule
+    - agenda
+    - minutes
+    - bylaws
+    - curriculum
+    - syllabus
+    - bill
+    - legislation
+    - checklist
+    - template
+    - worksheet
+    - resume
+    - inquiry
+  medium:
+    - notes
+    - letter
+    - memo
+    - commencement
+    - instastories
+    - lawn-signs
