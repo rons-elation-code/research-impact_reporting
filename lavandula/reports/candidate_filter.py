@@ -18,6 +18,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 from bs4 import BeautifulSoup, Tag  # type: ignore
 
 from . import config
+from .decisions_log import log_decision
 from .filename_grader import grade_filename
 from .redirect_policy import etld1
 from .taxonomy import current as _current_taxonomy
@@ -244,16 +245,36 @@ def _classify_link(
         grade_filename(basename, tax) if basename else tax.thresholds.base_score
     )
 
-    # Three-tier filename triage
-    if filename_score <= tax.thresholds.filename_score_reject:
-        return None
-
     anchor_hit = _anchor_matches(anchor)
 
     # Tiered path matching — case-insensitive
     path_lower = (parsed.path or "").lower()
     strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)
     weak_path_hit = any(kw in path_lower for kw in tax.path_keywords_weak)
+
+    def _log(decision: str, reason: str) -> None:
+        log_decision({
+            "url": href,
+            "referring_page": referring_page_url,
+            "basename": basename,
+            "filename_score": round(filename_score, 3),
+            "triage": (
+                "accept" if filename_score >= tax.thresholds.filename_score_accept
+                else "reject" if filename_score <= tax.thresholds.filename_score_reject
+                else "middle"
+            ),
+            "strong_path_hit": strong_path_hit,
+            "weak_path_hit": weak_path_hit,
+            "anchor_text": anchor or "",
+            "anchor_hit": anchor_hit,
+            "decision": decision,
+            "reason": reason,
+        })
+
+    # Three-tier filename triage
+    if filename_score <= tax.thresholds.filename_score_reject:
+        _log("drop", "filename_score<=reject")
+        return None
 
     pdf_with_anchor = _pdf_like(href) and anchor_hit
     # TICK-001: relaxed PDF acceptance on report-anchor subpages.
@@ -274,7 +295,10 @@ def _classify_link(
         or pdf_on_report_subpage
     )
     if not pass_:
+        _log("drop", "no_signal")
         return None
+
+    _log("accept", "signal_match")
 
     if is_cms_match:
         # TICK-002: CMS-subdomain PDF, treated as verified-platform
