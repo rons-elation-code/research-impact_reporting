@@ -1,6 +1,6 @@
 # Plan 0020: Data-Driven Crawler Taxonomy & Precision Improvements
 
-**Status**: Draft
+**Status**: Review
 **Author**: Architect
 **Date**: 2026-04-24
 **Spec**: [locard/specs/0020-data-driven-crawler-taxonomy.md](../specs/0020-data-driven-crawler-taxonomy.md)
@@ -466,8 +466,24 @@ def bind(t: Taxonomy) -> None:
   from logging.handlers import TimedRotatingFileHandler
   from pathlib import Path
   from datetime import datetime, timezone
+  from .url_redact import redact_url
 
   _logger: logging.Logger | None = None
+
+  # Fields whose values are URLs that must be redacted before logging.
+  # Consistent with the existing DB-side pattern where only
+  # source_url_redacted / referring_page_url_redacted are stored.
+  _URL_FIELDS = frozenset({"url", "referring_page"})
+
+  # Fields allowed raw into the log. Anything else is dropped to avoid
+  # accidental leakage of future unredacted context added by callers.
+  _ALLOWED_FIELDS = frozenset({
+      "ts", "ein", "url_redacted", "referring_page_redacted",
+      "basename", "filename_score", "triage",
+      "strong_path_hit", "weak_path_hit",
+      "anchor_text", "anchor_hit",
+      "decision", "reason",
+  })
 
   def _init() -> logging.Logger:
       logger = logging.getLogger("lavandula.crawler.decisions")
@@ -488,19 +504,33 @@ def bind(t: Taxonomy) -> None:
       return logger
 
   def log_decision(record: dict) -> None:
+      """Emit a JSONL decision record. Redacts URL fields and allowlists keys."""
       global _logger
       if _logger is None:
           _logger = _init()
-      record.setdefault("ts", datetime.now(timezone.utc).isoformat())
-      _logger.info(json.dumps(record, default=str))
+      safe: dict = {}
+      for k, v in record.items():
+          if k in _URL_FIELDS and isinstance(v, str) and v:
+              safe[f"{k}_redacted"] = redact_url(v)
+          elif k in _ALLOWED_FIELDS:
+              safe[k] = v
+          # else: silently dropped
+      safe.setdefault("ts", datetime.now(timezone.utc).isoformat())
+      _logger.info(json.dumps(safe, default=str))
   ```
 
-- `lavandula/reports/candidate_filter.py`: call `decisions_log.log_decision({...})` inside `_classify_link` at each terminal branch (accept/drop).
+**Logging safety**: every URL passed to the logger is redacted via `lavandula.reports.url_redact.redact_url` (the same function that produces `source_url_redacted` and `referring_page_url_redacted` in the `reports` table — consistent with the existing codebase pattern). The logger uses an **allowlist** for non-URL fields: anything not explicitly permitted is silently dropped. This prevents future callers from accidentally logging sensitive context by adding new keys to the record dict.
+
+**Anchor text caveat**: `anchor_text` is allowed through unredacted because it *is* the primary signal we are measuring. In practice anchor text is rarely sensitive (it's public page content), but callers should not put PII-bearing data into that field.
+
+- `lavandula/reports/candidate_filter.py`: call `decisions_log.log_decision({...})` inside `_classify_link` at each terminal branch (accept/drop). Pass raw `url` and `referring_page` — the logger handles redaction.
 - `lavandula/reports/discover.py`: pass enough context (ein, referring page) through to the logger. Add fields to the record dict at the `_classify_link` call site.
 
 ### Tests
 
 - `test_decisions_log_writes_jsonl` — redirect the logger's file path to `tmp_path`, call `log_decision`, read file, assert valid JSON per line with the expected fields.
+- `test_decisions_log_redacts_url_fields` — call `log_decision({"url": "https://example.org/x?token=secret", ...})`; confirm output contains `"url_redacted"` key and the token query param is stripped. Confirm no raw `url` key appears.
+- `test_decisions_log_drops_unknown_fields` — call `log_decision({"password": "hunter2", "triage": "accept"})`; confirm `password` is not present in the output.
 - `test_decisions_log_rotates_daily` — harder; can be skipped if the logging-handler behavior is hard to simulate. Cover via integration test in 1.7 instead.
 - `test_log_emitted_on_drop_filename_reject` — stub a candidate, run the filter, confirm one log record with `decision == "drop"` and `reason == "filename_score<=reject"`.
 
@@ -570,6 +600,7 @@ def bind(t: Taxonomy) -> None:
 - Dashboard UI for YAML editing (that's spec 0019 Iteration 2+)
 - Per-event-type subtypes on classifier output (spec 0021, Phase 2)
 - Renaming `reports` table → `collaterals` (Phase 3)
+- Automated dependency vulnerability scanning (`pip-audit`, Dependabot, etc.) — org-wide concern, not scoped to this spec. Should be addressed by a separate DevOps/CI spec covering the whole `lavandula/` tree.
 
 ## Estimated effort
 
@@ -603,3 +634,17 @@ Additional refinements from the plan re-read:
 2. **Explicit normalization invariant in sub-phase 1.5**: both keyword and comparison target are lowercased; matching code should never add an extra `.lower()` on the keyword side (that masks YAML problems). Made the invariant a named rule so reviewers catch violations.
 3. **Basename extraction spec**: explicitly unquote + lowercase in `_basename_from_url` so case-differences in URL paths don't cause spurious mismatches between the filename signal and the path signal.
 4. Added two tests: `test_rejects_uppercase_keyword` and `test_runtime_view_lowercases_anchor_signals`.
+
+### Round 2 — Gemini red-team plan review (2026-04-24, via gemini-2.5-flash due to quota constraints on -pro and flash-preview)
+
+**Verdict: REQUEST_CHANGES, HIGH confidence. CRITICAL 0, HIGH 0, MEDIUM 1, LOW 1.**
+
+Both findings addressed:
+
+**MEDIUM #1 — Sensitive data leakage in `decisions_log.py`**. Original sketch logged raw `url` and `referring_page`, which can carry query-parameter tokens, fragment-embedded auth material, or internal hostnames. → **Applied** URL redaction via the existing `url_redact.redact_url` function (same function used for the DB `source_url_redacted` / `referring_page_url_redacted` columns — established codebase pattern). Added an **allowlist** for non-URL fields so future callers can't accidentally leak new context by adding keys to the record dict. Added two unit tests: `test_decisions_log_redacts_url_fields` and `test_decisions_log_drops_unknown_fields`.
+
+**LOW #1 — No dependency vulnerability management strategy**. → **Documented** as out-of-scope with rationale: this is an org-wide DevOps concern (affects the whole `lavandula/` tree, not just the crawler), and Phase 1's Pydantic + PyYAML usage is already hardened against the specific CVEs that matter here (safe_load, version pinning). Added explicitly to the Out-of-Scope list with a pointer to a future DevOps spec.
+
+**Self-review catches from the red-team re-read:**
+
+5. Anchor text is not redacted — it is the primary signal we are measuring. Noted explicitly in the plan: callers must not put PII-bearing data into the `anchor_text` field (belongs to page content, not user data).
