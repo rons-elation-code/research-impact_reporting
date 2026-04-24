@@ -355,11 +355,24 @@ projects:
     dependencies: ["0013", "0017"]
     tags: [dashboard, django, operations, interviewer-foundation]
     notes: "Supersedes 0006 (read-only FastAPI dashboard, never specced). Scope: Phase 1 = pipeline dashboard + controls, Phase 2 = report data extraction viewer, Phase 3 = interviewer MVP."
+
+  - id: "0020"
+    title: "Data-driven crawler taxonomy & precision improvements"
+    summary: "Phase 1 of collateral-taxonomy rollout: convert approved taxonomy (lavandula/docs/collateral_taxonomy.md) to YAML as source of truth for keyword lists and signal weights, refactor crawler to read from YAML, add filename heuristic grading with 3-tier triage, add alt/title/aria-label to anchor extraction, tier path keywords (strong=pass-alone, weak=require-anchor). Enables PM-level taxonomy edits without code changes."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0020-data-driven-crawler-taxonomy.md
+      plan: null
+      review: null
+    dependencies: ["0004", "0018"]
+    tags: [crawler, taxonomy, precision, data-driven, config]
+    notes: "Driven by observed junk in 2026-04-23 crawl (Fordham returned 207 false-positive PDFs via /media path keyword). Taxonomy approved 2026-04-24. Phase 1 ships precision/recall improvements; Phase 2 (classifier expansion) and Phase 3 (DB rename + dashboard) follow."
 ```
 
 ## Next Available Number
 
-**0020** - Reserve this number for your next project
+**0021** - Reserve this number for your next project
 
 ---
 
