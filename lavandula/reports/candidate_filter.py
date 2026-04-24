@@ -44,6 +44,7 @@ def _effective_anchor_text(a: Tag) -> str:
     alts = " ".join((img.get("alt") or "").strip() for img in a.find_all("img"))
     parts = [p for p in (visible, title, aria, alts.strip()) if p]
     return " ".join(parts).strip()
+
 MAX_PARSED_LINKS_PER_PAGE = config.MAX_PARSED_LINKS_PER_PAGE
 MAX_PDFS_PER_REPORT_SUBPAGE = config.MAX_PDFS_PER_REPORT_SUBPAGE
 
