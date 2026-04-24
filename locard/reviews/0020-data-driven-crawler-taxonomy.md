@@ -86,4 +86,4 @@ Total: 245 tests passing, 10 skipped (DB-dependent tests from other specs).
 - Plan review: Gemini (2026-04-24) -- approved
 - Red team spec: Gemini (2026-04-24) -- no CRITICAL findings; addressed all HIGH/MEDIUM
 - Red team plan: Gemini (2026-04-24) -- no CRITICAL findings; addressed all HIGH/MEDIUM
-- Impl review: Gemini (2026-04-24) -- pending (in progress)
+- Impl review: Gemini (2026-04-24) -- BLOCKED: Gemini API quota exhausted (429 RESOURCE_EXHAUSTED, resets ~22h). Self-review completed above; external consult deferred.
