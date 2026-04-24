@@ -165,28 +165,46 @@ def _check_timestamp_column(engine) -> bool:
 
 
 def _parse_json(text: str) -> dict | None:
+    """Extract the first JSON object dict from a model response.
+
+    Tolerant of common response shapes:
+      - pure JSON
+      - JSON inside ```json fenced code blocks
+      - pretty-printed multi-line JSON
+      - JSON preceded or followed by prose narration (flash-lite habit)
+    """
     if not text:
         return None
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("```"):
-            continue
-        if line.startswith("{"):
-            try:
-                return json.loads(line)
-            except json.JSONDecodeError:
-                pass
+
+    # Strip markdown code fences while preserving the rest
+    clean = text.strip()
+    lines_without_fences = [l for l in clean.splitlines() if not l.strip().startswith("```")]
+    stripped = "\n".join(lines_without_fences).strip()
+
+    # Fast path: whole response is JSON
     try:
-        clean = text.strip()
-        if clean.startswith("```"):
-            clean = "\n".join(
-                l for l in clean.splitlines()
-                if not l.strip().startswith("```")
-            )
-        return json.loads(clean)
+        obj = json.loads(stripped)
+        if isinstance(obj, dict):
+            return obj
     except json.JSONDecodeError:
-        log.warning("Failed to parse JSON from output: %s", text[:200])
-        return None
+        pass
+
+    # Scan for the first balanced JSON object embedded in prose.
+    # raw_decode consumes characters until a complete JSON value is parsed,
+    # so we slide a candidate start across every '{' until one succeeds.
+    decoder = json.JSONDecoder()
+    for i, ch in enumerate(stripped):
+        if ch != "{":
+            continue
+        try:
+            obj, _end = decoder.raw_decode(stripped[i:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            return obj
+
+    log.warning("Failed to parse JSON from output (len=%d): %s", len(text), text[:500])
+    return None
 
 
 def _write_result(engine, ein: str, result: dict, method: str) -> None:
