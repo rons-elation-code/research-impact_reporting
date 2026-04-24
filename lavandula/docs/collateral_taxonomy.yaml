@@ -11,7 +11,7 @@ version: 1
 
 thresholds:
   filename_score_accept: 0.8
-  filename_score_reject: 0.2
+  filename_score_reject: 0.15
   filename_score_weak_path_min: 0.5
   base_score: 0.5
 
@@ -219,7 +219,8 @@ material_types:
     group: programs_journals
     tier: mixed
     filename_signals:
-      strong_positive: [program, playbill]
+      strong_positive: [playbill]
+      medium_positive: [program]
     description: "Event run-of-show or playbill"
 
   - id: tribute_journal
@@ -779,6 +780,13 @@ filename_negative_signals:
     - worksheet
     - resume
     - inquiry
+    - report-card
+    - flyer
+    - registration
+    - menu
+    - poster
+    - catering
+    - roster
   medium:
     - notes
     - letter
@@ -786,3 +794,4 @@ filename_negative_signals:
     - commencement
     - instastories
     - lawn-signs
+    - diagram
