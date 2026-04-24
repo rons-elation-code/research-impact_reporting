@@ -40,7 +40,7 @@ Spec 0020 converts the crawler's hardcoded keyword lists into a machine-readable
 - `test_fordham_baseline_regression.py` -- 2 integration tests: candidate count <= 15, true positives preserved.
 - Updated: `test_candidate_filter.py`, `test_tick_002_discovery_bundle.py` -- adjusted for taxonomy-driven weak path behavior.
 
-Total: 245 tests passing, 10 skipped (DB-dependent tests from other specs).
+Total: 259 tests passing, 10 skipped (DB-dependent tests from other specs).
 
 ## Acceptance criteria status
 

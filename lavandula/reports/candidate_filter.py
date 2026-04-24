@@ -271,7 +271,6 @@ def _classify_link(
             "anchor_text": anchor or "",
             "anchor_hit": anchor_hit,
             "decision": decision.value,
-            "reason": decision.value,
         })
 
     # Three-tier filename triage
