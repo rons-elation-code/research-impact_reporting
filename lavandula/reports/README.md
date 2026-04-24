@@ -10,6 +10,24 @@ queryable `reports_public` SQLite view.
 
 See [`HANDOFF.md`](./HANDOFF.md) for install + run instructions.
 
+## Taxonomy
+
+Crawler keyword lists, signal weights, and thresholds live in
+`lavandula/docs/collateral_taxonomy.yaml` — the single source of truth.
+Changes take effect on next crawler start (no code changes needed).
+
+To tune keywords or thresholds:
+
+1. Edit `collateral_taxonomy.yaml` (add/remove keywords, adjust weights)
+2. Run the validator: `python -c "from lavandula.reports.taxonomy import load_taxonomy; load_taxonomy(Path('lavandula/docs/collateral_taxonomy.yaml'))"`
+3. Run the offline baseline grader: `python -m lavandula.reports.tools.grade_baseline`
+4. Run tests: `python -m pytest lavandula/reports/tests/ -q`
+5. Open a PR — CI runs the validator and Fordham regression automatically
+
+Per-candidate decision data is logged to `logs/crawler_decisions.jsonl`
+(JSONL, daily rotation, 90-day retention). Use this to diagnose
+false-positive/negative patterns after a crawl run.
+
 ## Module map
 
 | Module | Responsibility |
@@ -21,7 +39,10 @@ See [`HANDOFF.md`](./HANDOFF.md) for install + run instructions.
 | `redirect_policy.py` | AC12.2 / AC12.2.1 per-hop gating |
 | `robots.py` | AC1 robots.txt with 24h cache |
 | `sitemap.py` | AC8.1 defusedxml sitemap parser |
-| `candidate_filter.py` | AC2 / AC3 / AC4 / AC12.3 link filter |
+| `taxonomy.py` | YAML taxonomy loader + Pydantic validator |
+| `filename_grader.py` | Filename heuristic scoring for three-tier triage |
+| `decisions_log.py` | Per-candidate JSONL decision log with URL redaction |
+| `candidate_filter.py` | AC2 / AC3 / AC4 / AC12.3 link filter + triage |
 | `discover.py` | Per-org orchestration of robots → homepage → subpages |
 | `fetch_pdf.py` | AC7 HEAD+GET + magic-byte + structural pre-check |
 | `archive.py` | AC9 symlink-safe atomic write + AC10 dedup |
