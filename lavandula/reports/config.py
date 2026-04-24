@@ -84,50 +84,15 @@ ROBOTS_CACHE_TTL_SEC = 24 * 3600
 # --- Hosting platform allowlist ----------------------------------------
 HOSTING_PLATFORMS = frozenset({"issuu.com", "flipsnack.com", "canva.com"})
 
-# --- Candidate keywords (spec) ------------------------------------------
-ANCHOR_KEYWORDS = frozenset({
-    "annual report",
-    "impact report",
-    "year in review",
-    "results",
-    "accountability",
-    "financials",
-    "transparency",
-    "our impact",
-    "annual",
-    "impact",
-    # TICK-002 Fix 5
-    "our work",
-    "what we do",
-    "yearbook",
-    "story report",
-    "community report",
-    "stakeholder report",
-})
+# --- Candidate keywords (taxonomy-driven) --------------------------------
+from .taxonomy import load_taxonomy, bind as _bind_taxonomy
 
-PATH_KEYWORDS = frozenset({
-    "/impact",
-    "/annual-report",
-    "/annual_report",
-    "/annualreport",
-    "/transparency",
-    "/financials",
-    "/about/results",
-    "/our-impact",
-    "/reports",
-    "/publications",
-    # TICK-002 Fix 5: expanded for nonprofit URL patterns seen in
-    # the 2026-04-19 run but missed by the original keyword set.
-    "/resources",
-    "/media",
-    "/news-and-insights",
-    "/our-work",
-    "/about/publications",
-    "/press",
-    "/library",
-    "/downloads",
-    "/year-in-review",
-})
+_TAXONOMY_PATH = ROOT.parent / "docs" / "collateral_taxonomy.yaml"
+_taxonomy = load_taxonomy(_TAXONOMY_PATH)
+_bind_taxonomy(_taxonomy)
+
+ANCHOR_KEYWORDS = _taxonomy.anchor_keywords
+PATH_KEYWORDS = _taxonomy.path_keywords_strong | _taxonomy.path_keywords_weak
 
 # TICK-002 Fix 4: locale prefixes used for i18n path dedup. When
 # a URL's first segment is one of these AND the rest of the path
