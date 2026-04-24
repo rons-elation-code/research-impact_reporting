@@ -39,10 +39,16 @@ _RESOLVER_CONFIGS = {
         "method": "codex-gpt54mini-v1",
     },
     "gemini": {
-        "cmd": ["gemini", "-p"],
+        "cmd": ["gemini"],
         "output_flag": None,
         "method": "gemini-flash-v1",
         "extra_args": ["--yolo", "--model", "gemini-2.5-flash", "-o", "text"],
+    },
+    "gemini-flash-lite": {
+        "cmd": ["gemini"],
+        "output_flag": None,
+        "method": "gemini-flash-lite-v1",
+        "extra_args": ["--yolo", "--model", "gemini-2.5-flash-lite", "-o", "text"],
     },
     "claude": {
         "cmd": ["claude", "-p"],
@@ -97,7 +103,9 @@ def _run_codex(prompt: str, config: dict, timeout: int) -> dict | None:
 
 
 def _run_gemini(prompt: str, config: dict, timeout: int) -> dict | None:
-    cmd = config["cmd"] + config.get("extra_args", []) + [prompt]
+    # Gemini CLI requires -p to be immediately followed by the prompt argument,
+    # so we append "-p" and the prompt last, after all other flags.
+    cmd = config["cmd"] + config.get("extra_args", []) + ["-p", prompt]
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, timeout=timeout,
@@ -134,6 +142,7 @@ _RUNNERS = {
     "codex": _run_codex,
     "codex-mini": _run_codex,
     "gemini": _run_gemini,
+    "gemini-flash-lite": _run_gemini,
     "claude": _run_claude,
 }
 
