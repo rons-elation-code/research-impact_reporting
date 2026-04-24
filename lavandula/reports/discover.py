@@ -58,6 +58,7 @@ def per_org_candidates(
     seed_etld1: str,
     fetcher: Fetcher,
     robots_text: str,
+    ein: str = "",
 ) -> list[Candidate]:
     """Return the capped, deduped list of candidates for this org.
 
@@ -179,6 +180,7 @@ def per_org_candidates(
             seed_etld1=seed_etld1,
             referring_page_url=home_base,
             discovered_via="homepage-link",
+            ein=ein,
         )
         for c in page_candidates:
             # robots gate on on-domain URLs.
@@ -218,6 +220,7 @@ def per_org_candidates(
                 referring_page_url=sub.url,
                 discovered_via="subpage-link",
                 parent_is_report_anchor=parent_is_report_anchor,
+                ein=ein,
             )
             for c in sub_candidates:
                 parsed = urlsplit(c.url)
