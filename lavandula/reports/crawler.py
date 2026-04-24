@@ -327,6 +327,7 @@ def process_org(
         seed_etld1=seed_etld1,
         fetcher=_fetcher,
         robots_text=robots_text,
+        ein=ein,
     )
     result.candidate_count = len(candidates)
 

@@ -191,6 +191,7 @@ def _classify_link(
     seed_etld1: str,
     discovered_via: str,
     parent_is_report_anchor: bool = False,
+    ein: str = "",
 ) -> Candidate | None:
     """Return a Candidate if `href` matches any filter, else None.
 
@@ -253,8 +254,9 @@ def _classify_link(
     strong_path_hit = any(kw in path_lower for kw in tax.path_keywords_strong)
     weak_path_hit = any(kw in path_lower for kw in tax.path_keywords_weak)
 
-    def _log(decision: str, reason: str) -> None:
+    def _log(decision: Decision) -> None:
         log_decision({
+            "ein": ein,
             "url": href,
             "referring_page": referring_page_url,
             "basename": basename,
@@ -268,38 +270,38 @@ def _classify_link(
             "weak_path_hit": weak_path_hit,
             "anchor_text": anchor or "",
             "anchor_hit": anchor_hit,
-            "decision": decision,
-            "reason": reason,
+            "decision": decision.value,
+            "reason": decision.value,
         })
 
     # Three-tier filename triage
     if filename_score <= tax.thresholds.filename_score_reject:
-        _log("drop", "filename_score<=reject")
+        _log(Decision.DROP_FILENAME_REJECT)
         return None
 
     pdf_with_anchor = _pdf_like(href) and anchor_hit
     # TICK-001: relaxed PDF acceptance on report-anchor subpages.
     pdf_on_report_subpage = parent_is_report_anchor and _pdf_like(href)
 
-    pass_ = (
-        filename_score >= tax.thresholds.filename_score_accept
-        or anchor_hit
-        or strong_path_hit
-        or (
-            weak_path_hit
-            and (
-                anchor_hit
-                or filename_score >= tax.thresholds.filename_score_weak_path_min
-            )
+    if filename_score >= tax.thresholds.filename_score_accept:
+        decision = Decision.ACCEPT_FILENAME_STRONG
+    elif anchor_hit or strong_path_hit:
+        decision = Decision.ACCEPT_MIDDLE
+    elif (
+        weak_path_hit
+        and (
+            anchor_hit
+            or filename_score >= tax.thresholds.filename_score_weak_path_min
         )
-        or pdf_with_anchor
-        or pdf_on_report_subpage
-    )
-    if not pass_:
-        _log("drop", "no_signal")
+    ):
+        decision = Decision.ACCEPT_MIDDLE
+    elif pdf_with_anchor or pdf_on_report_subpage:
+        decision = Decision.ACCEPT_MIDDLE
+    else:
+        _log(Decision.DROP_NO_SIGNAL)
         return None
 
-    _log("accept", "signal_match")
+    _log(decision)
 
     if is_cms_match:
         # TICK-002: CMS-subdomain PDF, treated as verified-platform
@@ -333,6 +335,7 @@ def extract_candidates(
     referring_page_url: str,
     discovered_via: str = "homepage-link",
     parent_is_report_anchor: bool = False,
+    ein: str = "",
 ) -> list[Candidate]:
     """Parse `html`, iterate `<a>` tags up to MAX_PARSED_LINKS_PER_PAGE,
     return a deduped list capped at CANDIDATE_CAP_PER_ORG.
@@ -379,6 +382,7 @@ def extract_candidates(
             seed_etld1=seed_etld1,
             discovered_via=discovered_via,
             parent_is_report_anchor=effective_parent_flag,
+            ein=ein,
         )
         if c is None:
             continue

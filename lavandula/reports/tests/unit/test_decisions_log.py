@@ -143,6 +143,6 @@ def test_log_emitted_on_drop_filename_reject(tmp_path):
         finally:
             cf.log_decision = original_cf_log
 
-    drop_records = [r for r in records if r.get("decision") == "drop"]
+    drop_records = [r for r in records if "drop" in r.get("decision", "")]
     assert len(drop_records) >= 1
-    assert drop_records[0]["reason"] == "filename_score<=reject"
+    assert drop_records[0]["decision"] == "drop_filename_reject"

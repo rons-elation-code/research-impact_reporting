@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
+from . import config
 from .url_redact import redact_url
 
 _logger: logging.Logger | None = None
@@ -31,7 +32,7 @@ def _init() -> logging.Logger:
     logger = logging.getLogger("lavandula.crawler.decisions")
     logger.setLevel(logging.INFO)
     logger.propagate = False
-    log_dir = Path("logs")
+    log_dir = config.LOGS
     log_dir.mkdir(exist_ok=True)
     handler = TimedRotatingFileHandler(
         filename=log_dir / "crawler_decisions.jsonl",
