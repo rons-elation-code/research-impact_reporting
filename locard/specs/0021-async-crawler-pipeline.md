@@ -1,6 +1,6 @@
 # Spec 0021 — Async I/O Crawler Pipeline
 
-**Status**: Draft (v2 — post-consultation)
+**Status**: Draft (v3 — post-red-team)
 **Author**: Architect
 **Created**: 2026-04-25
 **Dependencies**: 0004 (site-crawl catalogue), 0020 (data-driven taxonomy)
@@ -9,21 +9,38 @@
 
 ## Consultation Log
 
-| Round | Model | Verdict | Key Issues |
-|-------|-------|---------|------------|
-| 1 | Claude | REQUEST_CHANGES | DNS pinning under aiohttp unaddressed; scope bundles 3 features; AsyncHTTPClient lifecycle missing; AC11 parity needs stub fixture; missing ACs for halt-file, retry, batched DB writer |
-| 1 | Codex | REQUEST_CHANGES | Over-scoped (4 concerns); DB writer ambiguity (batched coroutine vs run_in_executor); shutdown/resume underspecified; task fanout (100K tasks); resource limits incomplete |
+| Round | Model | Type | Verdict | Key Issues |
+|-------|-------|------|---------|------------|
+| 1 | Claude | spec-review | REQUEST_CHANGES | DNS pinning under aiohttp; scope bundles 3 features; missing ACs for halt-file, retry, DB writer |
+| 1 | Codex | spec-review | REQUEST_CHANGES | Over-scoped; DB writer ambiguity; shutdown/resume underspecified; task fanout |
+| 2 | Codex | red-team | REQUEST_CHANGES | Org-completion durability; shutdown drain/abandon inconsistency; DNS multi-address underspecified |
+| 2 | Claude | red-team | REQUEST_CHANGES | Non-gzip Content-Encoding bypass; TLS hostname verification; ProcessPool worker tainting; denial-of-crawl via transient errors |
 
-### Changes in v2
+### Changes in v2 (post spec-review)
 
-1. **Scope narrowed**: Removed conditional fetching (Phase 6 → future spec 0022) and org prioritization (Phase 7 → future spec 0023). This spec covers only async pipeline + progress reporting.
-2. **DNS pinning design added**: Explicit `AsyncHostPinCache` with `loop.run_in_executor` for `getaddrinfo` + custom `aiohttp.AbstractResolver`.
-3. **DB writer ownership clarified**: Single `DBWriterActor` coroutine owns a bounded `asyncio.Queue`; download workers enqueue write requests; the actor batches and flushes via `run_in_executor`.
-4. **Bounded org producer**: Replaced 100K-task fanout with an async iterator feeding a bounded worker pool.
-5. **Graceful shutdown semantics defined**: Partial orgs are idempotent on resume; queued downloads are drained or abandoned (durability boundary = `crawled_orgs` upsert).
-6. **AsyncHTTPClient lifecycle specified**: Async context manager; session created on `__aenter__`, closed on `__aexit__`.
-7. **Retry semantics, halt-file polling, resource limits** all added as explicit ACs.
-8. **AC11 pinned to stub-fetcher fixture; AC25 reframed as benchmark target.**
+1. **Scope narrowed**: Removed conditional fetching (→ spec 0022) and org prioritization (→ spec 0023).
+2. **DNS pinning design added**: `AsyncHostPinCache` as `aiohttp.AbstractResolver`.
+3. **DB writer ownership clarified**: Single `DBWriterActor` coroutine.
+4. **Bounded org producer**: Replaced 100K-task fanout.
+5. **Graceful shutdown semantics defined**.
+6. **AsyncHTTPClient lifecycle specified**: Async context manager.
+7. **Retry semantics, halt-file polling, resource limits** added as ACs.
+
+### Changes in v3 (post red-team)
+
+1. **Content-Encoding defense**: Explicit AC rejecting any encoding other than `gzip` or `identity`/absent. `auto_decompress=False` + manual zlib. Matches sync client behavior (spec 0004 AC8).
+2. **TLS hostname verification AC**: Integration test verifying cert-for-hostname, not cert-for-IP, when using custom resolver.
+3. **ProcessPool worker recycling**: `max_tasks_per_child=1` preserves subprocess-per-PDF isolation from sync client.
+4. **PDF validation timeout**: 30s per-task via `Future.result(timeout=30)` + process termination on timeout.
+5. **Org completion semantics**: Per-org `asyncio.Event` fires only after all downloads for that org are confirmed archived + DB-flushed. `upsert_crawled_org` enqueued only after the barrier.
+6. **Transient vs permanent failure**: Orgs with transient failures (network, timeout, TLS) are NOT marked complete — resume retries them. Only permanent failures (robots disallow, SSRF rejection) and successful crawls are marked.
+7. **DNS pinning tightened**: Single IP pinned (first IPv4 result preferred). Negative results cached. Multi-address hosts use only the pinned IP. Each new host in redirect chain is independently resolved.
+8. **Shutdown semantics unified**: Single mode — drain in-flight, flush DB, exit. No `--fast-shutdown`. Double-SIGINT within 5s forces immediate exit.
+9. **Connector defense-in-depth**: `limit=500, limit_per_host=2` as safety net behind application-level controls.
+10. **Memory accounting**: Max concurrent PDF bodies = `max_download_workers` x `MAX_PDF_BYTES` = 50 x 50MB = 2.5GB. Reduced default `max_download_workers` to 20 for 1GB peak PDF body budget.
+11. **DB executor**: Single-thread executor for DBWriterActor (Postgres handles concurrency, but single-thread simplifies ordering).
+12. **Keepalive timeout**: `keepalive_timeout=60` on connector; connections recycled periodically.
+13. **Granular request timeouts**: `ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=15)`.
 
 ---
 
@@ -105,13 +122,27 @@ asyncio event loop (1 thread)
 
 **D3: Producer-consumer with bounded queue.** Discovery and downloading are decoupled via an `asyncio.Queue(maxsize=1000)`. Discovery coroutines produce candidates; download coroutines consume them. The bounded queue provides natural backpressure — if downloads fall behind, discovery pauses. The queue holds `Candidate` objects (metadata only, ~200 bytes each), never PDF bodies.
 
-**D4: Bounded org producer, not task-per-seed.** Instead of creating 100K `asyncio.Task` objects upfront (wasteful memory, slow cancellation), an async iterator yields `(ein, website)` tuples. A fixed pool of N org-worker coroutines pulls from the iterator via an `asyncio.Queue(maxsize=N)`. This bounds active tasks to N + M (download workers).
+**D4: Bounded org producer, not task-per-seed.** Instead of creating 100K `asyncio.Task` objects upfront (wasteful memory, slow cancellation), an async iterator yields `(ein, website)` tuples. A fixed pool of N org-worker coroutines pulls from the iterator via an `asyncio.Queue(maxsize=N)`. This bounds application-created tasks to N + M + 4 (org workers + download workers + producer/actor/sentinel/reporter).
 
-**D5: DB Writer Actor pattern.** A single `DBWriterActor` coroutine owns a bounded `asyncio.Queue(maxsize=200)`. Download workers (and discovery for `record_fetch`) enqueue `WriteRequest` dataclass instances. The actor drains the queue, batches rows, and flushes via `loop.run_in_executor(thread_pool, flush_batch, ...)` where `flush_batch` opens one `engine.begin()` transaction for the batch. The 4-thread executor is only used by this one actor — no unbounded work piling up.
+**D5: DB Writer Actor pattern.** A single `DBWriterActor` coroutine owns a bounded `asyncio.Queue(maxsize=200)`. All DB writes flow through it — download workers, discovery coroutines, and org-completion all enqueue typed `WriteRequest` dataclass instances (discriminated union: `RecordFetchRequest`, `UpsertReportRequest`, `UpsertCrawledOrgRequest`). The actor drains the queue, batches rows by operation type, and flushes via `loop.run_in_executor(single_thread_executor, flush_batch, ...)`. A single-thread executor simplifies ordering and avoids contention. Flush failures are logged and retried once; persistent failures are logged with the full request for manual recovery.
 
-**D6: Subprocess PDF validation via ProcessPoolExecutor.** The existing `_validate_pdf_structure` spawns a subprocess per PDF. In the async pipeline, download workers call `await loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body)`. The `ProcessPoolExecutor(max_workers=4)` bounds concurrent validations. We use `_validate_pdf_structure_inner` directly (not the subprocess-spawning wrapper) since `ProcessPoolExecutor` already isolates in separate processes.
+**D6: ProcessPoolExecutor with per-task recycling.** Download workers call `await loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body)`. The pool is configured as `ProcessPoolExecutor(max_workers=4, max_tasks_per_child=1)` — each worker process handles exactly one PDF then exits, preserving the subprocess-per-PDF isolation of the synchronous client. This prevents a malicious PDF that corrupts parser state from tainting subsequent validations. Cost: ~10ms fork overhead per validation, negligible vs network I/O. Additionally, `Future.result(timeout=30)` ensures hostile PDFs cannot hang the validation pool; on timeout the worker is terminated.
 
-**D7: Custom aiohttp resolver for DNS pinning.** `AsyncHostPinCache` implements `aiohttp.abc.AbstractResolver`. On first resolution, it calls `socket.getaddrinfo` via `loop.run_in_executor` (non-blocking), checks `is_address_allowed`, and caches the result. Subsequent lookups return the pinned IP. The resolver is injected into `aiohttp.TCPConnector(resolver=async_pin_cache)`. This preserves the SSRF defense from `HostPinCache` (spec 0004 AC12.1) in the async context.
+**D7: Custom aiohttp resolver for DNS pinning.** `AsyncHostPinCache` implements `aiohttp.abc.AbstractResolver`. On first resolution, it calls `socket.getaddrinfo` via `loop.run_in_executor` (non-blocking), selects the first IPv4 result (AF_INET preferred for consistency; falls back to IPv6 if no IPv4), checks `is_address_allowed`, and caches the single pinned IP. Negative results (disallowed IPs) are also cached for the session lifetime to prevent CPU-amplification via repeated resolution of private-IP hosts. Each new hostname encountered in a redirect chain is independently resolved and validated. The resolver preserves the original hostname in the result dict so aiohttp uses it for SNI and TLS certificate validation (not the IP). The resolver is injected into `aiohttp.TCPConnector(resolver=async_pin_cache)`.
+
+**D8: Transient vs permanent org failures.** An org's crawl outcome is categorized:
+- **success**: Discovery + all downloads completed and archived. `upsert_crawled_org` records it; resume skips.
+- **permanent_skip**: Robots disallowed, SSRF rejection, invalid seed URL. Recorded with status; resume skips.
+- **transient_failure**: Network timeout, TLS error, DNS failure, server error. NOT recorded in `crawled_orgs`; resume retries.
+This prevents an adversary from using reproducible errors to permanently opt out of crawling (denial-of-crawl defense).
+
+**D9: Org completion barrier.** Each org tracks its outstanding download count via an `asyncio.Event` + atomic counter. The org worker:
+1. Discovers candidates and enqueues them to the download queue (incrementing the counter per enqueue)
+2. Waits on the barrier event (set when counter reaches 0)
+3. Only then enqueues `UpsertCrawledOrgRequest` to the DB writer
+4. The download worker decrements the counter after archiving + DB write confirmation
+
+This ensures `upsert_crawled_org` is never written until all downloads for that org are durably persisted.
 
 ## Technical Implementation
 
@@ -135,15 +166,18 @@ class AsyncHTTPClient:
 
 **Session configuration:**
 - `aiohttp.ClientSession(connector=connector, headers=default_headers)`
-- `connector = aiohttp.TCPConnector(limit=0, limit_per_host=0, use_dns_cache=False, resolver=async_pin_cache)`
-  - `limit=0`, `limit_per_host=0`: no connector-level caps; our semaphore + org cap are the correctness contract
+- `connector = aiohttp.TCPConnector(limit=500, limit_per_host=2, use_dns_cache=False, resolver=async_pin_cache, keepalive_timeout=60)`
+  - `limit=500`: defense-in-depth cap behind application-level org/semaphore controls
+  - `limit_per_host=2`: safety net behind the per-host semaphore (1 active + 1 queued)
   - `use_dns_cache=False`: we do our own caching via `AsyncHostPinCache`
-  - `resolver=async_pin_cache`: SSRF-safe DNS pinning
+  - `resolver=async_pin_cache`: SSRF-safe DNS pinning (D7)
+  - `keepalive_timeout=60`: connections recycled periodically; prevents stale pinned connections
 - `auto_decompress=False` on the session: we decompress manually to enforce the byte cap
+- `timeout=aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=15)`: granular timeouts catch slow-loris-style trickle reads
 
-**Decompressed-size cap:** Same streaming logic as `ReportsHTTPClient._decompress_stream`, using `resp.content.read(8192)` chunks with manual `zlib.decompressobj` for gzip.
+**Content-Encoding policy (security-critical):** Only `gzip` and `identity`/absent are accepted. If the response has `Content-Encoding` set to anything else (`br`, `deflate`, `zstd`, etc.), the response is rejected as `blocked_content_type`. This matches the synchronous client (spec 0004 AC8) and the outbound `Accept-Encoding: gzip, identity` header — any other encoding is a protocol violation. The decompressed-byte cap is enforced via manual `zlib.decompressobj(zlib.MAX_WBITS | 16)` for gzip, using `resp.content.read(8192)` chunks. SHA256 is always computed over decompressed bytes.
 
-**Redirect handling:** `allow_redirects=False` on each request; manual redirect following with `check_redirect_chain` at every hop, same as the synchronous client.
+**Redirect handling:** `allow_redirects=False` on each request; manual redirect following with `check_redirect_chain` at every hop, same as the synchronous client. Cookie and Authorization headers are not forwarded on cross-origin redirects (inherited from `check_redirect_chain` which rejects cross-eTLD+1 hops for non-platform domains).
 
 **Retry semantics:** Same policy as today (`config.RETRY_STATUSES`, `config.RETRY_KINDS`, `config.RETRY_MAX_ATTEMPTS`, `config.RETRY_BACKOFF_SEC`). Retries use `await asyncio.sleep(backoff)` instead of `time.sleep`.
 
@@ -180,13 +214,29 @@ class AsyncHostPinCache(aiohttp.abc.AbstractResolver):
 
     Resolves hostname → IP via getaddrinfo in an executor (non-blocking),
     checks is_address_allowed, caches for the session lifetime.
+    Negative results (disallowed IPs) are also cached.
     """
 
-    async def resolve(self, host: str, port: int, family: int) -> list[dict]: ...
+    async def resolve(self, host: str, port: int, family: int) -> list[dict]:
+        """Return pinned IP for host. Raises on disallowed/unresolvable.
+
+        - Prefers IPv4 (AF_INET) results; falls back to IPv6 if no IPv4.
+        - Pins exactly ONE IP per hostname for the session.
+        - Negative results cached — repeated attempts to resolve a
+          private-IP host do not trigger new getaddrinfo calls.
+        - Preserves original hostname in result dict for SNI/cert validation.
+        """
+
     async def close(self) -> None: ...
 ```
 
-This is injected into `aiohttp.TCPConnector(resolver=...)`. The aiohttp connector calls `resolve` before each new TCP connection. Pinned IPs are returned for subsequent connections to the same host.
+**Contract:**
+- `getaddrinfo` runs via `loop.run_in_executor` (non-blocking).
+- First IPv4 result is pinned. If no IPv4 results, first IPv6 result is pinned.
+- `is_address_allowed(pinned_ip)` must return True; otherwise raises `aiohttp.ClientConnectorError` and the rejection is cached.
+- The resolver result dict includes `hostname=original_host` so aiohttp uses it for TLS SNI and certificate verification, NOT the IP address.
+- Each hostname in a redirect chain is independently resolved and validated. Redirect to a new host triggers a fresh `resolve()` call.
+- Pooled connections use `keepalive_timeout=60` so stale connections don't persist indefinitely.
 
 ### Phase 4: Async Discovery (`async_discover.py`)
 
@@ -263,7 +313,7 @@ async def run_async(
     seeds: list[tuple[str, str]],
     *,
     max_concurrent_orgs: int = 200,
-    max_download_workers: int = 50,
+    max_download_workers: int = 20,
     run_id: str = "",
     halt_dir: Path | None = None,
 ) -> CrawlStats:
@@ -271,9 +321,11 @@ async def run_async(
 
 **Bounded org processing:**
 ```python
-async def org_producer(seeds, org_queue):
+async def org_producer(seeds, org_queue, shutdown_event):
     """Feed seeds into a bounded queue. Backpressure when pool is full."""
     for ein, website in seeds:
+        if shutdown_event.is_set():
+            break
         if should_skip_ein(engine, ein=ein, refresh=refresh):
             continue
         await org_queue.put((ein, website))
@@ -282,27 +334,58 @@ async def org_producer(seeds, org_queue):
         await org_queue.put(None)
 
 async def org_worker(org_queue, download_queue, client, db_actor):
-    """Pull orgs from queue, discover candidates, feed download queue."""
+    """Pull orgs from queue, discover candidates, wait for downloads, mark complete."""
     while True:
         item = await org_queue.get()
         if item is None:
             break
         ein, website = item
+        org_tracker = OrgDownloadTracker()
         try:
             candidates = await discover_org(...)
             for cand in candidates:
-                await download_queue.put((ein, cand, ...))
-        except Exception:
-            logger.exception(...)
+                org_tracker.increment()
+                await download_queue.put((ein, cand, org_tracker))
+            # Wait for ALL downloads for this org to complete (D9 barrier)
+            await org_tracker.wait_all_done()
+            # Only now mark the org as complete
+            await db_actor.enqueue(UpsertCrawledOrgRequest(ein=ein, ...))
+        except (asyncio.CancelledError, Exception) as exc:
+            if isinstance(exc, asyncio.CancelledError):
+                raise  # propagate cancellation
+            # Classify: transient or permanent?
+            if _is_transient(exc):
+                logger.warning("transient failure ein=%s: %s", ein, exc)
+                # Do NOT enqueue upsert_crawled_org — resume will retry
+            else:
+                logger.exception("permanent failure ein=%s", ein, exc)
+                await db_actor.enqueue(UpsertCrawledOrgRequest(
+                    ein=ein, status="permanent_skip", ...))
         finally:
-            await db_actor.enqueue(WriteRequest("upsert_crawled_org", {...}))
             org_queue.task_done()
 ```
+
+**OrgDownloadTracker (D9 barrier):**
+```python
+class OrgDownloadTracker:
+    """Tracks outstanding downloads for one org."""
+    def __init__(self):
+        self._pending = 0
+        self._done = asyncio.Event()
+        self._done.set()  # initially done (0 pending)
+    def increment(self): ...
+    def decrement(self): ...  # sets event when pending reaches 0
+    async def wait_all_done(self): await self._done.wait()
+```
+
+Download workers call `org_tracker.decrement()` after archiving + confirming the DB write.
 
 **Halt-file sentinel:**
 ```python
 async def halt_sentinel(halt_dir, shutdown_event):
-    """Check for halt files every 30 seconds."""
+    """Check for halt files every 30 seconds.
+    halt_dir permissions validated at startup (must not be world-writable).
+    """
     while not shutdown_event.is_set():
         if any(halt_dir.glob("HALT-*.md")):
             shutdown_event.set()
@@ -310,21 +393,37 @@ async def halt_sentinel(halt_dir, shutdown_event):
         await asyncio.sleep(30)
 ```
 
-**SIGINT/SIGTERM handling:**
+**Signal handling:**
 ```python
-loop.add_signal_handler(signal.SIGINT, shutdown_event.set)
+_sigint_count = 0
+def _on_sigint():
+    nonlocal _sigint_count
+    _sigint_count += 1
+    if _sigint_count >= 2:
+        logger.warning("double SIGINT — force exit")
+        os._exit(1)
+    shutdown_event.set()
+
+loop.add_signal_handler(signal.SIGINT, _on_sigint)
 loop.add_signal_handler(signal.SIGTERM, shutdown_event.set)
 ```
 
-When `shutdown_event` is set:
-1. Stop feeding new orgs (producer exits)
-2. Let in-flight org workers finish their current org (bounded by org completion time)
-3. Drain the download queue (or discard if `--fast-shutdown`)
-4. Call `db_actor.flush_and_stop()` — all queued writes flush
+**Graceful shutdown sequence** (single mode, no `--fast-shutdown`):
+1. Stop feeding new orgs (producer checks `shutdown_event`)
+2. Let in-flight org workers finish their current org. Each org's barrier ensures its downloads complete.
+3. Drain remaining items from the download queue (in-flight downloads complete, queued ones are processed)
+4. Call `db_actor.flush_and_stop()` — `flush_and_stop` is shielded from cancellation (`asyncio.shield`)
 5. Close `AsyncHTTPClient` (closes `aiohttp.ClientSession`)
-6. Exit cleanly
+6. Exit 0
 
-**Durability boundary:** An org is considered "complete" only after its `upsert_crawled_org` write is flushed. On resume, any org without a `crawled_orgs` row will be re-processed from scratch. This is idempotent because `upsert_report` uses `ON CONFLICT (content_sha256)`.
+Double-SIGINT within 5 seconds forces `os._exit(1)`, accepting that in-flight DB writes may be lost.
+
+**Durability boundary:** An org is considered "complete" only after:
+- All its downloads are archived to S3
+- All corresponding `upsert_report` writes are flushed by the DB actor
+- The `upsert_crawled_org` write is flushed
+
+On resume, any org without a `crawled_orgs` row is re-processed from scratch. `upsert_report` uses `ON CONFLICT (content_sha256)` so duplicate downloads produce no duplicate rows. Orgs with transient failures have no `crawled_orgs` row and will be retried.
 
 ### Phase 8: Progress Reporting
 
@@ -357,86 +456,134 @@ Once validated, async becomes the default and the flag is inverted to `--sync`.
 ### Core Async Infrastructure
 - **AC1**: `AsyncHTTPClient` is an async context manager. Entering creates an `aiohttp.ClientSession`; exiting closes it. Using `get()`/`head()` outside the context raises `RuntimeError`.
 - **AC2**: `AsyncHTTPClient.get()` returns `FetchResult` with identical fields to `ReportsHTTPClient.get()` for the same URL, verified by a parity test against a deterministic stub server.
-- **AC3**: `AsyncHTTPClient` enforces the decompressed-byte cap using `auto_decompress=False` and manual `zlib` decompression (same streaming logic as spec 0004 AC8).
-- **AC4**: `AsyncHTTPClient` applies every-hop redirect gating via `check_redirect_chain`, verified by a test with a multi-hop redirect fixture.
-- **AC5**: `AsyncHTTPClient` strips Referer, sets User-Agent and Accept-Encoding per config, normalizes protocol-relative URLs (`//` → `https://`).
-- **AC6**: Per-host async throttle enforces >= 3s gap between requests to the same host, verified by unit test with mock event loop clock (`loop.time()`).
-- **AC7**: Retry semantics match the synchronous client: same `RETRY_STATUSES`, `RETRY_KINDS`, `RETRY_MAX_ATTEMPTS`, `RETRY_BACKOFF_SEC`. Retries use `asyncio.sleep`.
+- **AC3**: `AsyncHTTPClient` sets `auto_decompress=False` and manually decompresses gzip via `zlib.decompressobj`. Decompressed-byte cap is enforced identically to spec 0004 AC8.
+- **AC4**: If `Content-Encoding` is anything other than `gzip` or `identity`/absent, the response is rejected as `blocked_content_type`. Brotli, deflate, and zstd are explicitly NOT supported. This matches the outbound `Accept-Encoding: gzip, identity` header.
+- **AC5**: `AsyncHTTPClient` applies every-hop redirect gating via `check_redirect_chain`, verified by a test with a multi-hop redirect fixture.
+- **AC6**: `AsyncHTTPClient` strips Referer, sets User-Agent and Accept-Encoding per config, normalizes protocol-relative URLs (`//` → `https://`). Cookie/Authorization headers are not forwarded on cross-origin redirects.
+- **AC7**: Per-host async throttle enforces >= 3s gap between requests to the same host, verified by unit test with mock event loop clock (`loop.time()`).
+- **AC8**: Retry semantics match the synchronous client: same `RETRY_STATUSES`, `RETRY_KINDS`, `RETRY_MAX_ATTEMPTS`, `RETRY_BACKOFF_SEC`. Retries use `asyncio.sleep`.
+- **AC9**: Granular request timeouts: `total=30, connect=10, sock_connect=10, sock_read=15`. Verified by test with a slow-responding stub.
 
 ### DNS Pinning (SSRF Defense)
-- **AC8**: `AsyncHostPinCache` implements `aiohttp.abc.AbstractResolver`. First resolution calls `socket.getaddrinfo` via `run_in_executor` (non-blocking). Result is cached for the session lifetime.
-- **AC9**: `AsyncHostPinCache.resolve()` rejects hosts that resolve to disallowed addresses (private, loopback, cloud-metadata) via `is_address_allowed`, raising `aiohttp.ClientConnectorError`.
-- **AC10**: `AsyncHTTPClient` uses `AsyncHostPinCache` as the connector's resolver. A test verifies that a hostname resolving to `127.0.0.1` is rejected.
+- **AC10**: `AsyncHostPinCache` implements `aiohttp.abc.AbstractResolver`. First resolution calls `socket.getaddrinfo` via `run_in_executor` (non-blocking). Prefers first IPv4 result; falls back to IPv6. Exactly one IP is pinned per hostname.
+- **AC11**: `AsyncHostPinCache.resolve()` rejects hosts resolving to disallowed addresses via `is_address_allowed`, raising `aiohttp.ClientConnectorError`. Negative results (rejections) are cached for the session lifetime — no repeated `getaddrinfo` for known-bad hosts.
+- **AC12**: The resolver result preserves the original hostname for TLS SNI and certificate validation. An integration test verifies: when `resolve()` returns IP X for hostname `goodhost.example`, and the TLS server at X presents a cert for `evilhost.example`, the connection FAILS with a hostname-verification error.
+- **AC13**: `AsyncHTTPClient` uses `AsyncHostPinCache` as the connector's resolver. A test verifies that a hostname resolving to `127.0.0.1` is rejected.
+- **AC14**: Each new hostname in a redirect chain triggers an independent `resolve()` call and `is_address_allowed` check.
 
 ### Pipeline Architecture
-- **AC11**: Discovery and download run as separate coroutine pools connected by a bounded `asyncio.Queue(maxsize=1000)`.
-- **AC12**: Active orgs are bounded by `--max-concurrent-orgs` (default 200). Implemented via a bounded producer queue, not task-per-seed.
-- **AC13**: Download workers (default 50) pull from the shared queue. Worker count configurable via `--max-download-workers`.
-- **AC14**: `DBWriterActor` is a single coroutine owning a bounded queue (maxsize=200). Download workers and discovery coroutines enqueue `WriteRequest` objects. The actor batches (up to 50 rows) and flushes via `run_in_executor` on a 4-thread pool.
-- **AC15**: PDF structure validation runs via `run_in_executor` on a `ProcessPoolExecutor(max_workers=4)`.
+- **AC15**: Discovery and download run as separate coroutine pools connected by a bounded `asyncio.Queue(maxsize=1000)`.
+- **AC16**: Active orgs are bounded by `--max-concurrent-orgs` (default 200). Implemented via a bounded producer queue, not task-per-seed.
+- **AC17**: Download workers (default 20) pull from the shared queue. Worker count configurable via `--max-download-workers`.
+- **AC18**: `DBWriterActor` is a single coroutine owning a bounded queue (maxsize=200). Write requests are typed dataclasses (`RecordFetchRequest`, `UpsertReportRequest`, `UpsertCrawledOrgRequest`). The actor batches (up to 50 rows) and flushes via `run_in_executor` on a single-thread executor.
+- **AC19**: If a DB flush fails, the actor retries once. Persistent failures are logged with the full request payload for manual recovery. The actor does not crash on DB errors.
+- **AC20**: PDF structure validation runs via `run_in_executor` on a `ProcessPoolExecutor(max_workers=4, max_tasks_per_child=1)`. Worker processes are recycled after each task to prevent cross-PDF state corruption.
+- **AC21**: PDF validation has a 30-second timeout. On timeout, the worker is terminated and the candidate is recorded as a validation failure (`pdf_structure_timeout`).
+
+### Org Completion (Durability)
+- **AC22**: `upsert_crawled_org` is enqueued to the DB writer ONLY after all downloads for that org have been archived and their corresponding `upsert_report` writes have been enqueued. The per-org barrier (D9) enforces this.
+- **AC23**: Orgs with transient failures (network timeout, TLS error, DNS failure, server error) are NOT marked in `crawled_orgs`. Resume retries them.
+- **AC24**: Orgs with permanent failures (robots disallow, SSRF rejection, invalid seed) are marked with a `permanent_skip` status. Resume skips them.
+- **AC25**: Successfully crawled orgs are marked in `crawled_orgs` with counts. Resume skips them.
 
 ### Correctness
-- **AC16**: For a deterministic stub-fetcher fixture returning canned HTML/robots responses, the async crawler produces the same set of candidate URLs and the same set of archived PDFs (by SHA256) as the synchronous crawler.
-- **AC17**: All existing unit tests for `candidate_filter`, `discover`, `fetch_pdf`, `redirect_policy`, and `db_writer` continue to pass without modification.
-- **AC18**: The async crawler respects robots.txt identically to the synchronous crawler.
-- **AC19**: The async crawler applies the same filename scoring, taxonomy-driven filtering, and TICK-001 relaxation as the synchronous crawler.
+- **AC26**: For a deterministic stub-fetcher fixture returning canned HTML/robots responses, the async crawler produces the same set of candidate URLs and the same set of archived PDFs (by SHA256) as the synchronous crawler.
+- **AC27**: All existing unit tests for `candidate_filter`, `discover`, `fetch_pdf`, `redirect_policy`, and `db_writer` continue to pass without modification.
+- **AC28**: The async crawler respects robots.txt identically to the synchronous crawler.
+- **AC29**: The async crawler applies the same filename scoring, taxonomy-driven filtering, and TICK-001 relaxation as the synchronous crawler.
 
 ### Operational Safety
-- **AC20**: Flock (spec 0004 AC19) prevents concurrent async and synchronous crawler instances. The same lock file is used.
-- **AC21**: Resume semantics work identically — already-crawled EINs (those with a `crawled_orgs` row) are skipped unless `--refresh`.
-- **AC22**: Encryption-at-rest check and TLS self-test run before the event loop starts.
-- **AC23**: A halt-file sentinel checks `config.HALT` every 30 seconds. If a `HALT-*.md` file appears, `shutdown_event` is set and graceful shutdown begins.
-- **AC24**: Graceful shutdown on SIGINT/SIGTERM/halt-file: (a) stop accepting new orgs, (b) let in-flight org workers finish their current org, (c) drain the download queue, (d) flush all pending DB writes via `DBWriterActor.flush_and_stop()`, (e) close the HTTP client, (f) exit 0.
-- **AC25**: Partial orgs (interrupted between discovery and `upsert_crawled_org`) are re-processed on resume. `upsert_report` is idempotent on `content_sha256`, so duplicate downloads produce no duplicate rows.
+- **AC30**: Flock (spec 0004 AC19) prevents concurrent async and synchronous crawler instances. Same lock file.
+- **AC31**: Resume semantics: already-crawled EINs (those with a `crawled_orgs` row with status != `permanent_skip` if desired) are skipped unless `--refresh`.
+- **AC32**: Encryption-at-rest check and TLS self-test run before the event loop starts.
+- **AC33**: Halt-file sentinel checks `config.HALT` every 30 seconds. Halt-dir permissions validated at startup (refuse to start if world-writable).
+- **AC34**: Graceful shutdown on SIGINT/SIGTERM/halt-file: (a) stop accepting new orgs, (b) let in-flight org workers finish their current org (including download barrier), (c) drain remaining download queue items, (d) `DBWriterActor.flush_and_stop()` (shielded from cancellation), (e) close HTTP client, (f) exit 0.
+- **AC35**: Double-SIGINT within 5 seconds forces `os._exit(1)`, accepting that in-flight DB writes may be lost.
 
 ### Observability
-- **AC26**: Progress stats are logged every 60 seconds: orgs completed/total, active count, download queue depth, PDFs found, rate (orgs/hr), estimated time remaining.
-- **AC27**: A final summary log line reports total orgs, total PDFs, total bytes, wall-clock time, and effective orgs/hr rate.
+- **AC36**: Progress stats are logged every 60 seconds: orgs completed/total, active count, download queue depth, PDFs found, rate (orgs/hr), estimated time remaining.
+- **AC37**: A final summary log line reports total orgs, total PDFs, total bytes, wall-clock time, effective orgs/hr, and peak RSS.
 
 ### Resource Limits
-- **AC28**: Total active `asyncio.Task` objects at any time is bounded by `max_concurrent_orgs + max_download_workers + 4` (producer, DB actor, halt sentinel, progress reporter). No unbounded task creation.
-- **AC29**: Download queue maxsize = 1000. DB writer queue maxsize = 200. Both provide backpressure (producers block when full).
-- **AC30**: Request timeout per fetch is `config.REQUEST_TIMEOUT_SEC` (30s), enforced via `aiohttp.ClientTimeout(total=30)`.
+- **AC38**: Application-created `asyncio.Task` count is bounded by `max_concurrent_orgs + max_download_workers + 4` (producer, DB actor, halt sentinel, progress reporter). No task-per-seed fanout.
+- **AC39**: Download queue maxsize = 1000. DB writer queue maxsize = 200. Both provide backpressure.
+- **AC40**: Connector defense-in-depth: `limit=500, limit_per_host=2`. These are safety nets; the per-host semaphore and org cap are the primary controls.
+- **AC41**: Max concurrent PDF bodies in memory = `max_download_workers` x `MAX_PDF_BYTES` = 20 x 50MB = 1 GB. This fits within the 2 GB RSS target.
 
 ### Performance (Benchmark, not gate)
-- **AC31**: On the same 100-org test set used in the 2026-04-25 synchronous run, the async crawler completes in < 30 minutes wall-clock. This is a benchmark target, not a hard pass/fail gate — network conditions vary.
-- **AC32**: Peak RSS stays under 2 GB during a 1000-org crawl, measured by `resource.getrusage(resource.RUSAGE_SELF).ru_maxrss` logged at shutdown.
+- **AC42**: On the same 100-org test set used in the 2026-04-25 synchronous run, the async crawler completes in < 30 minutes wall-clock. Benchmark target, not hard gate.
+- **AC43**: Peak RSS stays under 2 GB during a 1000-org crawl, measured by `resource.getrusage(resource.RUSAGE_SELF).ru_maxrss` logged at shutdown.
 
 ## Traps to Avoid
 
 1. **Don't bypass per-host throttling for speed.** We go faster by multiplexing across hosts, not by hammering any single host. The 3s gap is a policy commitment.
 
-2. **Don't use `asyncpg` or async SQLAlchemy.** The DB writes are lightweight and infrequent compared to HTTP I/O. `run_in_executor` with a 4-thread pool is sufficient and avoids rewriting the entire DB layer.
+2. **Don't use `asyncpg` or async SQLAlchemy.** The DB writes are lightweight and infrequent compared to HTTP I/O. `run_in_executor` with a single-thread pool is sufficient and avoids rewriting the entire DB layer.
 
-3. **Don't load all PDF bodies into memory.** Download workers archive each PDF before pulling the next candidate from the queue. The queue holds `Candidate` objects (metadata only, ~200 bytes each), not PDF bodies.
+3. **Don't load all PDF bodies into memory.** Download workers archive each PDF before pulling the next candidate from the queue. The queue holds `Candidate` objects (metadata only, ~200 bytes each), not PDF bodies. Max concurrent bodies = `max_download_workers` (20) x `MAX_PDF_BYTES` (50MB) = 1 GB.
 
 4. **Don't forget `aiohttp` session cleanup.** `AsyncHTTPClient` is an async context manager. Forgetting `async with` leaks TCP connections. AC1 enforces this.
 
-5. **Don't assume DNS is fast.** `AsyncHostPinCache` runs `getaddrinfo` via `run_in_executor` so it doesn't block the event loop. `aiodns` is not required — the executor approach is simpler and `getaddrinfo` is cached by the OS.
+5. **Don't assume DNS is fast.** `AsyncHostPinCache` runs `getaddrinfo` via `run_in_executor` so it doesn't block the event loop. `aiodns` is NOT a dependency — the executor approach is simpler and `getaddrinfo` is cached by the OS.
 
-6. **Don't create tasks eagerly.** Use the bounded producer pattern (D4), not `asyncio.create_task` per seed. 100K tasks × ~1 KB each = 100 MB of task overhead alone.
+6. **Don't create tasks eagerly.** Use the bounded producer pattern (D4), not `asyncio.create_task` per seed. 100K tasks x ~1 KB each = 100 MB of task overhead alone.
 
-7. **Don't forget `asyncio.CancelledError` handling.** On shutdown, pending coroutines may be cancelled. Each coroutine must handle cancellation gracefully: close HTTP responses, don't leave partial DB writes. The `DBWriterActor.flush_and_stop()` ensures queued writes are committed.
+7. **Don't forget `asyncio.CancelledError` handling.** On shutdown, pending coroutines may be cancelled. Cancellation protocol: org workers finish cooperatively (not cancelled mid-org); download workers may be cancelled after their current item; `DBWriterActor.flush_and_stop()` is shielded from cancellation via `asyncio.shield`.
 
-8. **`aiohttp` auto-decompresses by default.** Set `auto_decompress=False` on the session to enforce the decompressed-byte cap manually. Forgetting this bypasses the gzip-bomb defense.
+8. **`aiohttp` auto-decompresses by default.** Set `auto_decompress=False` on the session. Forgetting this bypasses the gzip-bomb defense AND allows non-gzip encodings (brotli, zstd) to slip through without manual rejection.
 
-9. **`asyncio.Lock()` vs `threading.Lock()`.** The async throttle and pin cache use `asyncio.Lock` (not `threading.Lock`). They are single-event-loop only. The DB writer's executor uses threading internally, but the actor pattern serializes access.
+9. **`asyncio.Lock()` vs `threading.Lock()`.** The async throttle and pin cache use `asyncio.Lock` (not `threading.Lock`). They are single-event-loop only. Lazy-initialize locks inside coroutines if needed to avoid event-loop binding issues.
+
+10. **Don't mark orgs complete on transient failures.** A bare `except Exception` that records the org as crawled enables denial-of-crawl. Classify failures (D8) and only record permanent outcomes.
+
+11. **Don't skip `max_tasks_per_child=1` on the ProcessPool.** Without it, a malicious PDF can corrupt worker state and taint all subsequent validations. The ~10ms fork overhead is negligible vs network I/O.
 
 ## Security Considerations
 
-- **SSRF protections preserved.** `AsyncHostPinCache` (D7) provides the same DNS-pinning defense as `HostPinCache`. `check_redirect_chain` and `is_address_allowed` are called identically.
-- **No new network exposure.** The async crawler is a client-only change; no new listening sockets or inbound connections. Unix socket for dashboard reporting is out of scope (removed per Codex review).
-- **Connection limits prevent resource exhaustion.** Active tasks bounded by AC28. Queue sizes bounded by AC29. Connector-level limits are set to 0 (uncapped) because our application-level controls are the correctness contract; connector limits would be redundant and harder to reason about.
-- **Graceful shutdown prevents data corruption.** DB writer flushes before exit (AC24). Flock prevents concurrent instances (AC20). Resume is idempotent (AC25).
+- **SSRF protections preserved.** `AsyncHostPinCache` (D7) provides the same DNS-pinning defense as `HostPinCache`, with explicit IPv4 preference, negative caching, and hostname-based TLS verification (AC10-AC14).
+- **Content-Encoding defense.** Only `gzip` and `identity` accepted. Non-advertised encodings are rejected as protocol violations (AC4). Decompressed-byte cap enforced via manual zlib (AC3).
+- **TLS hostname verification contractual.** The custom resolver preserves the original hostname for SNI/cert validation. An integration test (AC12) proves that IP-only certs are rejected.
+- **PDF parser isolation.** `ProcessPoolExecutor(max_tasks_per_child=1)` ensures each PDF is validated in a fresh process, preventing cross-PDF state corruption (AC20). 30s timeout prevents hostile PDFs from hanging the pool (AC21).
+- **Denial-of-crawl defense.** Transient failures do NOT mark orgs complete (AC23). An adversary cannot permanently opt out of crawling by inducing reproducible errors.
+- **No new network exposure.** Client-only change; no listening sockets. Progress reporting is log-only (no Unix socket).
+- **Connection limits (defense-in-depth).** Connector: `limit=500, limit_per_host=2` (AC40). Application: per-host semaphore + org cap. Queue sizes bounded (AC39).
+- **Graceful shutdown prevents data corruption.** DB writer flushes before exit (AC34). Flock prevents concurrent instances (AC30). Resume is idempotent (AC25). Double-SIGINT force-exits as escape hatch (AC35).
+- **Halt-dir permissions.** Validated at startup; refuse to start if world-writable (AC33).
+- **Log hygiene.** Progress logs may contain URLs and EINs; log retention follows the project's existing rotation policy.
+- **Sync crawler maintenance.** Once async is validated, sync enters bug-fix-only mode. Both share security-critical pure modules (`url_guard`, `redirect_policy`, `is_address_allowed`).
 
 ## Testing Strategy
 
-1. **Unit tests**: Async HTTP client with mocked `aiohttp` responses (using `aioresponses` or manual `AsyncMock`). Async throttle with mock `loop.time()`. `AsyncHostPinCache` with mock `getaddrinfo`. Queue backpressure tests.
-2. **Integration tests**: Full async pipeline with deterministic stub fetcher. Verify candidate + PDF SHA256 parity with synchronous crawler output (AC16).
-3. **Backpressure test**: Slow stub DB writer, verify download queue fills to maxsize and producers block without OOM.
-4. **Cancellation tests**: SIGINT mid-crawl → verify DB writes flushed, no partial state. Halt-file appearance → same. `--limit` reached → same.
-5. **Performance benchmark**: 100-org set with real network. Capture wall-clock time. Compare against synchronous baseline.
-6. **Memory benchmark**: 1000-org crawl, log peak RSS at shutdown (AC32).
+### Unit Tests
+1. Async HTTP client with mocked `aiohttp` responses (using `aioresponses` or manual `AsyncMock`).
+2. Async throttle with mock `loop.time()`.
+3. `AsyncHostPinCache` with mock `getaddrinfo` — positive pin, negative pin (private IP), multi-address selection (IPv4 preferred), negative caching.
+4. Queue backpressure: verify producers block when queue is full.
+5. `DBWriterActor`: batch accumulation, flush on threshold, flush on timeout, retry on failure, graceful stop.
+6. `OrgDownloadTracker`: barrier fires when all decrements received.
+7. Content-Encoding rejection: `br`, `deflate`, `zstd`, stacked encodings all return `blocked_content_type`.
+
+### Integration Tests
+8. Full async pipeline with deterministic stub fetcher. Verify candidate + PDF SHA256 parity with synchronous crawler output (AC26).
+9. Multi-hop cross-host redirect chains — verify each hop triggers independent DNS resolution and SSRF check (AC14).
+10. Oversized gzip response — verify decompressed-byte cap fires before full body is read.
+
+### Security Tests
+11. TLS hostname verification with custom resolver: cert-for-hostname passes, cert-for-IP-only fails (AC12).
+12. DNS rebinding: hostname resolving to `127.0.0.1` is rejected and cached (AC11, AC13).
+13. Denial-of-crawl: org with reproducible network errors is NOT marked complete; resume retries (AC23).
+14. ProcessPool worker isolation: verify worker PID changes between consecutive PDF validations (AC20).
+15. PDF validation timeout: hostile PDF that hangs parser is terminated after 30s (AC21).
+
+### Operational Tests
+16. SIGINT mid-crawl → verify DB writes flushed, no partial `crawled_orgs` for in-flight orgs.
+17. Halt-file appearance → same graceful shutdown.
+18. Double-SIGINT → force exit.
+19. Resume after interruption → partial orgs retried, completed orgs skipped.
+
+### Performance Benchmarks
+20. 100-org set with real network. Capture wall-clock time (AC42).
+21. 1000-org crawl, log peak RSS at shutdown (AC43).
 
 ## Migration Strategy
 
@@ -459,13 +606,13 @@ Shared (unchanged):
 
 ## Estimated Effort
 
-- Phase 1 (async HTTP client): 250-350 lines
-- Phase 2 (async throttle): 50-80 lines
-- Phase 3 (async DNS pin cache): 60-100 lines
+- Phase 1 (async HTTP client): 300-400 lines
+- Phase 2 (async throttle): 60-100 lines
+- Phase 3 (async DNS pin cache): 80-120 lines
 - Phase 4 (async discovery): 150-200 lines
-- Phase 5 (async download): 80-120 lines
-- Phase 6 (DB writer actor): 100-150 lines
-- Phase 7 (orchestrator): 250-350 lines
-- Phase 8 (progress reporting): 50-80 lines
-- Tests: 400-600 lines
-- **Total**: ~1400-2000 lines of new code, ~20 lines modified in `crawler.py` (CLI flag)
+- Phase 5 (async download): 100-140 lines
+- Phase 6 (DB writer actor): 120-180 lines
+- Phase 7 (orchestrator + shutdown + barriers): 300-400 lines
+- Phase 8 (progress reporting): 60-100 lines
+- Tests: 500-800 lines
+- **Total**: ~1700-2400 lines of new code, ~30 lines modified in `crawler.py` (CLI flag)
