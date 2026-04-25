@@ -385,7 +385,7 @@ projects:
   - id: "0022"
     title: "Wayback Machine CDX Fallback for Cloudflare-blocked Sites"
     summary: "When a nonprofit site returns Cloudflare 403 (cf-mitigated: challenge) or otherwise yields zero candidates, query the Wayback Machine CDX API for archived PDFs under the domain and download via web.archive.org. Recovers ~70-80% of the otherwise-lost ~17% of orgs. Tagged discovered_via='wayback' for traceability."
-    status: implementing
+    status: planned
     priority: high
     files:
       spec: locard/specs/0022-wayback-cdx-fallback.md

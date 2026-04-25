@@ -27,6 +27,7 @@ from lavandula.reports.async_db_writer import (
 from lavandula.reports.async_discover import DiscoveryResult
 from lavandula.reports.candidate_filter import Candidate
 from lavandula.reports.fetch_pdf import DownloadOutcome
+from lavandula.reports.wayback_fallback import WaybackOutcome
 
 
 @dataclass
@@ -242,7 +243,7 @@ async def test_org_completion_waits_for_downloads():
     async def fake_consume():
         await asyncio.sleep(0.05)
         item = await download_queue.get()
-        ein, c, tracker, etld, org_fetched = item
+        ein, c, tracker, etld, org_fetched, *_ = item
         event_log.append("download_done")
         tracker.decrement()
         download_queue.task_done()
@@ -485,3 +486,107 @@ async def test_sigint_mid_flight_drains_cleanly():
         f"crawled_org writes ({len(crawled_org_writes)}) != orgs_completed "
         f"({stats.orgs_completed}) — partial/missing writes detected"
     )
+
+
+# ---------- Active-content Wayback → permanent_skip ----------
+
+@pytest.mark.asyncio
+async def test_wayback_all_active_content_produces_permanent_skip():
+    """When ALL Wayback PDFs are rejected for active content, the org
+    should be immediately marked permanent_skip/wayback_unsafe_archive
+    instead of cycling through the transient retry budget."""
+    enqueued: list[object] = []
+    loop = asyncio.get_running_loop()
+
+    async def mock_enqueue(req):
+        enqueued.append(req)
+        fut = loop.create_future()
+        fut.set_result(True)
+        return fut
+
+    db_actor = MagicMock()
+    db_actor.enqueue = mock_enqueue
+
+    async def mock_get(url, *, kind="homepage", seed_etld1=None, extra_headers=None):
+        return _FakeResult(body=b"ok", status="ok", http_status=200,
+                           final_url=url, final_url_redacted=url)
+
+    client = MagicMock()
+    client.get = mock_get
+
+    stats = CrawlStats()
+    pdf_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="test-pdf")
+    download_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+
+    wayback_cands = [
+        Candidate(
+            url=f"https://web.archive.org/web/20260406121250id_/https://sloan.org/r{i}.pdf",
+            anchor_text=f"https://sloan.org/r{i}.pdf",
+            referring_page_url="https://sloan.org",
+            discovered_via="wayback",
+            hosting_platform="wayback",
+            attribution_confidence="wayback_archive",
+            original_source_url=f"https://sloan.org/r{i}.pdf",
+        )
+        for i in range(3)
+    ]
+    discovery_result = DiscoveryResult(
+        candidates=wayback_cands,
+        homepage_ok=False,
+        robots_disallowed_all=False,
+        wayback_outcome=WaybackOutcome.RECOVERED,
+    )
+
+    fake_outcome = DownloadOutcome(
+        status="ok",
+        url="https://web.archive.org/web/20260406121250id_/https://sloan.org/r0.pdf",
+        final_url="https://web.archive.org/web/20260406121250id_/https://sloan.org/r0.pdf",
+        final_url_redacted="https://web.archive.org/web/20260406121250id_/https://sloan.org/r0.pdf",
+        redirect_chain=[],
+        redirect_chain_redacted=[],
+        content_sha256="abc123",
+        bytes_read=1000,
+        content_type="application/pdf",
+        body=b"%PDF-1.4 fake js content",
+    )
+
+    worker_task = asyncio.create_task(
+        _download_worker(
+            download_queue, client, db_actor, MagicMock(),
+            "test-run", stats, pdf_pool,
+        )
+    )
+
+    with patch(
+        "lavandula.reports.async_crawler.discover_org",
+        return_value=discovery_result,
+    ), patch(
+        "lavandula.reports.async_crawler.async_download",
+        return_value=fake_outcome,
+    ), patch(
+        "lavandula.reports.async_crawler.scan_active_content",
+        return_value={"pdf_has_javascript": 1, "pdf_has_launch": 0,
+                      "pdf_has_embedded": 0, "pdf_has_uri_actions": 0},
+    ):
+        await _process_org_async(
+            ein="99-0000000",
+            website="https://sloan.org",
+            client=client,
+            db_actor=db_actor,
+            download_queue=download_queue,
+            archive=MagicMock(),
+            run_id="test-run",
+            stats=stats,
+            shutdown_event=asyncio.Event(),
+            pdf_thread_pool=pdf_pool,
+        )
+
+    await download_queue.put(None)
+    await worker_task
+    pdf_pool.shutdown(wait=False)
+
+    crawled_org_writes = [r for r in enqueued if isinstance(r, UpsertCrawledOrgRequest)]
+    assert len(crawled_org_writes) == 1
+    assert crawled_org_writes[0].status == "permanent_skip"
+    assert crawled_org_writes[0].notes == "wayback_unsafe_archive"
+    assert stats.orgs_permanent_failed == 1

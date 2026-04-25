@@ -77,6 +77,7 @@ def upsert_crawled_org(
     fetched_count: int,
     confirmed_report_count: int,
     status: str = "ok",
+    notes: str | None = None,
     max_transient_attempts: int | None = None,
 ) -> None:
     """Track that this EIN has been processed.
@@ -105,9 +106,9 @@ def upsert_crawled_org(
                 f"INSERT INTO {_SCHEMA}.crawled_orgs "
                 "(ein, first_crawled_at, last_crawled_at, "
                 " candidate_count, fetched_count, confirmed_report_count, "
-                " status, attempts) "
+                " status, attempts, notes) "
                 "VALUES (:ein, :first, :last, :cand, :fetched, :confirmed, "
-                "        :status, 1) "
+                "        :status, 1, :notes) "
                 "ON CONFLICT (ein) DO UPDATE SET "
                 "  last_crawled_at = EXCLUDED.last_crawled_at, "
                 "  candidate_count = EXCLUDED.candidate_count, "
@@ -120,10 +121,16 @@ def upsert_crawled_org(
                 "  status = CASE "
                 "    WHEN EXCLUDED.status = 'ok' THEN 'ok' "
                 "    WHEN EXCLUDED.status = 'permanent_skip' THEN 'permanent_skip' "
+                "    WHEN EXCLUDED.status = 'transient' "
+                "         AND EXCLUDED.notes = 'wayback_no_coverage' "
+                f"         AND {_SCHEMA}.crawled_orgs.status = 'transient' "
+                f"         AND {_SCHEMA}.crawled_orgs.notes = 'wayback_no_coverage' "
+                "         THEN 'permanent_skip' "
                 f"    WHEN {_SCHEMA}.crawled_orgs.attempts + 1 >= :max_attempts "
                 "         THEN 'permanent_skip' "
                 "    ELSE EXCLUDED.status "
-                "  END"
+                "  END, "
+                "  notes = EXCLUDED.notes"
             ),
             {
                 "ein": ein,
@@ -133,6 +140,7 @@ def upsert_crawled_org(
                 "fetched": fetched_count,
                 "confirmed": confirmed_report_count,
                 "status": status,
+                "notes": notes,
                 "max_attempts": max_transient_attempts,
             },
         )
@@ -148,7 +156,8 @@ INSERT INTO {_SCHEMA}.reports (
   pdf_has_javascript, pdf_has_launch, pdf_has_embedded,
   pdf_has_uri_actions, classification, classification_confidence,
   classifier_model, classifier_version, classified_at,
-  report_year, report_year_source, extractor_version
+  report_year, report_year_source, extractor_version,
+  original_source_url_redacted
 ) VALUES (
   :sha, :url, :ref, :chain, :ein, :disc, :platform,
   :attr, :archived, :ct,
@@ -157,7 +166,8 @@ INSERT INTO {_SCHEMA}.reports (
   :js, :launch, :embed,
   :uri, :class, :conf,
   :model, :cver, :cat,
-  :year, :ysrc, :ext
+  :year, :ysrc, :ext,
+  :orig_url
 )
 ON CONFLICT (content_sha256) DO UPDATE SET
   source_url_redacted = CASE
@@ -277,7 +287,11 @@ ON CONFLICT (content_sha256) DO UPDATE SET
   report_year_source = COALESCE({_SCHEMA}.reports.report_year_source,
                                 EXCLUDED.report_year_source),
   extractor_version  = GREATEST({_SCHEMA}.reports.extractor_version,
-                                EXCLUDED.extractor_version)
+                                EXCLUDED.extractor_version),
+  original_source_url_redacted = COALESCE(
+    EXCLUDED.original_source_url_redacted,
+    {_SCHEMA}.reports.original_source_url_redacted
+  )
 """)
 
 
@@ -310,6 +324,7 @@ def upsert_report(
     report_year: int | None,
     report_year_source: str | None,
     extractor_version: int,
+    original_source_url_redacted: str | None = None,
 ) -> None:
     """Atomic upsert into `lava_impact.reports` with attribution merge.
 
@@ -359,6 +374,7 @@ def upsert_report(
                 "year": report_year,
                 "ysrc": report_year_source,
                 "ext": extractor_version,
+                "orig_url": original_source_url_redacted,
             },
         )
 

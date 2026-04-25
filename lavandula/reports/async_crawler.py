@@ -31,12 +31,14 @@ from .async_db_writer import (
     UpsertCrawledOrgRequest,
     UpsertReportRequest,
 )
-from .async_discover import discover_org
+from .async_discover import DiscoveryResult, discover_org
+from .wayback_fallback import WaybackOutcome
 from .async_fetch_pdf import download as async_download
 from .async_http_client import AsyncHTTPClient
 from .async_host_pin_cache import AsyncHostPinCache
 from .async_host_throttle import AsyncHostThrottle
 from .candidate_filter import Candidate
+from .decisions_log import log_decision
 from .logging_utils import sanitize
 from .pdf_extract import scan_active_content, sanitize_metadata_field, sanitize_text_field
 from .redirect_policy import etld1
@@ -61,6 +63,10 @@ class CrawlStats:
     start_time: float = 0.0
     flush_failures: int = 0
     exit_code: int = 0
+    wayback_attempts: int = 0
+    wayback_recoveries: int = 0
+    wayback_empty: int = 0
+    wayback_errors: int = 0
 
 
 def _pick_discovered_via(c: Candidate) -> str:
@@ -221,38 +227,95 @@ async def _process_org_async(
         robots_text=robots_text,
         ein=ein,
         fetcher=_fetcher_with_retry,
+        stats=stats,
     )
     candidates = discovery.candidates
     stats.candidates_discovered += len(candidates)
 
     if not candidates and not discovery.homepage_ok and not discovery.robots_disallowed_all:
-        _log.warning("transient discovery failure ein=%s (homepage unreachable, 0 candidates)", ein)
-        stats.orgs_transient_failed += 1
-        # Record the attempt so we can cap retries (spec 0021 follow-up).
-        # SQL CASE auto-promotes status='transient' to 'permanent_skip'
-        # once attempts >= MAX_TRANSIENT_ATTEMPTS.
-        try:
-            await db_actor.enqueue(UpsertCrawledOrgRequest(
+        if discovery.wayback_outcome is not None:
+            await _record_no_candidates(
                 ein=ein,
-                candidate_count=0,
-                fetched_count=0,
-                confirmed_report_count=0,
-                status="transient",
-            ))
-        except Exception:  # noqa: BLE001
-            _log.warning("failed to record transient attempt for ein=%s", ein)
+                domain=urlsplit(website).hostname or seed_etld1,
+                db_actor=db_actor,
+                stats=stats,
+                discovery=discovery,
+            )
+        else:
+            _log.warning("transient discovery failure ein=%s (homepage unreachable, 0 candidates)", ein)
+            stats.orgs_transient_failed += 1
+            try:
+                await db_actor.enqueue(UpsertCrawledOrgRequest(
+                    ein=ein,
+                    candidate_count=0,
+                    fetched_count=0,
+                    confirmed_report_count=0,
+                    status="transient",
+                ))
+            except Exception:  # noqa: BLE001
+                _log.warning("failed to record transient attempt for ein=%s", ein)
         return
 
     org_tracker = OrgDownloadTracker()
     org_fetched = [0]
+    org_active_content_rejections = [0]
 
     for cand in candidates:
         if shutdown_event.is_set():
             break
         org_tracker.increment()
-        await download_queue.put((ein, cand, org_tracker, seed_etld1, org_fetched))
+        await download_queue.put((ein, cand, org_tracker, seed_etld1, org_fetched, org_active_content_rejections))
 
     await org_tracker.wait_all_done()
+
+    # Wayback post-download outcome tracking (AC18/AC19)
+    is_wayback_recovery = (
+        discovery.wayback_outcome == WaybackOutcome.RECOVERED
+        and any(c.discovered_via == "wayback" for c in candidates)
+    )
+    if is_wayback_recovery and org_fetched[0] == 0:
+        all_active_content = (
+            org_active_content_rejections[0] > 0
+            and org_active_content_rejections[0] == len(candidates)
+        )
+        if all_active_content:
+            status = "permanent_skip"
+            notes = "wayback_unsafe_archive"
+            outcome_label = "unsafe_archive"
+            stats.orgs_permanent_failed += 1
+        else:
+            status = "transient"
+            notes = "wayback_all_downloads_failed"
+            outcome_label = "all_downloads_failed"
+            stats.orgs_transient_failed += 1
+        stats.wayback_errors += 1
+        try:
+            await db_actor.enqueue(UpsertCrawledOrgRequest(
+                ein=ein,
+                candidate_count=len(candidates),
+                fetched_count=0,
+                confirmed_report_count=0,
+                status=status,
+                notes=sanitize(notes),
+            ))
+        except Exception:  # noqa: BLE001
+            _log.warning("failed to record wayback %s for ein=%s", notes, ein)
+        _log_wayback_decision(
+            ein=ein,
+            domain=urlsplit(website).hostname or seed_etld1,
+            outcome=outcome_label,
+            discovery=discovery,
+        )
+        return
+
+    if is_wayback_recovery and org_fetched[0] > 0:
+        stats.wayback_recoveries += 1
+        _log_wayback_decision(
+            ein=ein,
+            domain=urlsplit(website).hostname or seed_etld1,
+            outcome="recovered",
+            discovery=discovery,
+        )
 
     completion_future = await db_actor.enqueue(UpsertCrawledOrgRequest(
         ein=ein,
@@ -281,7 +344,7 @@ async def _download_worker(
         if item is None:
             download_queue.task_done()
             break
-        ein, cand, org_tracker, seed_etld1, org_fetched = item
+        ein, cand, org_tracker, seed_etld1, org_fetched, org_active_content_rej = item
         try:
             await _process_download(
                 ein=ein,
@@ -294,6 +357,7 @@ async def _download_worker(
                 stats=stats,
                 pdf_thread_pool=pdf_thread_pool,
                 org_fetched=org_fetched,
+                org_active_content_rejections=org_active_content_rej,
             )
         except asyncio.CancelledError:
             raise
@@ -316,6 +380,7 @@ async def _process_download(
     stats: CrawlStats,
     pdf_thread_pool: ThreadPoolExecutor,
     org_fetched: list[int] | None = None,
+    org_active_content_rejections: list[int] | None = None,
 ) -> None:
     outcome = await async_download(
         cand.url, client, seed_etld1=seed_etld1,
@@ -333,6 +398,23 @@ async def _process_download(
         return
 
     flags = scan_active_content(outcome.body)
+
+    # AC17.1: Wayback PDFs with active content are rejected outright
+    if cand.discovered_via == "wayback" and (
+        flags["pdf_has_javascript"]
+        or flags["pdf_has_launch"]
+        or flags["pdf_has_uri_actions"]
+    ):
+        if org_active_content_rejections is not None:
+            org_active_content_rejections[0] += 1
+        await db_actor.enqueue(RecordFetchRequest(
+            ein=ein,
+            url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+            kind="pdf-get",
+            fetch_status="blocked_content_type",
+            notes=sanitize("wayback_active_content"),
+        ))
+        return
 
     first_page_text = ""
     page_count = None
@@ -420,14 +502,23 @@ async def _process_download(
         report_year=report_year,
         report_year_source=report_year_source,
         extractor_version=config.EXTRACTOR_VERSION,
+        original_source_url_redacted=(
+            redact_url(cand.original_source_url)
+            if cand.original_source_url else None
+        ),
     ))
 
+    # AC19.1: include wayback_digest in fetch_log notes
+    fetch_notes = outcome.note or ""
+    if cand.wayback_digest:
+        digest_note = sanitize(f"wayback_digest:{cand.wayback_digest}")
+        fetch_notes = f"{fetch_notes} {digest_note}".strip() if fetch_notes else digest_note
     await db_actor.enqueue(RecordFetchRequest(
         ein=ein,
         url_redacted=outcome.final_url_redacted or redact_url(cand.url),
         kind="pdf-get",
         fetch_status=outcome.status,
-        notes=sanitize(outcome.note),
+        notes=sanitize(fetch_notes) if fetch_notes else None,
     ))
     await db_actor.enqueue(RecordFetchRequest(
         ein=ein,
@@ -444,6 +535,77 @@ async def _process_download(
         await report_future
     except Exception:  # noqa: BLE001
         _log.warning("report flush failed for sha=%s", outcome.content_sha256)
+
+
+async def _record_no_candidates(
+    *,
+    ein: str,
+    domain: str,
+    db_actor: DBWriterActor,
+    stats: CrawlStats,
+    discovery: DiscoveryResult,
+) -> None:
+    """AC14 state machine for orgs whose discovery produced no candidates."""
+    notes = "robots_or_unknown"
+    log_outcome = "skipped"
+    if discovery.wayback_outcome == WaybackOutcome.ERROR:
+        stats.wayback_errors += 1
+        notes = "wayback_error"
+        log_outcome = "error"
+    elif discovery.wayback_outcome == WaybackOutcome.INVALID_DOMAIN:
+        stats.wayback_errors += 1
+        notes = "wayback_invalid_domain"
+        log_outcome = "invalid_domain"
+    elif discovery.wayback_outcome == WaybackOutcome.EMPTY:
+        stats.wayback_empty += 1
+        notes = "wayback_no_coverage"
+        log_outcome = "empty"
+
+    stats.orgs_transient_failed += 1
+    try:
+        await db_actor.enqueue(UpsertCrawledOrgRequest(
+            ein=ein,
+            candidate_count=0,
+            fetched_count=0,
+            confirmed_report_count=0,
+            status="transient",
+            notes=sanitize(notes),
+        ))
+    except Exception:  # noqa: BLE001
+        _log.warning("failed to record wayback no-candidates for ein=%s", ein)
+
+    if discovery.wayback_outcome is not None:
+        _log_wayback_decision(
+            ein=ein,
+            domain=domain,
+            outcome=log_outcome,
+            discovery=discovery,
+        )
+
+
+def _log_wayback_decision(
+    *,
+    ein: str,
+    domain: str,
+    outcome: str,
+    discovery: DiscoveryResult,
+) -> None:
+    """AC19: emit a wayback_query event to decisions_log."""
+    log_decision({
+        "event_type": "wayback_query",
+        "ein": ein,
+        "domain": domain,
+        "outcome": outcome,
+        "reason": discovery.homepage_failure_reason or "unknown",
+        "cdx_http_status": discovery.wayback_cdx_http_status,
+        "row_count_raw": discovery.wayback_raw_row_count,
+        "row_count_after_dedup": (
+            len(discovery.candidates)
+            if discovery.wayback_outcome == WaybackOutcome.RECOVERED else 0
+        ),
+        "elapsed_ms": discovery.wayback_elapsed_ms,
+        "capture_hosts": discovery.wayback_capture_hosts,
+    })
 
 
 async def _halt_sentinel(
@@ -531,7 +693,9 @@ async def run_async(
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _on_signal)
 
-    throttle = AsyncHostThrottle()
+    throttle = AsyncHostThrottle(host_overrides={
+        "archive.org": config.WAYBACK_REQUEST_DELAY_SEC,
+    })
     pin_cache = AsyncHostPinCache()
     pdf_thread_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="pdf-validate")
 
@@ -601,9 +765,12 @@ async def run_async(
     rate = stats.orgs_completed / (elapsed / 3600) if elapsed > 0 else 0
     _log.info(
         "=== ASYNC CRAWLER DONE === orgs=%d PDFs=%d bytes=%d "
-        "wall=%.0fs rate=%.0f orgs/hr peak_rss_kb=%d",
+        "wall=%.0fs rate=%.0f orgs/hr peak_rss_kb=%d "
+        "wayback_attempts=%d wayback_recoveries=%d wayback_empty=%d wayback_errors=%d",
         stats.orgs_completed, stats.pdfs_downloaded,
         stats.bytes_downloaded, elapsed, rate, peak_rss_kb,
+        stats.wayback_attempts, stats.wayback_recoveries,
+        stats.wayback_empty, stats.wayback_errors,
     )
 
     for sig in (signal.SIGINT, signal.SIGTERM):
