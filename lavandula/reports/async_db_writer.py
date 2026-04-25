@@ -270,6 +270,7 @@ class DBWriterActor:
                 candidate_count=req.candidate_count,
                 fetched_count=req.fetched_count,
                 confirmed_report_count=req.confirmed_report_count,
+                status=req.status,
             )
 
     async def flush_and_stop(self) -> None:

@@ -92,6 +92,40 @@ async def test_db_actor_batch_flush():
 
 
 @pytest.mark.asyncio
+async def test_db_actor_passes_status_to_upsert_crawled_org():
+    """Spec 0021 follow-up: status='transient' / 'permanent_skip' must
+    flow through DBWriterActor → db_writer.upsert_crawled_org so the
+    SQL CASE can decide auto-promotion to 'permanent_skip'."""
+    engine = MagicMock()
+    with patch("lavandula.reports.async_db_writer.db_writer") as mock_db:
+        actor = DBWriterActor(engine, batch_size=10, flush_interval_sec=0.1)
+        task = asyncio.create_task(actor.run())
+
+        for status in ("ok", "transient", "permanent_skip"):
+            await actor.enqueue(UpsertCrawledOrgRequest(
+                ein=f"ein-{status}",
+                candidate_count=0,
+                fetched_count=0,
+                confirmed_report_count=0,
+                status=status,
+            ))
+
+        await actor.flush_and_stop()
+
+        # Each call passed status= kwarg through.
+        seen_statuses = sorted(
+            call.kwargs["status"] for call in mock_db.upsert_crawled_org.call_args_list
+        )
+        assert seen_statuses == ["ok", "permanent_skip", "transient"]
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+@pytest.mark.asyncio
 async def test_db_actor_flush_on_timeout():
     engine = MagicMock()
 

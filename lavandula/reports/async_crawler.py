@@ -135,19 +135,23 @@ async def _org_worker(
             if _is_transient(exc):
                 _log.warning("transient failure ein=%s: %s", ein, exc)
                 stats.orgs_transient_failed += 1
+                status = "transient"
             else:
                 _log.exception("permanent failure ein=%s", ein)
                 stats.orgs_permanent_failed += 1
-                try:
-                    await db_actor.enqueue(UpsertCrawledOrgRequest(
-                        ein=ein,
-                        candidate_count=0,
-                        fetched_count=0,
-                        confirmed_report_count=0,
-                        status="permanent_skip",
-                    ))
-                except Exception:  # noqa: BLE001
-                    _log.warning("failed to record permanent_skip for ein=%s", ein)
+                status = "permanent_skip"
+            try:
+                await db_actor.enqueue(UpsertCrawledOrgRequest(
+                    ein=ein,
+                    candidate_count=0,
+                    fetched_count=0,
+                    confirmed_report_count=0,
+                    status=status,
+                ))
+            except Exception:  # noqa: BLE001
+                _log.warning(
+                    "failed to record %s attempt for ein=%s", status, ein,
+                )
         finally:
             stats.orgs_active -= 1
             org_queue.task_done()
@@ -224,6 +228,19 @@ async def _process_org_async(
     if not candidates and not discovery.homepage_ok and not discovery.robots_disallowed_all:
         _log.warning("transient discovery failure ein=%s (homepage unreachable, 0 candidates)", ein)
         stats.orgs_transient_failed += 1
+        # Record the attempt so we can cap retries (spec 0021 follow-up).
+        # SQL CASE auto-promotes status='transient' to 'permanent_skip'
+        # once attempts >= MAX_TRANSIENT_ATTEMPTS.
+        try:
+            await db_actor.enqueue(UpsertCrawledOrgRequest(
+                ein=ein,
+                candidate_count=0,
+                fetched_count=0,
+                confirmed_report_count=0,
+                status="transient",
+            ))
+        except Exception:  # noqa: BLE001
+            _log.warning("failed to record transient attempt for ein=%s", ein)
         return
 
     org_tracker = OrgDownloadTracker()

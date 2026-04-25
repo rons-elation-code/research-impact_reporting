@@ -76,22 +76,38 @@ def upsert_crawled_org(
     candidate_count: int,
     fetched_count: int,
     confirmed_report_count: int,
+    status: str = "ok",
+    max_transient_attempts: int | None = None,
 ) -> None:
     """Track that this EIN has been processed.
 
     `confirmed_report_count` uses `GREATEST(existing, new)` so the
     crawler's `0` on re-crawl does not clobber the value backfilled
-    by `classify_null.py`. This matches the SQLite "intentionally NOT
-    updated here" semantics.
+    by `classify_null.py`.
+
+    `status` values:
+      - 'ok'             — successful crawl (default; sync crawler always passes this)
+      - 'transient'      — failed transiently; will be retried on next run
+      - 'permanent_skip' — explicit permanent failure (SSRF, robots disallow, etc.)
+
+    `attempts` increments by 1 on every upsert. When attempts crosses
+    `max_transient_attempts` AND the new status is 'transient', the
+    SQL CASE auto-promotes status to 'permanent_skip' so resume stops
+    retrying. 'ok' and 'permanent_skip' inputs are persisted as-is.
     """
+    if max_transient_attempts is None:
+        from . import config as _cfg
+        max_transient_attempts = _cfg.MAX_TRANSIENT_ATTEMPTS
     now = _now_iso()
     with engine.begin() as conn:
         conn.execute(
             text(
                 f"INSERT INTO {_SCHEMA}.crawled_orgs "
                 "(ein, first_crawled_at, last_crawled_at, "
-                " candidate_count, fetched_count, confirmed_report_count) "
-                "VALUES (:ein, :first, :last, :cand, :fetched, :confirmed) "
+                " candidate_count, fetched_count, confirmed_report_count, "
+                " status, attempts) "
+                "VALUES (:ein, :first, :last, :cand, :fetched, :confirmed, "
+                "        :status, 1) "
                 "ON CONFLICT (ein) DO UPDATE SET "
                 "  last_crawled_at = EXCLUDED.last_crawled_at, "
                 "  candidate_count = EXCLUDED.candidate_count, "
@@ -99,7 +115,15 @@ def upsert_crawled_org(
                 "  confirmed_report_count = GREATEST("
                 f"    {_SCHEMA}.crawled_orgs.confirmed_report_count, "
                 "    EXCLUDED.confirmed_report_count"
-                "  )"
+                "  ), "
+                f"  attempts = {_SCHEMA}.crawled_orgs.attempts + 1, "
+                "  status = CASE "
+                "    WHEN EXCLUDED.status = 'ok' THEN 'ok' "
+                "    WHEN EXCLUDED.status = 'permanent_skip' THEN 'permanent_skip' "
+                f"    WHEN {_SCHEMA}.crawled_orgs.attempts + 1 >= :max_attempts "
+                "         THEN 'permanent_skip' "
+                "    ELSE EXCLUDED.status "
+                "  END"
             ),
             {
                 "ein": ein,
@@ -108,6 +132,8 @@ def upsert_crawled_org(
                 "cand": candidate_count,
                 "fetched": fetched_count,
                 "confirmed": confirmed_report_count,
+                "status": status,
+                "max_attempts": max_transient_attempts,
             },
         )
 

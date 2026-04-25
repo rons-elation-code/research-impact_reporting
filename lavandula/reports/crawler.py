@@ -135,12 +135,21 @@ def acquire_flock(lock_path: Path) -> int:
 # ---------------------------------------------------------------------
 
 def should_skip_ein(engine: Engine, *, ein: str, refresh: bool) -> bool:
+    """Skip orgs that are settled (successful or permanently given up on).
+
+    Status semantics (Spec 0021 + follow-up):
+      - 'ok'             — already crawled successfully → skip
+      - 'permanent_skip' — explicit permanent failure or N transient retries
+                           exhausted → skip
+      - 'transient'      — temporary failure recorded; will be retried this run
+    """
     if refresh:
         return False
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT 1 FROM lava_impact.crawled_orgs "
-                 "WHERE ein = :ein"),
+                 "WHERE ein = :ein "
+                 "  AND status IN ('ok', 'permanent_skip')"),
             {"ein": ein},
         ).fetchone()
     return row is not None

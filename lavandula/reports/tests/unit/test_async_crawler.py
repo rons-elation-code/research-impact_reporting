@@ -49,9 +49,12 @@ class _FakeResult:
 # ---------- AC23: transient discovery failures ----------
 
 @pytest.mark.asyncio
-async def test_transient_discovery_no_crawled_org_row():
-    """AC23: org with unreachable homepage + 0 candidates should NOT get a
-    crawled_orgs row, so resume will retry it."""
+async def test_transient_discovery_writes_transient_row():
+    """AC23 + retry-cap follow-up: org with unreachable homepage + 0
+    candidates writes a row with status='transient' so attempts can be
+    counted. The upsert SQL auto-promotes to 'permanent_skip' once
+    attempts >= MAX_TRANSIENT_ATTEMPTS, so retry behavior is preserved
+    while still bounding the retry budget."""
     enqueued: list[object] = []
     loop = asyncio.get_running_loop()
 
@@ -95,7 +98,9 @@ async def test_transient_discovery_no_crawled_org_row():
         )
 
     crawled_org_writes = [r for r in enqueued if isinstance(r, UpsertCrawledOrgRequest)]
-    assert len(crawled_org_writes) == 0
+    assert len(crawled_org_writes) == 1
+    assert crawled_org_writes[0].status == "transient"
+    assert crawled_org_writes[0].candidate_count == 0
     assert stats.orgs_transient_failed == 1
 
 
