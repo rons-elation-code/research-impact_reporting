@@ -7,7 +7,43 @@
 
 ## Consultation Log
 
-(To be populated during plan-review and red-team rounds.)
+### First Consultation (After Initial Draft)
+**Date**: 2026-04-25
+**Models Consulted**: Codex ✅, Claude ✅ (Gemini quota exhausted)
+**Verdicts**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
+
+| Model | Verdict | Top issues |
+|-------|---------|------------|
+| Codex | REQUEST_CHANGES (HIGH) | Invalid-domain handling collapsed into ERROR; AC10.1 redirect policy missing; AC19 emission unassigned; two-strikes SQL too loose; Retry-After scope too broad; spec internal contradiction |
+| Claude | REQUEST_CHANGES (HIGH) | AC10.1 missing; AC19 emission unwired; AC24.7 idempotency test missing; AC6 timeout not explicit; AC18 counter never incremented; `wayback_all_downloads_failed` flow missing; dead `two_strikes_check=True` flag; AC15.5 body cap not verified |
+
+Combined: 14 distinct issues across both reviewers, all addressed in v2. See "Changes in v2" below.
+
+### Changes in v2
+
+Codex (HIGH) and Claude (HIGH) plan-review feedback — both REQUEST_CHANGES. 14 issues addressed:
+
+1. **`WaybackOutcome` adds `INVALID_DOMAIN`.** 4-valued enum: `RECOVERED | EMPTY | ERROR | INVALID_DOMAIN`. Phase 4 returns it; Phase 6 maps it to `notes='wayback_invalid_domain'` distinctly from `wayback_error` (Codex #1).
+2. **AC10.1 (Wayback redirect rejection) added to Phase 3.** Cross-host redirects from `web.archive.org` / `archive.org` to non-archive.org hosts are rejected as `blocked_redirect`. New helper `_check_wayback_redirect_chain()` enforced inside `AsyncHTTPClient.get()`'s redirect loop (Codex #2, Claude #1).
+3. **AC19 `decisions_log` emission wired into Phase 6.** New helper `_log_wayback_decision()` emits the `wayback_query` event with the bounded enum (`recovered | empty_first | empty_second_promoted | error | all_downloads_failed | invalid_domain`) and required fields (`ein`, `domain`, `cdx_http_status`, `row_count_raw`, `row_count_after_dedup`, `elapsed_ms`, `outcome`, `reason`, `capture_hosts`). Called once per org that triggers Wayback fallback (Codex #3, Claude #2).
+4. **Two-strikes SQL CASE fixed and `two_strikes_check` flag removed.** Promotion now requires BOTH `crawled_orgs.status='transient'` AND `crawled_orgs.notes='wayback_no_coverage'` matching the new EXCLUDED row, matching AC15.6 exactly. The dead `two_strikes_check=True` flag from v1 is removed (Codex #4, Claude #2):
+   ```sql
+   WHEN EXCLUDED.status = 'transient'
+        AND EXCLUDED.notes = 'wayback_no_coverage'
+        AND crawled_orgs.status = 'transient'
+        AND crawled_orgs.notes = 'wayback_no_coverage'
+        THEN 'permanent_skip'
+   ```
+5. **Retry-After scoped to Wayback hosts only.** Phase 3 modification only honors Retry-After for hosts canonicalized to `archive.org` (Codex #5).
+6. **Spec reconciliation.** AC24 + AC24.4 in spec 0022 updated to match AC14's two-strikes behavior. Builders can now treat "all ACs verified" literally (Codex #6).
+7. **AC6 (15s CDX timeout) explicit.** Phase 4 calls `client.get(cdx_url, kind="wayback-cdx", timeout_override=15.0)` — `AsyncHTTPClient.get()` extended with optional `timeout_override` parameter that supersedes the default 30s for this single call. Test AC26 verifies the override fires (Claude #4).
+8. **AC18 `wayback_attempts` increment site.** `discover_via_wayback` increments `stats.wayback_attempts` at function entry (one per CDX query fired). Phase 4 plumbs `stats` parameter; Phase 5 passes it through `discover_org`. Test asserts counter matches outbound CDX request count (Claude #3).
+9. **`wayback_all_downloads_failed` flow added.** Phase 6 now has TWO outcome branches: (a) discovery returns no candidates → `_record_no_candidates` (covers RECOVERED-but-empty, EMPTY, ERROR, INVALID_DOMAIN); (b) discovery returns Wayback candidates that all fail download → new `_record_post_download_outcome` checks `discovered_via='wayback'` provenance + zero successful downloads, writes `status='transient'` `notes='wayback_all_downloads_failed'`. Test AC24 covers this fifth state (Claude #6).
+10. **AC15.5 (CDX body cap) verified explicitly.** Phase 4 passes `kind="wayback-cdx"` which already maps to `MAX_TEXT_BYTES=5MB` in the existing `_KIND_TO_CAP` table. Phase 4 adds a unit test stubbing a 6MB CDX response and asserting `WaybackOutcome.ERROR` (verifying the existing cap actually fires for this code path) (Claude #5).
+11. **AC24.7 idempotency test added.** Test in `test_async_crawler.py` simulates running the Wayback fallback twice for the same org with same CDX response. Asserts: `reports` row count unchanged (no duplicates via `content_sha256` PK), `wayback_recoveries` increments each run (Claude #4).
+12. **`AsyncHostPinCache` host-key normalization documented.** Phase 2 explicitly notes that `web.archive.org` and `archive.org` are NOT canonicalized in `AsyncHostPinCache` — pin caching keys on the original hostname (so TLS SNI is preserved per AC15-pin behavior). Only `AsyncHostThrottle` canonicalizes both to one bucket. Test verifies both hosts get separate DNS pins but share one throttle semaphore (Claude #9).
+13. **Phase 3's "alternative" discussion removed** (planning-in-progress noise). Plan commits to in-client sleep approach (Claude minor).
+14. **Static-analysis test made AST-based** in Phase 7 to avoid the fragile string allowlist Claude flagged. Uses `ast.NodeVisitor` to walk function calls for `client.get`, `client.head`, `session.get`, etc., and asserts `original_source_url` never appears as an argument. Plus an inverse test asserting the expected DB-write call sites *do* contain the field (so a future refactor that drops the field is caught) (Claude #10).
 
 ---
 
@@ -212,21 +248,20 @@ throttle = AsyncHostThrottle(host_overrides={
 
 ---
 
-### Phase 3: Retry-After Header Honor (`async_http_client.py` modification)
+### Phase 3: HTTP Client Modifications — Retry-After + Wayback Redirect Policy + Timeout Override
 
-**Modify**: `lavandula/reports/async_http_client.py` (~30 lines added)
+**Modify**: `lavandula/reports/async_http_client.py` (~80 lines added)
 
-**What to change:**
+**Three additions, all in `AsyncHTTPClient`:**
 
-In the `get` method, after receiving any response with status 429 or 503, check for a `Retry-After` header. If present and parseable (numeric seconds, capped at 60), record it on the FetchResult OR sleep before returning. The simplest implementation: if the header is present, sleep for the indicated seconds (capped) BEFORE returning the response, and return the FetchResult unchanged. This naturally back-pressures any subsequent request to the same host.
+#### 3a. Retry-After honor for Wayback hosts only (AC17.2)
 
-Alternative (cleaner but bigger): expose `retry_after_sec` on `FetchResult` so the caller decides whether to honor it. For Spec 0022's purposes, the simpler in-client sleep is sufficient — it only affects 429/503 responses, which are already considered "failed" by the discover_org logic, so adding a sleep doesn't hurt the happy path.
-
-**Implementation:**
+After receiving any response with status 429 or 503, if the request host canonicalizes to `archive.org` (per `_canonical_host` from Phase 2), check for a `Retry-After` header and sleep before returning. Other hosts get the response returned unchanged — the retry wrapper at the discovery layer handles them via standard backoff.
 
 ```python
-async def _maybe_honor_retry_after(self, resp) -> None:
-    """If response is 429/503 with Retry-After header, sleep up to 60s."""
+async def _maybe_honor_wayback_retry_after(self, host: str, resp) -> None:
+    if _canonical_host(host) != "archive.org":
+        return
     if resp.status not in (429, 503):
         return
     retry_after = resp.headers.get("Retry-After")
@@ -238,22 +273,59 @@ async def _maybe_honor_retry_after(self, resp) -> None:
         return
     delay = min(max(delay, 0.0), 60.0)
     if delay > 0:
-        _log.info("honoring Retry-After=%s for host=%s", retry_after, resp.host)
+        _log.info("Wayback Retry-After=%s, sleeping", retry_after)
         await asyncio.sleep(delay)
 ```
 
-Called inside `get()` after the response is received and before returning.
+#### 3b. Wayback cross-host redirect rejection (AC10.1)
 
-**Tests** (modify `test_async_http_client.py`, ~30 lines added):
-- 429 with `Retry-After: 5` → asyncio.sleep called with ~5s (use mocked sleep).
-- 429 without `Retry-After` → no sleep.
-- 200 with `Retry-After` → no sleep (only honored on 429/503).
-- `Retry-After: bogus` → no sleep, no exception.
-- `Retry-After: 1000` → capped to 60s.
+In the existing redirect loop in `get()`, if the request was for a Wayback host but the redirect target leaves the archive.org canonical bucket, reject with `blocked_redirect`. Implementation: extend the `check_redirect_chain` call site (or add a sibling check) to also enforce Wayback host invariance.
 
-**ACs covered**: AC17.2, AC25.7
+```python
+def _check_wayback_redirect(redirect_chain: list[str]) -> ReceiveCheckResult:
+    """If the chain originated at a Wayback host, every hop must remain
+    in the archive.org canonical bucket. AC10.1.
+    """
+    if len(redirect_chain) < 2:
+        return ReceiveCheckResult(ok=True, reason=None, note=None)
+    origin_host = urlsplit(redirect_chain[0]).hostname or ""
+    if _canonical_host(origin_host) != "archive.org":
+        return ReceiveCheckResult(ok=True, reason=None, note=None)
+    target_host = urlsplit(redirect_chain[-1]).hostname or ""
+    if _canonical_host(target_host) != "archive.org":
+        return ReceiveCheckResult(
+            ok=False,
+            reason="blocked_redirect",
+            note=f"wayback_redirect_to_{target_host}",
+        )
+    return ReceiveCheckResult(ok=True, reason=None, note=None)
+```
 
-**Lines**: ~30 src + ~30 tests
+Called from inside the redirect loop alongside the existing `check_redirect_chain(seed_etld1)` check. The two checks are independent and both must pass.
+
+#### 3c. Per-call timeout override (AC6)
+
+`AsyncHTTPClient.get()` accepts an optional `timeout_override: float | None = None` kwarg. When provided, that single request uses `aiohttp.ClientTimeout(total=timeout_override, ...)` instead of the session default. Phase 4 uses this for the 15s CDX timeout.
+
+```python
+async def get(self, url, *, kind="homepage", seed_etld1=None,
+              extra_headers=None, timeout_override: float | None = None):
+    ...
+    request_kwargs = {"allow_redirects": False, "headers": headers}
+    if timeout_override is not None:
+        request_kwargs["timeout"] = aiohttp.ClientTimeout(total=timeout_override)
+    resp = await session.get(current_url, **request_kwargs)
+    ...
+```
+
+**Tests** (modify `test_async_http_client.py`, ~80 lines added):
+- 3a: 429 with `Retry-After: 5` from `web.archive.org` → asyncio.sleep called with ~5s; 429 from a non-Wayback host → no sleep; 429 from Wayback without `Retry-After` → no sleep; 200 from Wayback with `Retry-After` → no sleep; `Retry-After: bogus` → no sleep, no exception; `Retry-After: 1000` → capped to 60s.
+- 3b: redirect from `web.archive.org/web/.../{...}` → `web.archive.org/web/.../{...}` accepted; redirect from `web.archive.org/...` → `evil.com/...` rejected with `blocked_redirect` and `note="wayback_redirect_to_evil.com"`; redirect from a non-Wayback host to anywhere is unaffected by the new check (still uses standard `check_redirect_chain`).
+- 3c: `client.get(url, timeout_override=15.0)` uses 15s timeout; calls without override use session default; existing tests unaffected.
+
+**ACs covered**: AC6, AC10.1, AC17.2, AC25.7
+
+**Lines**: ~80 src + ~80 tests
 
 ---
 
@@ -267,9 +339,10 @@ Called inside `get()` after the response is received and before returning.
 from enum import Enum
 
 class WaybackOutcome(str, Enum):
-    RECOVERED = "recovered"
-    EMPTY     = "empty"
-    ERROR     = "error"
+    RECOVERED       = "recovered"
+    EMPTY           = "empty"            # CDX returned cleanly with 0 usable rows
+    ERROR           = "error"            # network / 5xx / malformed JSON / oversized body
+    INVALID_DOMAIN  = "invalid_domain"   # AC15.2: domain failed RFC-1123 validation; no outbound request issued
 
 @dataclass
 class WaybackResult:
@@ -278,6 +351,7 @@ class WaybackResult:
     capture_hosts: list[str]            # for decisions_log
     raw_row_count: int                  # how many rows CDX returned (pre-dedup)
     elapsed_ms: int
+    cdx_http_status: int | None = None  # for decisions_log AC19
 
 async def discover_via_wayback(
     *,
@@ -285,11 +359,16 @@ async def discover_via_wayback(
     seed_etld1: str,
     client: AsyncHTTPClient,
     ein: str,
+    stats: CrawlStats,                          # AC18: counter increment site
 ) -> WaybackResult:
     """Query Wayback CDX for PDFs under the domain, validate rows,
     enforce capture-host policy, return candidates pointing at
     web.archive.org raw-bytes URLs.
+    
+    Increments stats.wayback_attempts on entry (one per CDX query fired,
+    even for invalid-domain rejections that don't reach the network).
     """
+    stats.wayback_attempts += 1
     ...
 ```
 
@@ -416,16 +495,24 @@ async def discover_via_wayback(*, seed_url, seed_etld1, client, ein) -> WaybackR
     domain = urlsplit(seed_url).hostname or seed_etld1
     cdx_url = _build_cdx_url(domain)
     if cdx_url is None:
-        # Domain failed validation — AC15.2 / AC25.2.
-        return WaybackResult(WaybackOutcome.ERROR, [], [], 0, 0)
+        # Domain failed validation — AC15.2 / AC25.2. Distinct from ERROR so
+        # Phase 6 can record `notes='wayback_invalid_domain'` and ops can
+        # distinguish bad seed data from genuine Wayback failures.
+        return WaybackResult(WaybackOutcome.INVALID_DOMAIN, [], [], 0, 0)
     
-    r = await client.get(cdx_url, kind="wayback-cdx")
+    # AC6: explicit 15s timeout override.
+    # AC15.5: body cap enforced by AsyncHTTPClient via _KIND_TO_CAP[wayback-cdx]
+    #         which maps to MAX_TEXT_BYTES (5 MB). Oversized responses return
+    #         status='size_capped' which we route to ERROR below.
+    r = await client.get(cdx_url, kind="wayback-cdx", timeout_override=15.0)
     elapsed = int((asyncio.get_event_loop().time() - t_start) * 1000)
-    
+
     if r.status != "ok" or not r.body:
-        return WaybackResult(WaybackOutcome.ERROR, [], [], 0, elapsed)
-    
-    # AC15.5: body cap (existing http_client enforces MAX_TEXT_BYTES already)
+        # 'size_capped' (AC15.5), 'network_error', '5xx', etc. all → ERROR.
+        return WaybackResult(
+            WaybackOutcome.ERROR, [], [], 0, elapsed,
+            cdx_http_status=r.http_status,
+        )
     
     outcome, validated = _parse_cdx_response(r.body)
     if outcome != WaybackOutcome.RECOVERED:
@@ -450,16 +537,19 @@ async def discover_via_wayback(*, seed_url, seed_etld1, client, ein) -> WaybackR
     )
 ```
 
-**Tests** (`test_wayback_fallback.py`, ~300 lines):
-- `_build_cdx_url`: malicious domain rejected, valid domain produces correctly-encoded URL (AC25.2).
-- `_parse_cdx_response`: empty list → EMPTY; header-only → EMPTY; all-rows-fail-validation → EMPTY; valid rows → RECOVERED with the validated rows; non-JSON body → ERROR; UnicodeDecodeError → ERROR (AC20, AC20.1, AC24.4, AC24.5).
+**Tests** (`test_wayback_fallback.py`, ~330 lines):
+- `_build_cdx_url`: malicious domain rejected (returns None → INVALID_DOMAIN at caller), valid domain produces correctly-encoded URL (AC25.2).
+- `_parse_cdx_response`: empty list `[]` → EMPTY; header-only `[[header]]` → EMPTY; all-rows-fail-validation → EMPTY; valid rows → RECOVERED with the validated rows; non-JSON body → ERROR; UnicodeDecodeError → ERROR (AC20, AC20.1, AC24.4, AC24.5).
 - `_dedupe_and_cap`:
   - dedup by urlkey picks max timestamp (AC20)
   - sort by timestamp DESC
   - cross-eTLD+1 rows dropped (AC25.4)
   - max 3 subdomains with apex preferred (AC25.4)
   - cap at WAYBACK_MAX_PDFS_PER_ORG (AC7)
-- `discover_via_wayback`: full flow with stubbed AsyncHTTPClient — RECOVERED, EMPTY, ERROR, capture_hosts populated, elapsed_ms recorded (AC23, AC24).
+- `discover_via_wayback`: full flow with stubbed AsyncHTTPClient — RECOVERED, EMPTY, ERROR, INVALID_DOMAIN, capture_hosts populated, elapsed_ms recorded (AC23, AC24).
+- **AC15.5 body-cap verification**: stubbed CDX returning 6 MB body → AsyncHTTPClient returns `status='size_capped'` → `discover_via_wayback` returns `WaybackOutcome.ERROR`, `cdx_http_status=200`, `wayback_attempts++` (verifies the existing cap actually fires for `kind=wayback-cdx`).
+- **AC18 counter test**: `wayback_attempts` increments by exactly 1 per `discover_via_wayback` call regardless of outcome (including INVALID_DOMAIN where no network request is issued).
+- **AC6 timeout test**: `client.get` is called with `timeout_override=15.0` (verify via mocked `client.get`).
 
 **ACs covered**: AC4, AC5, AC5.1, AC5.2, AC7, AC11, AC15.2-AC15.4, AC20, AC20.1, AC24.4, AC24.5, AC25.4
 
@@ -588,34 +678,68 @@ async def _process_org_async(...):
 ```
 
 ```python
-async def _record_no_candidates(*, ein, db_actor, stats, discovery):
-    """AC14 5-way state machine for orgs that produced no candidates."""
-    if discovery.wayback_outcome is None:
-        # Wayback wasn't queried (e.g., robots blocked) — treat as standard transient.
-        stats.orgs_transient_failed += 1
-        await _enqueue_status(db_actor, ein, "transient", "robots_or_unknown")
-        return
+async def _record_no_candidates(*, ein, domain, db_actor, stats, discovery):
+    """AC14 state machine for orgs whose discovery produced no candidates.
     
+    Cases handled here:
+    - discovery.wayback_outcome is None       → robots-blocked or other
+    - discovery.wayback_outcome == ERROR      → wayback_error
+    - discovery.wayback_outcome == EMPTY      → first empty (two-strikes rule)
+    - discovery.wayback_outcome == INVALID_DOMAIN → wayback_invalid_domain (AC15.2)
+    
+    The 'all_downloads_failed' case is handled separately in
+    _record_post_download_outcome (after the download barrier).
+    """
+    notes = "robots_or_unknown"
+    log_outcome = "skipped"
     if discovery.wayback_outcome == WaybackOutcome.ERROR:
-        stats.orgs_transient_failed += 1
         stats.wayback_errors += 1
-        await _enqueue_status(db_actor, ein, "transient", "wayback_error")
-        return
-    
-    if discovery.wayback_outcome == WaybackOutcome.EMPTY:
-        # AC15.6: two-strikes empty rule.
-        # First empty → transient with notes='wayback_no_coverage'.
-        # Second consecutive empty → permanent_skip (handled by SQL CASE
-        # via existing notes inspection).
+        notes = "wayback_error"
+        log_outcome = "error"
+    elif discovery.wayback_outcome == WaybackOutcome.INVALID_DOMAIN:
+        stats.wayback_errors += 1   # counted as an error; distinct from network errors
+        notes = "wayback_invalid_domain"
+        log_outcome = "invalid_domain"
+    elif discovery.wayback_outcome == WaybackOutcome.EMPTY:
         stats.wayback_empty += 1
-        stats.orgs_transient_failed += 1  # counts toward transient until promoted
-        await _enqueue_status_with_two_strikes(
-            db_actor, ein, status="transient", notes="wayback_no_coverage",
+        notes = "wayback_no_coverage"
+        log_outcome = "empty_first"   # SQL CASE promotes to empty_second on the next observation
+
+    stats.orgs_transient_failed += 1
+    await _enqueue_status(db_actor, ein, "transient", notes)
+    if discovery.wayback_outcome is not None:
+        await _log_wayback_decision(
+            db_actor=db_actor, ein=ein, domain=domain,
+            outcome=log_outcome, reason=discovery.homepage_failure_reason,
+            discovery=discovery,
         )
-        return
+
+
+async def _record_post_download_outcome(
+    *, ein, domain, db_actor, stats, discovery,
+    successful_downloads: int, candidates: list[Candidate],
+):
+    """AC14 fifth state: Wayback returned candidates but ALL downloads failed.
+    Distinct from 'EMPTY' or 'ERROR' — the CDX query worked but the per-PDF
+    fetches all failed validation/download.
+    """
+    is_wayback = any(c.discovered_via == "wayback" for c in candidates)
+    if not is_wayback or successful_downloads > 0:
+        return  # not the case we handle here; standard 'ok' path applies
+    stats.orgs_transient_failed += 1
+    stats.wayback_errors += 1
+    await _enqueue_status(db_actor, ein, "transient", "wayback_all_downloads_failed")
+    await _log_wayback_decision(
+        db_actor=db_actor, ein=ein, domain=domain,
+        outcome="all_downloads_failed",
+        reason=discovery.homepage_failure_reason,
+        discovery=discovery,
+    )
 
 
 async def _enqueue_status(db_actor, ein, status, notes):
+    """Single state-write helper. The SQL CASE in upsert_crawled_org
+    handles two-strikes promotion automatically — no flag needed."""
     await db_actor.enqueue(UpsertCrawledOrgRequest(
         ein=ein,
         candidate_count=0,
@@ -626,18 +750,25 @@ async def _enqueue_status(db_actor, ein, status, notes):
     ))
 
 
-async def _enqueue_status_with_two_strikes(db_actor, ein, status, notes):
-    """Enqueue a row that the SQL CASE will promote to permanent_skip
-    on the second consecutive 'wayback_no_coverage' observation."""
-    await db_actor.enqueue(UpsertCrawledOrgRequest(
+async def _log_wayback_decision(
+    *, db_actor, ein, domain, outcome: str, reason: str | None, discovery,
+):
+    """AC19: emit a wayback_query event to decisions_log with bounded enum
+    fields. Implementation uses the existing decisions_log writer.
+    """
+    from .decisions_log import emit_decision  # existing module
+    emit_decision(
+        event_type="wayback_query",
         ein=ein,
-        candidate_count=0,
-        fetched_count=0,
-        confirmed_report_count=0,
-        status=status,
-        notes=notes,
-        two_strikes_check=True,  # tells the SQL CASE to consult prior notes
-    ))
+        domain=domain,
+        outcome=outcome,                           # bounded enum
+        reason=reason,                             # AC3.1 enum
+        cdx_http_status=discovery.wayback_cdx_http_status,
+        row_count_raw=discovery.wayback_raw_row_count,
+        row_count_after_dedup=len(discovery.candidates) if discovery.wayback_outcome == WaybackOutcome.RECOVERED else 0,
+        elapsed_ms=discovery.wayback_elapsed_ms,
+        capture_hosts=discovery.wayback_capture_hosts,
+    )
 ```
 
 **SQL CASE update** (extend Spec 0021's upsert_crawled_org SQL, AC14):
@@ -695,12 +826,18 @@ if cand.discovered_via == "wayback" and (
     return
 ```
 
-**Tests** (new tests in `test_async_crawler.py`, ~150 lines added):
-- AC14: 5-way DB outcome — recovered → `ok`; error → `transient` `wayback_error`; first empty → `transient` `wayback_no_coverage`; second empty (existing row already 'wayback_no_coverage') → `permanent_skip`; all-downloads-failed → `transient` `wayback_all_downloads_failed`.
-- AC17.1: Wayback PDF with embedded JS rejected; archive.put NOT called; `reports` row NOT created; fetch_log row created with notes='wayback_active_content'.
-- AC25.5: same as AC17.1 in test form.
-- AC25.6: two consecutive empty CDX runs auto-promote to permanent_skip.
+**Tests** (new tests in `test_async_crawler.py`, ~200 lines added):
+- AC14 (full 5-way DB outcome):
+  - recovered → `ok`, `wayback_recoveries++`
+  - error (wayback CDX failed) → `transient` `wayback_error`, `wayback_errors++`
+  - invalid_domain → `transient` `wayback_invalid_domain`, `wayback_errors++`
+  - first empty → `transient` `wayback_no_coverage`, `wayback_empty++`
+  - second empty (existing row already `status='transient' AND notes='wayback_no_coverage'`) → `permanent_skip`, attempts=2 (AC15.6, AC25.6)
+  - all-downloads-failed → `transient` `wayback_all_downloads_failed`, `wayback_errors++`
+- AC17.1 / AC25.5: Wayback PDF with embedded JS rejected; archive.put NOT called; `reports` row NOT created; fetch_log row created with notes='wayback_active_content'.
 - AC23: integration — homepage 403 cf-mitigated, CDX returns 3 PDFs, all 3 archived, status=ok, wayback_recoveries=1.
+- AC24.7 (idempotency): run the Wayback fallback twice for the same org with same CDX response. Assert `reports` row count unchanged on second run (no duplicates via `content_sha256` PK), `wayback_recoveries` increments on each run, `crawled_orgs.attempts` increments.
+- **AC19 emission test**: assert `decisions_log` has exactly one `wayback_query` event per Wayback fallback trigger, with all required fields populated (`ein`, `domain`, `cdx_http_status`, `row_count_raw`, `row_count_after_dedup`, `elapsed_ms`, `outcome`, `reason`, `capture_hosts`). Verify `outcome` value is in the bounded enum.
 
 **ACs covered**: AC14, AC17.1, AC18, AC23, AC24.1, AC24.2, AC24.3, AC24.6, AC25.5, AC25.6
 
@@ -755,43 +892,67 @@ COMMIT;
 
 **Modify `_process_download`** to wire `original_source_url_redacted = redact_url(cand.original_source_url)` into `UpsertReportRequest`. If `cand.wayback_digest` is set, append to `RecordFetchRequest.notes` as `wayback_digest:{sha1}` (AC19.1).
 
-**Static-analysis test** (`test_wayback_static_safety.py`, ~50 lines, AC25.1):
+**Static-analysis test** (`test_wayback_static_safety.py`, ~80 lines, AC25.1):
+
+AST-based instead of string allowlist (Claude review feedback) so it's robust to formatting changes. Walks the AST of every non-test source file looking for `Call` nodes whose function matches a known fetcher/resolver pattern (`client.get`, `client.head`, `session.get`, `session.head`, `urlopen`, `requests.get`, etc.) and asserts no argument or keyword references `original_source_url` or `original_source_url_redacted`.
+
+Plus an inverse test: assert that `db_writer.upsert_report` is called with `original_source_url_redacted` somewhere in the codebase (so a future refactor that drops the field is caught).
 
 ```python
-def test_original_source_url_never_used_for_outbound_io():
-    """AC15.1 + AC25.1: original_source_url must not flow into any
-    fetcher / resolver / redirector / classifier-prompt path."""
+import ast
+import pathlib
+
+FORBIDDEN_FETCHER_NAMES = {
+    "get", "head", "request",   # client/session methods
+    "urlopen", "fetch",
+}
+FORBIDDEN_PROVENANCE_REFS = {"original_source_url", "original_source_url_redacted"}
+
+def _references_provenance(node: ast.AST) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id in FORBIDDEN_PROVENANCE_REFS:
+            return True
+        if isinstance(child, ast.Attribute) and child.attr in FORBIDDEN_PROVENANCE_REFS:
+            return True
+    return False
+
+
+def test_original_source_url_never_passed_to_fetcher():
+    """AC15.1 + AC25.1: original_source_url must not appear as an arg
+    to any fetcher/resolver call."""
     repo_root = pathlib.Path(__file__).resolve().parents[5]
     src_files = [
         p for p in repo_root.rglob("lavandula/**/*.py")
-        if "tests/" not in str(p) and "__pycache__/" not in str(p)
+        if "/tests/" not in str(p) and "__pycache__" not in str(p)
     ]
-    forbidden_callsites = []
-    pattern = re.compile(r"original_source_url(_redacted)?")
+    violations = []
     for f in src_files:
-        text = f.read_text()
-        for i, line in enumerate(text.splitlines(), start=1):
-            if not pattern.search(line):
+        tree = ast.parse(f.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
                 continue
-            # Allow: dataclass field decl, DB write context, log/redact context.
-            allowed_contexts = [
-                "= None", "field(", "ALTER TABLE",
-                "redact_url", "logger.", "_log.", "logging.",
-                "original_source_url=", "original_source_url_redacted=",
-                "VARCHAR", "TEXT",
-            ]
-            if any(ctx in line for ctx in allowed_contexts):
+            func_name = (
+                node.func.attr if isinstance(node.func, ast.Attribute)
+                else getattr(node.func, "id", None)
+            )
+            if func_name not in FORBIDDEN_FETCHER_NAMES:
                 continue
-            # Disallow: anything that looks like a fetch / resolve.
-            if any(bad in line for bad in [
-                "client.get(", "client.head(", "session.get(",
-                "session.head(", "urlopen", "requests.", "fetch(",
-            ]):
-                forbidden_callsites.append(f"{f}:{i}: {line.strip()}")
-    
-    assert not forbidden_callsites, (
-        "original_source_url must not be passed to fetcher/resolver code:\n"
-        + "\n".join(forbidden_callsites)
+            for arg in [*node.args, *(kw.value for kw in node.keywords)]:
+                if _references_provenance(arg):
+                    violations.append(f"{f}:{node.lineno}")
+    assert not violations, (
+        "original_source_url passed to fetcher:\n" + "\n".join(violations)
+    )
+
+
+def test_original_source_url_redacted_is_actually_written():
+    """Inverse: ensure the field IS written to the DB somewhere, so a
+    future refactor that drops the column is caught."""
+    repo_root = pathlib.Path(__file__).resolve().parents[5]
+    src = (repo_root / "lavandula/reports/db_writer.py").read_text()
+    assert "original_source_url_redacted" in src, (
+        "original_source_url_redacted must be written by db_writer; "
+        "if you removed it intentionally, also remove migration 005's column."
     )
 ```
 
@@ -829,6 +990,60 @@ def test_original_source_url_never_used_for_outbound_io():
 ## Dependencies to Install
 
 None. `aiohttp` is already a dependency (Spec 0021).
+
+## Test Environment Setup
+
+Phase 6's integration tests (AC23, AC24, AC24.7) exercise the full orchestrator with stubbed external dependencies. The recommended fixture pattern (reuses Spec 0021's existing test infrastructure):
+
+```python
+# Stubbed AsyncHTTPClient that returns canned responses by URL pattern.
+@pytest.fixture
+def fake_client():
+    return _CannedClient({
+        # Direct homepage 403 cf-mitigated
+        "https://sloan.org": _FakeResult(
+            body=b"<html>cf challenge</html>", status="forbidden",
+            http_status=403, headers={"server": "cloudflare"},
+        ),
+        # CDX query response
+        "https://web.archive.org/cdx/search/cdx?url=sloan.org/*&...":
+            _FakeResult(body=CDX_RESPONSE_FIXTURE, status="ok", http_status=200),
+        # Wayback id_ raw bytes
+        "https://web.archive.org/web/20260406121250id_/https://sloan.org/...":
+            _FakeResult(body=PDF_FIXTURE, status="ok", http_status=200),
+    })
+
+# DBWriterActor mock that captures enqueue calls for assertion.
+@pytest.fixture
+def fake_db_actor(loop):
+    return _CapturingDBWriterActor(loop)
+
+# AsyncHostThrottle and AsyncHostPinCache use real instances since
+# they're pure asyncio primitives with no I/O. Throttle override map
+# is constructed from the production config.
+```
+
+Phase 6's tests pass `fake_client`, `fake_db_actor`, and a bare `AsyncHostThrottle(host_overrides={...})` to `_process_org_async`. The decisions_log writer is also stubbed (capture-only) so AC19 assertions can inspect emitted events.
+
+CDX response fixtures live in `lavandula/reports/tests/fixtures/wayback/`:
+- `sloan_cdx_recovered.json` — 3 PDFs from sloan.org's apex
+- `cdx_empty.json` — `[[header]]`
+- `cdx_subdomain_mix.json` — 5 PDFs across 5 distinct subdomains (for AC25.4 cap test)
+- `cdx_malformed.json` — `[[header], ["..", "junk"]]` (for AC20.1 schema-drift test)
+
+## Smoke Test Reference Set
+
+The "5 known CF-blocked orgs" referenced in the validation checklist are pinned by EIN here so the smoke test is reproducible across re-runs:
+
+| EIN | Site | Wayback recovery expected |
+|---|---|---|
+| 131623877 | sloan.org | yes (50+ PDFs in CDX) |
+| 136257658 | rffund.org | likely no (1 broken PDF in CDX) |
+| 261441650 | endfund.org | yes (annual reports 2012-2013) |
+| 273941186 | cbcny.org | yes (homepage archived; PDFs depth-dependent) |
+| 274844851 | ktstrust.org | likely no (no homepage snapshot) |
+
+Smoke test passes if **at least 3 of 5** orgs recover ≥1 PDF via Wayback (matching the 60-80% sample recovery rate).
 
 ## Operator Steps Before Deploy
 
