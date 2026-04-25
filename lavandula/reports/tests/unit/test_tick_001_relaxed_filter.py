@@ -46,7 +46,9 @@ def test_ac1_positive_path_pdf_with_mundane_anchor_accepted():
     assert "https://example.org/uploads/impact-2024.pdf" in urls
     assert "https://example.org/uploads/2023.pdf" in urls
     assert "https://example.org/uploads/fy22-summary.pdf" in urls
-    assert "https://example.org/other/brochure.pdf" in urls
+    # PDFs with strong-negative filenames are rejected even on report
+    # subpages (tightened TICK-001 relaxation).
+    assert "https://example.org/other/brochure.pdf" not in urls
     # Non-PDF link without keyword: still rejected.
     assert "https://example.org/about" not in urls
 

@@ -42,6 +42,31 @@ Fetcher = Callable[[str, str], tuple[bytes, str]]
 
 _log = logging.getLogger(__name__)
 
+_REPORT_PATH_KEYWORDS = frozenset({
+    "/annual-report", "/annualreport", "/annual_report",
+    "/impact", "/our-impact",
+    "/financials", "/financial-statements",
+    "/transparency", "/accountability",
+    "/reports", "/year-in-review",
+})
+_HIGH_VALUE_PATH_KEYWORDS = frozenset({
+    "/about", "/our-work", "/what-we-do",
+    "/publications", "/resources",
+    "/support-us", "/giving", "/donate",
+})
+
+
+def _subpage_priority(c: Candidate) -> tuple[int, str]:
+    """Score a subpage candidate for walk priority (lower = better)."""
+    path = urlsplit(c.url).path.lower()
+    if any(kw in path for kw in _REPORT_PATH_KEYWORDS):
+        return (0, path)
+    if _anchor_matches(c.anchor_text):
+        return (1, path)
+    if any(kw in path for kw in _HIGH_VALUE_PATH_KEYWORDS):
+        return (2, path)
+    return (3, path)
+
 
 def _is_html_subpage_candidate(c: Candidate) -> bool:
     """Only follow same-domain HTML candidates into subpages."""
@@ -193,7 +218,8 @@ def per_org_candidates(
 
     # Homepage-derived subpages first (curated navigation links),
     # then sitemap-derived ones as fallback (TICK-007 pattern for
-    # WAF-gated homepages). Dedup so we don't waste fetches.
+    # WAF-gated homepages). Dedup, then sort by report-relevance
+    # so the 10-subpage cap hits the most valuable pages first.
     _subpage_seen: set[str] = set()
     subpages_to_walk: list[Candidate] = []
     for c in homepage_subpages + sitemap_subpages_to_walk:
@@ -201,6 +227,7 @@ def per_org_candidates(
         if canon not in _subpage_seen:
             _subpage_seen.add(canon)
             subpages_to_walk.append(c)
+    subpages_to_walk.sort(key=_subpage_priority)
 
     # --- one-hop subpages (runs regardless of homepage outcome) -----
     _log.info("discover: ein=%s subpages_queued=%d (cap=%d)",

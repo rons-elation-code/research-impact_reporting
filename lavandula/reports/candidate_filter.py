@@ -280,8 +280,13 @@ def _classify_link(
         return None
 
     pdf_with_anchor = _pdf_like(href) and anchor_hit
-    # TICK-001: relaxed PDF acceptance on report-anchor subpages.
-    pdf_on_report_subpage = parent_is_report_anchor and _pdf_like(href)
+    # TICK-001: relaxed PDF acceptance on report-anchor subpages,
+    # but still reject if filename has negative signals (score < base).
+    pdf_on_report_subpage = (
+        parent_is_report_anchor
+        and _pdf_like(href)
+        and filename_score >= tax.thresholds.base_score
+    )
 
     if filename_score >= tax.thresholds.filename_score_accept:
         decision = Decision.ACCEPT_FILENAME_STRONG
