@@ -5,6 +5,25 @@
 
 ---
 
+## Consultation Log
+
+| Round | Model | Verdict | Key Issues |
+|-------|-------|---------|------------|
+| 1 | Claude | APPROVE | Minor: throttle release in finally, signal handler pseudocode, DummyCookieJar parity |
+| 1 | Codex | REQUEST_CHANGES | DB writer ack/future for durability, PDF validation timeout pattern, throttle release, interface inconsistency |
+
+### Changes in v2
+
+1. **DB writer ack mechanism**: `enqueue()` returns `asyncio.Future` that resolves when the write is durably flushed. Download workers `await` the future before decrementing the org tracker.
+2. **PDF validation timeout**: Use `asyncio.wait_for(loop.run_in_executor(...), timeout=30)` + pool shutdown/recreation on timeout (since `ProcessPoolExecutor` doesn't expose per-worker termination).
+3. **Throttle as async context manager**: `async with throttle.request(host)` acquires on enter, releases in `__aexit__` (always, even on exception).
+4. **Consistent interface**: Phase 4 uses `DBWriterActor` (not raw queue). All phases reference the actor.
+5. **Halt-file source**: Uses `config.HALT` (the Path), consistent with spec AC33.
+6. **Signal handlers**: Both SIGINT and SIGTERM route through same handler with double-press force-exit.
+7. **AC22 ordering test added**: Verifies no `crawled_orgs` row exists until all report writes for that org are flushed, including under flush retry.
+
+---
+
 ## Implementation Order
 
 8 phases, bottom-up. Each phase is independently testable. Phases 1-3 are foundational; 4-6 build the pipeline stages; 7 wires everything together; 8 adds observability.
@@ -14,11 +33,12 @@
 **New file**: `lavandula/reports/async_host_throttle.py`
 
 **What to build:**
-- `AsyncHostThrottle` class with `async wait(host)` and `release(host)` methods
+- `AsyncHostThrottle` class with async context manager `request(host)` method
 - Per-host `asyncio.Semaphore(1)` created lazily (on first access, under `asyncio.Lock`)
 - Per-host timestamp dict tracking last request time
-- `wait()`: acquire semaphore → compute delay since last request → `await asyncio.sleep(max(0, delay))` → update timestamp
-- `release()`: release the semaphore
+- `request(host)` returns an async context manager:
+  - `__aenter__`: acquire semaphore → compute delay → `await asyncio.sleep(delay)` → update timestamp
+  - `__aexit__`: release semaphore (always, even on exception — prevents host deadlock)
 - Constructor takes `min_interval_sec` (default 3.0) and `jitter_sec` (default 0.5)
 - `reset()` method for testing
 
@@ -77,7 +97,7 @@
   - `auto_decompress=False`
   - `timeout=ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=15)`
   - Default headers: User-Agent, Accept-Encoding (gzip, identity), Accept
-  - Cookie jar: `aiohttp.DummyCookieJar()` (don't persist cookies across requests)
+  - Cookie jar: `aiohttp.CookieJar()` reset per request (matching sync client's `session.cookies = RequestsCookieJar()` per-request reset). Note: sync client resets cookies before each request to prevent cross-site cookie leakage; async must do the same for AC26 parity.
 - `__aexit__`: close session
 - `_check_open()`: raise `RuntimeError` if session not created
 
@@ -85,10 +105,9 @@
 1. Normalize protocol-relative URLs (`//` → `https://`)
 2. Validate scheme (http only if `allow_insecure_cleartext`)
 3. Manual redirect loop (max `config.MAX_REDIRECTS`):
-   a. `await self._throttle.wait(host)`
+   a. `async with self._throttle.request(host):` (acquires slot, releases in `__aexit__` even on exception)
    b. `await session.get(url, allow_redirects=False, headers={"Referer": ""})`
-   c. `self._throttle.release(host)`
-   d. If 3xx: `check_redirect_chain(chain, seed_etld1)` → follow or reject
+   c. If 3xx: `check_redirect_chain(chain, seed_etld1)` → follow or reject; each new host triggers independent DNS resolution (AC14)
    e. If 200: `_decompress_stream(resp)` — read chunks with `resp.content.read(8192)`, manual zlib for gzip
    f. Content-Encoding check: reject anything not `gzip`/`identity`/absent → `blocked_content_type`
 4. Build and return `FetchResult` (same dataclass as sync client)
@@ -126,7 +145,7 @@
 **New file**: `lavandula/reports/async_discover.py`
 
 **What to build:**
-- `async def discover_org(seed_url, seed_etld1, client, robots_text, ein, db_writer_queue)` → `list[Candidate]`
+- `async def discover_org(seed_url, seed_etld1, client, robots_text, ein, db_actor)` → `list[Candidate]`
 - Reimplements the orchestration logic of `discover.per_org_candidates` using `await client.get()` calls
 - Reuses all pure functions from existing modules:
   - `extract_candidates`, `classify_sitemap_url`, `_anchor_matches`, `_path_matches` from `candidate_filter.py`
@@ -136,7 +155,7 @@
   - `etld1` from `redirect_policy.py`
 - Same logic: robots → sitemap → homepage → subpage expansion → dedup → cap
 - Same TICK-001/TICK-004/TICK-007 behavior
-- `record_fetch` calls enqueued to `db_writer_queue` instead of called directly
+- `record_fetch` calls enqueued via `await db_actor.enqueue(RecordFetchRequest(...))` (not called directly)
 
 **ACs covered**: AC26 (parity), AC28, AC29
 
@@ -159,8 +178,8 @@
   1. `await client.head(url)` — skip if non-PDF Content-Type
   2. `await client.get(url, kind="pdf-get")` — fetch body
   3. `is_pdf_magic(body[:32])` check
-  4. If `validate_structure`: `await loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body)` with `Future.result(timeout=30)`
-  5. On timeout: terminate worker, return `pdf_structure_timeout`
+  4. If `validate_structure`: `await asyncio.wait_for(loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body), timeout=30)`
+  5. On `asyncio.TimeoutError`: the `ProcessPoolExecutor(max_tasks_per_child=1)` will recycle the hung worker on next task submission. Log and return `pdf_structure_timeout`. If the pool becomes unhealthy (multiple timeouts), recreate it.
   6. SHA256 hash, return `DownloadOutcome`
 
 **Reuses**:
@@ -209,23 +228,39 @@ class UpsertCrawledOrgRequest:
 **`OrgDownloadTracker`:**
 ```python
 class OrgDownloadTracker:
+    """Tracks outstanding downloads for one org. Barrier fires when all done."""
     def __init__(self): self._pending = 0; self._done = asyncio.Event(); self._done.set()
     def increment(self): self._pending += 1; self._done.clear()
-    def decrement(self): self._pending -= 1; if self._pending == 0: self._done.set()
+    def decrement(self): self._pending -= 1; if self._pending <= 0: self._done.set()
     async def wait_all_done(self): await self._done.wait()
 ```
+
+**Download worker durability flow:**
+1. Download PDF → archive to S3
+2. `report_future = await db_actor.enqueue(UpsertReportRequest(...))` — get future
+3. `fetch_future = await db_actor.enqueue(RecordFetchRequest(...))` — fire-and-forget
+4. `await report_future` — block until the report write is durably flushed
+5. `org_tracker.decrement()` — only NOW signal that this download is complete
+6. This ensures the org worker's `await org_tracker.wait_all_done()` fires only after all report writes are confirmed durable
 
 **`DBWriterActor`:**
 - Constructor: `engine`, `max_queue=200`, `batch_size=50`, `flush_interval_sec=5.0`
 - Creates `asyncio.Queue(maxsize=max_queue)` and `ThreadPoolExecutor(max_workers=1)`
-- `async enqueue(request)`: put on queue (blocks if full = backpressure)
+- `async enqueue(request)` → `asyncio.Future`:
+  - Creates an `asyncio.Future` paired with the request
+  - Puts `(request, future)` on the queue (blocks if full = backpressure)
+  - Returns the future — callers can `await` it to confirm durable flush
+  - For fire-and-forget writes (e.g., `record_fetch`), callers ignore the future
+  - For durability-critical writes (e.g., `upsert_report` before decrementing org tracker), callers `await` the future
 - `async run()`: main loop
   - `asyncio.wait_for(queue.get(), timeout=flush_interval_sec)` to implement timer
-  - Accumulate batch; when `batch_size` reached or timer fires → flush
+  - Accumulate batch of `(request, future)` pairs; when `batch_size` reached or timer fires → flush
   - Flush: group by op type, call `db_writer.record_fetch` / `upsert_report` / `upsert_crawled_org` via `run_in_executor`
-  - On flush failure: log, retry once, then log with full payload for manual recovery
+  - On successful flush: resolve all futures in the batch (`future.set_result(True)`)
+  - On flush failure: log, retry once. If still fails, log with full payload and resolve futures with exception (`future.set_exception(...)`)
 - `async flush_and_stop()`: drain queue, flush remaining, shut down executor
   - Shielded from cancellation: wrapped in `asyncio.shield()` at call site
+  - All pending futures resolved before return
 
 **ACs covered**: AC18, AC19, AC22, AC39
 
@@ -256,11 +291,12 @@ class OrgDownloadTracker:
    - Create `asyncio.Queue(maxsize=1000)` for download queue
    - Create `asyncio.Queue(maxsize=max_concurrent_orgs)` for org queue
    - Create `asyncio.Event()` for shutdown
-   - Validate halt-dir permissions (not world-writable)
+   - Validate `config.HALT` dir permissions (must not be world-writable; refuse to start otherwise per AC33)
 
-2. **Signal handlers**:
-   - First SIGINT/SIGTERM: set `shutdown_event`
-   - Second SIGINT within 5s: `os._exit(1)`
+2. **Signal handlers** (both SIGINT and SIGTERM route through same handler):
+   - First signal: set `shutdown_event`
+   - Second signal within 5s: `os._exit(1)` (force exit, per AC35)
+   - Use a mutable list `[0]` for signal count (not `nonlocal` — closure over mutable container)
 
 3. **Start coroutines**:
    - `org_producer(seeds, org_queue, shutdown_event)` — 1 task
@@ -305,6 +341,8 @@ class OrgDownloadTracker:
 - Resume: interrupted org retried, completed org skipped
 - Transient failure: org not marked complete
 - Permanent failure: org marked with permanent_skip
+- **AC22 ordering test**: Inject a slow-flushing mock DB. Verify that `crawled_orgs` row does NOT exist while `upsert_report` futures are still pending. Verify it DOES exist after all report futures resolve.
+- AC14 redirect-chain test: multi-hop redirect crossing hosts → each host independently resolved via pin cache
 
 **Lines**: ~400
 
