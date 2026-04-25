@@ -38,7 +38,7 @@ from .async_host_pin_cache import AsyncHostPinCache
 from .async_host_throttle import AsyncHostThrottle
 from .candidate_filter import Candidate
 from .logging_utils import sanitize
-from .pdf_extract import scan_active_content, sanitize_metadata_field
+from .pdf_extract import scan_active_content, sanitize_metadata_field, sanitize_text_field
 from .redirect_policy import etld1
 from .url_redact import redact_url
 from .year_extract import infer_report_year
@@ -330,7 +330,9 @@ async def _process_download(
         reader = _PdfReader(_io.BytesIO(outcome.body))
         page_count = len(reader.pages)
         if page_count:
-            first_page_text = (reader.pages[0].extract_text() or "")[:4096]
+            first_page_text = (
+                sanitize_text_field(reader.pages[0].extract_text()) or ""
+            )[:4096]
         meta = reader.metadata or {}
         creator = meta.get("/Creator") if isinstance(meta, dict) else getattr(meta, "creator", None)
         producer = meta.get("/Producer") if isinstance(meta, dict) else getattr(meta, "producer", None)

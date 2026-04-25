@@ -46,7 +46,7 @@ from .candidate_filter import Candidate
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
 from .logging_utils import sanitize, setup_logging
-from .pdf_extract import scan_active_content, sanitize_metadata_field
+from .pdf_extract import scan_active_content, sanitize_metadata_field, sanitize_text_field
 from .redirect_policy import etld1
 from .robots import RobotsCache
 from .url_guard import is_address_allowed
@@ -362,7 +362,9 @@ def process_org(
             reader = _PdfReader(_io.BytesIO(outcome.body))
             page_count = len(reader.pages)
             if page_count:
-                first_page_text = (reader.pages[0].extract_text() or "")[:4096]
+                first_page_text = (
+                    sanitize_text_field(reader.pages[0].extract_text()) or ""
+                )[:4096]
             meta = reader.metadata or {}
             creator = meta.get("/Creator") if isinstance(meta, dict) else getattr(meta, "creator", None)
             producer = meta.get("/Producer") if isinstance(meta, dict) else getattr(meta, "producer", None)

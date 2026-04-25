@@ -66,4 +66,17 @@ def sanitize_metadata_field(value: Optional[str]) -> Optional[str]:
     return cleaned
 
 
-__all__ = ["scan_active_content", "sanitize_metadata_field"]
+def sanitize_text_field(value: Optional[str]) -> Optional[str]:
+    """Strip NUL/control/zero-width noise from PDF-extracted body text.
+
+    Postgres `text` columns reject NUL (\\x00) bytes, and pypdf's
+    `extract_text()` regularly emits them on PDFs with embedded
+    binary glyph streams. Tab/CR/LF are preserved (whitespace within
+    extracted text is meaningful). Length-cap is the caller's job.
+    """
+    if value is None:
+        return None
+    return _NOISE_RE.sub("", value)
+
+
+__all__ = ["scan_active_content", "sanitize_metadata_field", "sanitize_text_field"]
