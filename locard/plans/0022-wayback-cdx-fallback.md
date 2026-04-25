@@ -10,7 +10,7 @@
 ### First Consultation (After Initial Draft)
 **Date**: 2026-04-25
 **Models Consulted**: Codex ✅, Claude ✅ (Gemini quota exhausted)
-**Verdicts**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
+**Verdict**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
 
 | Model | Verdict | Top issues |
 |-------|---------|------------|
@@ -27,7 +27,7 @@ consult --model codex  --type red-team-plan plan 0022
 consult --model claude --type red-team-plan plan 0022
 ```
 
-**Verdicts**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
+**Verdict**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
 
 | Model | Verdict | Top issues |
 |-------|---------|------------|

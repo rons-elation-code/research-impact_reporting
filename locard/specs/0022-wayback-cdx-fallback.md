@@ -18,7 +18,7 @@ consult --model codex  --type spec-review spec 0022
 consult --model claude --type spec-review spec 0022
 ```
 
-**Verdicts**: REQUEST_CHANGES (Codex, HIGH), COMMENT (Claude, HIGH)
+**Verdict**: REQUEST_CHANGES (Codex HIGH), COMMENT (Claude HIGH) — all issues addressed in v2
 
 | Model | Verdict | Top issues |
 |-------|---------|------------|
@@ -35,7 +35,7 @@ consult --model codex  --type red-team-spec spec 0022
 consult --model claude --type red-team-spec spec 0022
 ```
 
-**Verdicts**: REQUEST_CHANGES (Codex MEDIUM, Claude HIGH)
+**Verdict**: REQUEST_CHANGES (Codex MEDIUM, Claude HIGH) — all 2 CRITICALs and 4 HIGHs addressed in v3
 
 | Model | Verdict | Severity counts | Top issues |
 |-------|---------|-----------------|------------|
