@@ -11,7 +11,7 @@ version: 1
 
 thresholds:
   filename_score_accept: 0.8
-  filename_score_reject: 0.15
+  filename_score_reject: 0.2
   filename_score_weak_path_min: 0.65
   base_score: 0.5
 
@@ -787,6 +787,9 @@ filename_negative_signals:
     - poster
     - catering
     - roster
+    - verification
+    - counseling
+    - webinar
   medium:
     - notes
     - letter
@@ -795,3 +798,4 @@ filename_negative_signals:
     - instastories
     - lawn-signs
     - diagram
+    - presentation

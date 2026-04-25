@@ -423,7 +423,11 @@ def enumerate_new_orgs(
                     except _InfraError:
                         _finish_run(engine, run_id, found, "infra_error", 1)
                     time.sleep(SLEEP_BETWEEN_CALLS)
-                    if detail is None or detail.revenue is None \
+                    if detail is None:
+                        continue
+                    if detail.subsection_code != 3:
+                        continue
+                    if detail.revenue is None \
                             or detail.revenue < rev_min or detail.revenue > rev_max:
                         continue
                     # Step 6: input validation / truncation

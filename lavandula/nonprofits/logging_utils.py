@@ -62,7 +62,7 @@ def setup_logging(logs_dir: Path, name: str = "crawler") -> logging.Logger:
     except OSError:
         pass
 
-    logger = logging.getLogger("lavandula.nonprofits")
+    logger = logging.getLogger("lavandula")
     if getattr(logger, "_lavandula_configured", False):
         return logger
 

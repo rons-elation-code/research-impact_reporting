@@ -154,6 +154,8 @@ def per_org_candidates(
         if c is None:
             continue
         _remember(c)
+        if len(candidates) >= CANDIDATE_CAP_PER_ORG:
+            break
         # TICK-007: if this sitemap URL is a same-domain HTML page
         # whose path matched a report keyword, queue it for subpage
         # expansion so TICK-001's relaxed PDF filter can fire on its
@@ -167,10 +169,7 @@ def per_org_candidates(
         _log.info("discover: robots disallows / for %s", home_base)
         return candidates  # AC4: still return any sitemap-derived candidates.
 
-    # TICK-007: start with sitemap-derived HTML report-anchor URLs so
-    # subpage expansion runs even when homepage fetch fails (e.g.,
-    # WAF-gated — the JCCSF pattern).
-    subpages_to_walk: list[Candidate] = list(sitemap_subpages_to_walk)
+    homepage_subpages: list[Candidate] = []
 
     home_body, home_status = fetcher(home_base, "homepage")
     if home_status == "ok" and home_body:
@@ -188,22 +187,40 @@ def per_org_candidates(
             if etld1(parsed.hostname or "") == seed_etld1:
                 if not _allowed(parsed.path or "/"):
                     continue
-            if _remember(c):
-                return candidates
+            _remember(c)
             if _is_html_subpage_candidate(c):
-                subpages_to_walk.append(c)
+                homepage_subpages.append(c)
+
+    # Homepage-derived subpages first (curated navigation links),
+    # then sitemap-derived ones as fallback (TICK-007 pattern for
+    # WAF-gated homepages). Dedup so we don't waste fetches.
+    _subpage_seen: set[str] = set()
+    subpages_to_walk: list[Candidate] = []
+    for c in homepage_subpages + sitemap_subpages_to_walk:
+        canon = canonicalize_url(c.url)
+        if canon not in _subpage_seen:
+            _subpage_seen.add(canon)
+            subpages_to_walk.append(c)
 
     # --- one-hop subpages (runs regardless of homepage outcome) -----
+    _log.info("discover: ein=%s subpages_queued=%d (cap=%d)",
+              ein, len(subpages_to_walk), MAX_SUBPAGES_PER_ORG)
     if subpages_to_walk:
-        for sub in subpages_to_walk[:MAX_SUBPAGES_PER_ORG]:
+        for i, sub in enumerate(subpages_to_walk[:MAX_SUBPAGES_PER_ORG]):
             sub_parsed = urlsplit(sub.url)
             if etld1(sub_parsed.hostname or "") != seed_etld1:
+                _log.info("discover: ein=%s subpage[%d] skip cross-origin: %s", ein, i, sub.url)
                 continue
             if not _allowed(sub_parsed.path or "/"):
+                _log.info("discover: ein=%s subpage[%d] skip robots: %s", ein, i, sub.url)
                 continue
             sub_body, sub_status = fetcher(sub.url, "subpage")
             if sub_status != "ok" or not sub_body:
+                _log.info("discover: ein=%s subpage[%d] fetch failed (%s): %s",
+                          ein, i, sub_status, sub.url)
                 continue
+            _log.info("discover: ein=%s subpage[%d] fetched %d bytes: %s",
+                      ein, i, len(sub_body), sub.url)
             # TICK-001: compute parent_is_report_anchor from the
             # subpage's OWN URL/anchor metadata. If the subpage was
             # chosen for expansion because its own path or its
@@ -228,9 +245,12 @@ def per_org_candidates(
                     parsed.path or "/"
                 ):
                     continue
-                if _remember(c):
-                    return candidates
+                _remember(c)
 
+    # Prioritize PDF candidates over HTML pages since the crawler
+    # downloads PDFs — HTML candidates that survive to the download
+    # phase just waste a request.
+    candidates.sort(key=lambda c: (0 if c.url.lower().endswith(".pdf") else 1))
     return candidates[:CANDIDATE_CAP_PER_ORG]
 
 
