@@ -15,7 +15,7 @@
 ### Changes in v2
 
 1. **DB writer ack mechanism**: `enqueue()` returns `asyncio.Future` that resolves when the write is durably flushed. Download workers `await` the future before decrementing the org tracker.
-2. **PDF validation timeout**: Use `asyncio.wait_for(loop.run_in_executor(...), timeout=30)` + pool shutdown/recreation on timeout (since `ProcessPoolExecutor` doesn't expose per-worker termination).
+2. **PDF validation timeout**: Keep existing `_validate_pdf_structure` function (spawns subprocess per PDF, kills on timeout) and wrap in `run_in_executor(thread_pool)`. No `ProcessPoolExecutor` — the existing subprocess approach already provides both isolation and termination.
 3. **Throttle as async context manager**: `async with throttle.request(host)` acquires on enter, releases in `__aexit__` (always, even on exception).
 4. **Consistent interface**: Phase 4 uses `DBWriterActor` (not raw queue). All phases reference the actor.
 5. **Halt-file source**: Uses `config.HALT` (the Path), consistent with spec AC33.
@@ -97,7 +97,7 @@
   - `auto_decompress=False`
   - `timeout=ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=15)`
   - Default headers: User-Agent, Accept-Encoding (gzip, identity), Accept
-  - Cookie jar: `aiohttp.CookieJar()` reset per request (matching sync client's `session.cookies = RequestsCookieJar()` per-request reset). Note: sync client resets cookies before each request to prevent cross-site cookie leakage; async must do the same for AC26 parity.
+  - Cookie jar: `aiohttp.DummyCookieJar()` — ignores all `Set-Cookie` headers entirely. The sync client resets `session.cookies = RequestsCookieJar()` before each request to prevent cross-site cookie leakage; `DummyCookieJar` is the async equivalent (stricter: cookies never stored). This ensures AC26 parity and prevents cookie-based tracking across orgs.
 - `__aexit__`: close session
 - `_check_open()`: raise `RuntimeError` if session not created
 
@@ -178,13 +178,13 @@
   1. `await client.head(url)` — skip if non-PDF Content-Type
   2. `await client.get(url, kind="pdf-get")` — fetch body
   3. `is_pdf_magic(body[:32])` check
-  4. If `validate_structure`: `await asyncio.wait_for(loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body), timeout=30)`
-  5. On `asyncio.TimeoutError`: the `ProcessPoolExecutor(max_tasks_per_child=1)` will recycle the hung worker on next task submission. Log and return `pdf_structure_timeout`. If the pool becomes unhealthy (multiple timeouts), recreate it.
+  4. If `validate_structure`: `await loop.run_in_executor(thread_pool, _validate_pdf_structure, body)` — reuse the EXISTING `_validate_pdf_structure` from `fetch_pdf.py` which already: (a) spawns a fresh `multiprocessing.Process` per PDF, (b) joins with `_STRUCTURE_TIMEOUT_SEC` timeout, (c) terminates/kills the process if it's still alive, (d) returns `(False, "pdf_structure_timeout")`. This preserves the subprocess-per-PDF isolation AND the kill-on-timeout semantics the spec requires (AC20 + AC21).
+  5. The `thread_pool` (`ThreadPoolExecutor(max_workers=4)`) bounds concurrent validations. Each thread blocks on its subprocess join, but this doesn't block the event loop because it's in the executor.
   6. SHA256 hash, return `DownloadOutcome`
 
 **Reuses**:
 - `is_pdf_magic` from `fetch_pdf.py`
-- `_validate_pdf_structure_inner` from `fetch_pdf.py`
+- `_validate_pdf_structure` from `fetch_pdf.py` (the full subprocess-spawning function, NOT `_inner`)
 - `DownloadOutcome` from `fetch_pdf.py`
 
 **ACs covered**: AC20, AC21
@@ -192,8 +192,8 @@
 **Tests** (new file `lavandula/reports/tests/unit/test_async_fetch_pdf.py`):
 - HEAD skip on non-PDF Content-Type
 - Magic byte check
-- Structure validation in ProcessPool (verify PID changes between calls = `max_tasks_per_child=1`)
-- Validation timeout (mock slow validator)
+- Structure validation runs in subprocess (verify via the existing `_validate_pdf_structure` behavior)
+- Validation timeout: mock a slow validator → `pdf_structure_timeout` returned, subprocess killed
 
 **Lines**: ~120
 
@@ -286,7 +286,7 @@ class OrgDownloadTracker:
 
 1. **Setup**:
    - Create `AsyncHostThrottle`, `AsyncHostPinCache`, `AsyncHTTPClient` (as context manager)
-   - Create `ProcessPoolExecutor(max_workers=4, max_tasks_per_child=1)`
+   - Create `ThreadPoolExecutor(max_workers=4)` for PDF validation (reuses existing `_validate_pdf_structure` which spawns/kills its own subprocess)
    - Create `DBWriterActor(engine)` — start as background task
    - Create `asyncio.Queue(maxsize=1000)` for download queue
    - Create `asyncio.Queue(maxsize=max_concurrent_orgs)` for org queue
@@ -315,17 +315,27 @@ class OrgDownloadTracker:
 
 5. **Shutdown path** (when `shutdown_event` is set):
    - Producer stops feeding
-   - Org workers finish current org (barrier ensures downloads complete)
+   - Org workers finish current org (barrier ensures downloads complete, including `upsert_crawled_org` future)
    - Remaining download queue items processed
    - DB actor flushed
+   - If any flush failures remain unresolved, exit with code 1 (not 0)
 
-6. **Cleanup**: close HTTP client, shutdown process pool, dispose engine
+6. **Cleanup**: close HTTP client, shutdown thread pools, dispose engine
 
 **CLI integration** (modify `lavandula/reports/crawler.py`):
 - Add `--async` flag to argparse
 - When `--async`: validate incompatibility with `--max-workers`, add `--max-concurrent-orgs` and `--max-download-workers` args
 - Call `asyncio.run(run_async(...))` instead of the synchronous loop
 - Same flock, encryption check, TLS self-test run BEFORE `asyncio.run`
+
+**Org completion protocol (AC22 + AC25):**
+1. Org worker: discover candidates, enqueue downloads (each with `org_tracker.increment()`)
+2. Download workers: archive PDF → enqueue `UpsertReportRequest` → `await report_future` → `org_tracker.decrement()`
+3. Org worker: `await org_tracker.wait_all_done()` — all downloads confirmed durable
+4. Org worker: `completion_future = await db_actor.enqueue(UpsertCrawledOrgRequest(...))`
+5. Org worker: `await completion_future` — org completion itself durably flushed
+6. Only now is the org counted as "completed" in `CrawlStats`
+7. On transient failure: skip steps 3-6 entirely, don't record `crawled_orgs` → resume retries
 
 **`_is_transient(exc)` classifier:**
 - `aiohttp.ClientConnectorError`, `aiohttp.ServerTimeoutError`, `asyncio.TimeoutError`, `ConnectionError`, `OSError` → transient
