@@ -126,6 +126,10 @@ class DBWriterActor:
         return future
 
     async def run(self) -> None:
+        """Read-batch-flush loop. On None sentinel, flush remaining batch
+        BEFORE calling task_done(None) so that queue.join() in
+        flush_and_stop correctly waits for the durable write to land.
+        """
         batch: list[tuple[WriteRequest, asyncio.Future[bool]]] = []
         while True:
             try:
@@ -139,8 +143,13 @@ class DBWriterActor:
                 continue
 
             if item is None:
+                # Flush before signaling done so queue.join() waits
+                # for the actual write, not just queue read.
+                if batch:
+                    await self._flush_batch(batch)
+                    batch = []
                 self._queue.task_done()
-                break
+                return
 
             batch.append(item)
             self._queue.task_done()
@@ -151,10 +160,10 @@ class DBWriterActor:
                 except asyncio.QueueEmpty:
                     break
                 if next_item is None:
-                    self._queue.task_done()
                     if batch:
                         await self._flush_batch(batch)
                         batch = []
+                    self._queue.task_done()
                     return
                 batch.append(next_item)
                 self._queue.task_done()
@@ -162,9 +171,6 @@ class DBWriterActor:
             if len(batch) >= self._batch_size:
                 await self._flush_batch(batch)
                 batch = []
-
-        if batch:
-            await self._flush_batch(batch)
 
     async def _flush_batch(
         self, batch: list[tuple[WriteRequest, asyncio.Future[bool]]]
@@ -274,15 +280,17 @@ class DBWriterActor:
             )
 
     async def flush_and_stop(self) -> None:
+        """Signal run() to drain and exit, then shut down the executor.
+
+        Uses queue.join() to wait for run() to finish processing all
+        items (including the in-progress batch flush, since run() now
+        defers task_done(None) until after the post-loop flush). This
+        replaces an earlier racy implementation that drained the queue
+        concurrently with run() and lost in-flight batches when the
+        orchestrator subsequently cancelled the run task.
+        """
         await self._queue.put(None)
-        remaining: list[tuple[WriteRequest, asyncio.Future[bool]]] = []
-        while not self._queue.empty():
-            item = self._queue.get_nowait()
-            if item is not None:
-                remaining.append(item)
-            self._queue.task_done()
-        if remaining:
-            await self._flush_batch(remaining)
+        await self._queue.join()
         self._executor.shutdown(wait=True)
 
     @property
