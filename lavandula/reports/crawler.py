@@ -46,7 +46,7 @@ from .candidate_filter import Candidate
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
 from .logging_utils import sanitize, setup_logging
-from .pdf_extract import scan_active_content, sanitize_metadata_field
+from .pdf_extract import scan_active_content, sanitize_metadata_field, sanitize_text_field
 from .redirect_policy import etld1
 from .robots import RobotsCache
 from .url_guard import is_address_allowed
@@ -135,12 +135,21 @@ def acquire_flock(lock_path: Path) -> int:
 # ---------------------------------------------------------------------
 
 def should_skip_ein(engine: Engine, *, ein: str, refresh: bool) -> bool:
+    """Skip orgs that are settled (successful or permanently given up on).
+
+    Status semantics (Spec 0021 + follow-up):
+      - 'ok'             — already crawled successfully → skip
+      - 'permanent_skip' — explicit permanent failure or N transient retries
+                           exhausted → skip
+      - 'transient'      — temporary failure recorded; will be retried this run
+    """
     if refresh:
         return False
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT 1 FROM lava_impact.crawled_orgs "
-                 "WHERE ein = :ein"),
+                 "WHERE ein = :ein "
+                 "  AND status IN ('ok', 'permanent_skip')"),
             {"ein": ein},
         ).fetchone()
     return row is not None
@@ -362,7 +371,9 @@ def process_org(
             reader = _PdfReader(_io.BytesIO(outcome.body))
             page_count = len(reader.pages)
             if page_count:
-                first_page_text = (reader.pages[0].extract_text() or "")[:4096]
+                first_page_text = (
+                    sanitize_text_field(reader.pages[0].extract_text()) or ""
+                )[:4096]
             meta = reader.metadata or {}
             creator = meta.get("/Creator") if isinstance(meta, dict) else getattr(meta, "creator", None)
             producer = meta.get("/Producer") if isinstance(meta, dict) else getattr(meta, "producer", None)
@@ -559,6 +570,8 @@ def run(argv: list[str] | None = None) -> int:
                         help="(async only) Max concurrent org workers. Default 200.")
     parser.add_argument("--max-download-workers", type=int, default=20,
                         help="(async only) Max concurrent download workers. Default 20.")
+    parser.add_argument("--no-wayback", action="store_true",
+                        help="Disable Wayback CDX fallback (spec 0022 kill-switch)")
     args = parser.parse_args(argv)
 
     if args.use_async and args.max_workers != 8:
@@ -657,6 +670,9 @@ def run(argv: list[str] | None = None) -> int:
             if not pending:
                 logger.info("=== CRAWLER DONE === nothing to crawl")
                 return 0
+
+            if args.no_wayback:
+                config.WAYBACK_ENABLED = False
 
             if args.use_async:
                 import asyncio as _asyncio

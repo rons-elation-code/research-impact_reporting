@@ -131,6 +131,14 @@ RETRY_KINDS = frozenset({"homepage", "subpage", "sitemap"})
 RETRY_MAX_ATTEMPTS = 3  # 1 initial + 2 retries
 RETRY_BACKOFF_SEC = (2.0, 8.0)
 
+# Spec 0021 follow-up: cap on transient-failure retries across crawl runs.
+# When `crawled_orgs.attempts >= MAX_TRANSIENT_ATTEMPTS` and the latest
+# outcome is still transient, the upsert SQL auto-promotes the row's
+# `status` from 'transient' to 'permanent_skip'. After that, resume
+# logic skips the org. Default 3 = a site has ~3 weekly crawl runs to
+# come back online before we stop trying.
+MAX_TRANSIENT_ATTEMPTS = 3
+
 # Named cloud-metadata deny list (IPv4 + IPv6 extras on top of RFC classes).
 CLOUD_METADATA_DENY = frozenset({
     "169.254.169.254",     # AWS v4
@@ -157,6 +165,12 @@ UGC_PATH_SIGNATURES = ("/forum", "/comments", "/community/", "/discuss/")
 PARSE_VERSION = 1
 EXTRACTOR_VERSION = 1
 CLASSIFIER_VERSION = 1
+
+# --- Wayback fallback (Spec 0022) --------------------------------------
+WAYBACK_ENABLED = True
+WAYBACK_REQUEST_DELAY_SEC = 0.25
+WAYBACK_MAX_PDFS_PER_ORG = 30
+WAYBACK_MAX_DISTINCT_SUBDOMAINS = 3
 
 # --- S3 archive (spec 0007) --------------------------------------------
 DEFAULT_S3_PREFIX = "pdfs"

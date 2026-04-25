@@ -131,9 +131,11 @@ class Candidate:
     url: str
     anchor_text: str
     referring_page_url: str
-    discovered_via: str                 # 'homepage-link' | 'subpage-link' | 'sitemap' | 'hosting-platform'
-    hosting_platform: str | None        # 'issuu'|'flipsnack'|'canva'|'own-domain'|None
-    attribution_confidence: str         # 'own_domain' | 'platform_verified' | 'platform_unverified'
+    discovered_via: str                 # 'homepage-link' | 'subpage-link' | 'sitemap' | 'hosting-platform' | 'wayback'
+    hosting_platform: str | None        # 'issuu'|'flipsnack'|'canva'|'own-domain'|'wayback'|None
+    attribution_confidence: str         # 'own_domain' | 'platform_verified' | 'platform_unverified' | 'wayback_archive'
+    original_source_url: str | None = None
+    wayback_digest: str | None = None
 
 
 _PLATFORM_HOSTS = {

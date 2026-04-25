@@ -22,10 +22,10 @@ import aiohttp
 
 from . import config
 from .async_host_pin_cache import AsyncHostPinCache
-from .async_host_throttle import AsyncHostThrottle
+from .async_host_throttle import AsyncHostThrottle, canonical_host
 from .http_client import FetchResult
 from .logging_utils import sanitize, sanitize_exception
-from .redirect_policy import check_redirect_chain
+from .redirect_policy import check_redirect_chain, RedirectCheckResult
 from .url_redact import redact_url
 
 _log = logging.getLogger(__name__)
@@ -39,7 +39,27 @@ _KIND_TO_CAP = {
     "pdf-get": config.MAX_PDF_BYTES,
     "classify": config.MAX_TEXT_BYTES,
     "resolver-verify": config.MAX_TEXT_BYTES,
+    "wayback-cdx":     config.MAX_TEXT_BYTES,
 }
+
+
+def _check_wayback_redirect(redirect_chain: list[str]) -> RedirectCheckResult:
+    """If the chain originated at a Wayback host, every hop must remain
+    in the archive.org canonical bucket. AC10.1.
+    """
+    if len(redirect_chain) < 2:
+        return RedirectCheckResult(ok=True)
+    origin_host = urlsplit(redirect_chain[0]).hostname or ""
+    if canonical_host(origin_host) != "archive.org":
+        return RedirectCheckResult(ok=True)
+    target_host = urlsplit(redirect_chain[-1]).hostname or ""
+    if canonical_host(target_host) != "archive.org":
+        return RedirectCheckResult(
+            ok=False,
+            reason="blocked_redirect",
+            note=sanitize(f"wayback_redirect_to_{target_host}"),
+        )
+    return RedirectCheckResult(ok=True)
 
 
 def _http_status_to_fetch_status(code: int) -> str:
@@ -169,6 +189,26 @@ class AsyncHTTPClient:
             )
         return self._session
 
+    async def _maybe_honor_wayback_retry_after(
+        self, host: str, resp: aiohttp.ClientResponse,
+    ) -> None:
+        """AC17.2: honor Retry-After from Wayback hosts only."""
+        if canonical_host(host) != "archive.org":
+            return
+        if resp.status not in (429, 503):
+            return
+        retry_after = resp.headers.get("Retry-After")
+        if not retry_after:
+            return
+        try:
+            delay = float(retry_after)
+        except (TypeError, ValueError):
+            return
+        delay = min(max(delay, 0.0), 60.0)
+        if delay > 0:
+            _log.info("Wayback Retry-After=%s, sleeping", retry_after)
+            await asyncio.sleep(delay)
+
     async def get(
         self,
         url: str,
@@ -176,6 +216,7 @@ class AsyncHTTPClient:
         kind: str = "homepage",
         seed_etld1: str | None = None,
         extra_headers: dict[str, str] | None = None,
+        timeout_override: float | None = None,
     ) -> FetchResult:
         session = self._check_open()
         if kind not in _KIND_TO_CAP:
@@ -229,11 +270,18 @@ class AsyncHTTPClient:
                 headers: dict[str, str] = {"Referer": ""}
                 if extra_headers:
                     headers.update(extra_headers)
+                request_kwargs: dict = {
+                    "allow_redirects": False,
+                    "headers": headers,
+                }
+                if timeout_override is not None:
+                    request_kwargs["timeout"] = aiohttp.ClientTimeout(
+                        total=timeout_override,
+                    )
                 try:
                     resp = await session.get(
                         current_url,
-                        allow_redirects=False,
-                        headers=headers,
+                        **request_kwargs,
                     )
                 except aiohttp.ClientSSLError as exc:
                     return FetchResult(
@@ -281,6 +329,21 @@ class AsyncHTTPClient:
                 next_url = urljoin(current_url, location)
                 redirect_chain.append(next_url)
 
+                # AC10.1: Wayback cross-host redirect rejection
+                wb_check = _check_wayback_redirect(redirect_chain)
+                if not wb_check.ok:
+                    return FetchResult(
+                        status=wb_check.reason,
+                        http_status=status_code,
+                        final_url=next_url,
+                        final_url_redacted=redact_url(next_url),
+                        redirect_chain=redirect_chain,
+                        redirect_chain_redacted=[redact_url(u) for u in redirect_chain],
+                        kind=kind,
+                        note=wb_check.note,
+                        elapsed_ms=int((loop.time() - t_start) * 1000),
+                    )
+
                 if seed_etld1 is not None:
                     check = check_redirect_chain(
                         redirect_chain, seed_etld1=seed_etld1
@@ -311,6 +374,9 @@ class AsyncHTTPClient:
                     )
                 current_url = next_url
                 continue
+
+            # AC17.2: honor Retry-After from Wayback on 429/503
+            await self._maybe_honor_wayback_retry_after(host, resp)
 
             body: bytes | None = b""
             if status_code == 200:

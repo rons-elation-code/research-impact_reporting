@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from lavandula.reports.async_crawler import CrawlStats
 from lavandula.reports.async_discover import (
     DiscoveryResult,
     discover_org,
@@ -15,12 +16,16 @@ from lavandula.reports.candidate_filter import Candidate
 from lavandula.reports.discover import per_org_candidates
 
 
+def _stats() -> CrawlStats:
+    return CrawlStats()
+
+
 @dataclass
 class _StubHTTPClient:
     responses: dict[str, tuple[bytes, str, int]] = field(default_factory=dict)
     calls: list[tuple[str, str]] = field(default_factory=list)
 
-    async def get(self, url, *, kind="homepage", seed_etld1=None, extra_headers=None):
+    async def get(self, url, *, kind="homepage", seed_etld1=None, extra_headers=None, timeout_override=None):
         self.calls.append((url, kind))
         body, status, http_status = self.responses.get(url, (b"", "network_error", 0))
         return _FakeResult(body=body, status=status, http_status=http_status,
@@ -85,6 +90,7 @@ async def test_discover_returns_discovery_result():
         client=client,
         robots_text="",
         ein="12-3456789",
+        stats=_stats(),
     )
     assert isinstance(result, DiscoveryResult)
     assert result.homepage_ok is True
@@ -103,6 +109,7 @@ async def test_discover_homepage_unreachable():
         client=client,
         robots_text="",
         ein="99-0000000",
+        stats=_stats(),
     )
     assert result.homepage_ok is False
     assert result.candidates == []
@@ -119,6 +126,7 @@ async def test_discover_robots_disallows_all():
         client=client,
         robots_text="User-agent: *\nDisallow: /\n",
         ein="88-0000000",
+        stats=_stats(),
     )
     assert result.robots_disallowed_all is True
     assert result.homepage_ok is False
@@ -145,6 +153,7 @@ async def test_discover_uses_fetcher_callback():
         robots_text="",
         ein="12-3456789",
         fetcher=mock_fetcher,
+        stats=_stats(),
     )
     assert result.homepage_ok is True
     kinds = [kind for _, kind in fetch_log]
@@ -174,6 +183,7 @@ async def test_discover_fetcher_receives_retries():
         robots_text="",
         ein="12-3456789",
         fetcher=retrying_fetcher,
+        stats=_stats(),
     )
     assert result.homepage_ok is True
 
@@ -194,6 +204,7 @@ async def test_discover_extracts_pdf_candidates():
         client=client,
         robots_text="",
         ein="12-3456789",
+        stats=_stats(),
     )
     pdf_urls = [c.url for c in result.candidates if c.url.endswith(".pdf")]
     assert len(pdf_urls) >= 1
@@ -242,6 +253,7 @@ async def test_ac26_async_matches_sync_candidates():
         robots_text="",
         ein="12-3456789",
         fetcher=_async_fetcher,
+        stats=_stats(),
     )
     async_candidates = async_result.candidates
 

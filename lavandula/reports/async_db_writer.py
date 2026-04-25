@@ -62,6 +62,7 @@ class UpsertReportRequest:
     report_year: int | None = None
     report_year_source: str | None = None
     extractor_version: int = 0
+    original_source_url_redacted: str | None = None
 
 
 @dataclass
@@ -71,7 +72,8 @@ class UpsertCrawledOrgRequest:
     candidate_count: int = 0
     fetched_count: int = 0
     confirmed_report_count: int = 0
-    status: str = "ok"  # "ok" | "permanent_skip"
+    status: str = "ok"  # "ok" | "transient" | "permanent_skip"
+    notes: str | None = None
 
 
 WriteRequest = RecordFetchRequest | UpsertReportRequest | UpsertCrawledOrgRequest
@@ -126,6 +128,10 @@ class DBWriterActor:
         return future
 
     async def run(self) -> None:
+        """Read-batch-flush loop. On None sentinel, flush remaining batch
+        BEFORE calling task_done(None) so that queue.join() in
+        flush_and_stop correctly waits for the durable write to land.
+        """
         batch: list[tuple[WriteRequest, asyncio.Future[bool]]] = []
         while True:
             try:
@@ -139,8 +145,13 @@ class DBWriterActor:
                 continue
 
             if item is None:
+                # Flush before signaling done so queue.join() waits
+                # for the actual write, not just queue read.
+                if batch:
+                    await self._flush_batch(batch)
+                    batch = []
                 self._queue.task_done()
-                break
+                return
 
             batch.append(item)
             self._queue.task_done()
@@ -151,10 +162,10 @@ class DBWriterActor:
                 except asyncio.QueueEmpty:
                     break
                 if next_item is None:
-                    self._queue.task_done()
                     if batch:
                         await self._flush_batch(batch)
                         batch = []
+                    self._queue.task_done()
                     return
                 batch.append(next_item)
                 self._queue.task_done()
@@ -163,115 +174,127 @@ class DBWriterActor:
                 await self._flush_batch(batch)
                 batch = []
 
-        if batch:
-            await self._flush_batch(batch)
-
     async def _flush_batch(
         self, batch: list[tuple[WriteRequest, asyncio.Future[bool]]]
     ) -> None:
+        """Flush each row independently so one bad row doesn't poison the batch.
+
+        Per-row isolation: each db_writer call already opens its own
+        transaction, so a NUL-byte rejection (or any other failure) on
+        one row no longer drops the surrounding 49 rows' futures into
+        set_exception. Failed rows get one retry before being marked failed.
+        """
         loop = asyncio.get_running_loop()
-        grouped: dict[str, list[tuple[WriteRequest, asyncio.Future[bool]]]] = {}
-        for req, fut in batch:
-            grouped.setdefault(req.op, []).append((req, fut))
+        results = await loop.run_in_executor(
+            self._executor, self._sync_flush_per_row, batch
+        )
 
-        for op, items in grouped.items():
-            requests = [req for req, _ in items]
-            futures = [fut for _, fut in items]
-            success = False
-            for attempt in range(2):
-                try:
-                    await loop.run_in_executor(
-                        self._executor, self._sync_flush, op, requests
-                    )
-                    success = True
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    if attempt == 0:
-                        _log.warning("DB flush retry (attempt 1) op=%s: %s", op, exc)
-                    else:
-                        _log.error(
-                            "DB flush FAILED op=%s count=%d: %s payload=%r",
-                            op, len(requests), exc, requests,
-                        )
-                        self._flush_failures += len(requests)
+        retry_indices = [i for i, (ok, _) in enumerate(results) if not ok]
+        if retry_indices:
+            retry_batch = [batch[i] for i in retry_indices]
+            retry_results = await loop.run_in_executor(
+                self._executor, self._sync_flush_per_row, retry_batch
+            )
+            for ri, result in zip(retry_indices, retry_results):
+                results[ri] = result
 
-            for fut in futures:
-                if fut.done():
-                    continue
-                if success:
-                    fut.set_result(True)
-                else:
-                    fut.set_exception(
-                        RuntimeError(f"DB flush failed for op={op}")
-                    )
+        for (req, fut), (ok, exc) in zip(batch, results):
+            if fut.done():
+                continue
+            if ok:
+                fut.set_result(True)
+            else:
+                self._flush_failures += 1
+                _log.error(
+                    "DB flush FAILED op=%s payload=%r: %s",
+                    req.op, req, exc,
+                )
+                fut.set_exception(
+                    exc if exc is not None
+                    else RuntimeError(f"DB flush failed for op={req.op}")
+                )
 
         batch.clear()
 
-    def _sync_flush(self, op: str, requests: list[WriteRequest]) -> None:
-        for req in requests:
-            if op == "record_fetch":
-                assert isinstance(req, RecordFetchRequest)
-                db_writer.record_fetch(
-                    self._engine,
-                    ein=req.ein,
-                    url_redacted=req.url_redacted,
-                    kind=req.kind,
-                    fetch_status=req.fetch_status,
-                    status_code=req.status_code,
-                    elapsed_ms=req.elapsed_ms,
-                    notes=req.notes,
-                )
-            elif op == "upsert_report":
-                assert isinstance(req, UpsertReportRequest)
-                db_writer.upsert_report(
-                    self._engine,
-                    content_sha256=req.content_sha256,
-                    source_url_redacted=req.source_url_redacted,
-                    referring_page_url_redacted=req.referring_page_url_redacted,
-                    redirect_chain_redacted=req.redirect_chain_redacted,
-                    source_org_ein=req.source_org_ein,
-                    discovered_via=req.discovered_via,
-                    hosting_platform=req.hosting_platform,
-                    attribution_confidence=req.attribution_confidence,
-                    content_type=req.content_type,
-                    file_size_bytes=req.file_size_bytes,
-                    page_count=req.page_count,
-                    first_page_text=req.first_page_text,
-                    pdf_creator=req.pdf_creator,
-                    pdf_producer=req.pdf_producer,
-                    pdf_creation_date=req.pdf_creation_date,
-                    pdf_has_javascript=req.pdf_has_javascript,
-                    pdf_has_launch=req.pdf_has_launch,
-                    pdf_has_embedded=req.pdf_has_embedded,
-                    pdf_has_uri_actions=req.pdf_has_uri_actions,
-                    classification=req.classification,
-                    classification_confidence=req.classification_confidence,
-                    classifier_model=req.classifier_model,
-                    classifier_version=req.classifier_version,
-                    report_year=req.report_year,
-                    report_year_source=req.report_year_source,
-                    extractor_version=req.extractor_version,
-                )
-            elif op == "upsert_crawled_org":
-                assert isinstance(req, UpsertCrawledOrgRequest)
-                db_writer.upsert_crawled_org(
-                    self._engine,
-                    ein=req.ein,
-                    candidate_count=req.candidate_count,
-                    fetched_count=req.fetched_count,
-                    confirmed_report_count=req.confirmed_report_count,
-                )
+    def _sync_flush_per_row(
+        self, batch: list[tuple[WriteRequest, asyncio.Future[bool]]]
+    ) -> list[tuple[bool, Exception | None]]:
+        """Execute each request in isolation. Returns (success, exc) per row."""
+        results: list[tuple[bool, Exception | None]] = []
+        for req, _ in batch:
+            try:
+                self._do_single_write(req)
+                results.append((True, None))
+            except Exception as exc:  # noqa: BLE001
+                results.append((False, exc))
+        return results
+
+    def _do_single_write(self, req: WriteRequest) -> None:
+        if isinstance(req, RecordFetchRequest):
+            db_writer.record_fetch(
+                self._engine,
+                ein=req.ein,
+                url_redacted=req.url_redacted,
+                kind=req.kind,
+                fetch_status=req.fetch_status,
+                status_code=req.status_code,
+                elapsed_ms=req.elapsed_ms,
+                notes=req.notes,
+            )
+        elif isinstance(req, UpsertReportRequest):
+            db_writer.upsert_report(
+                self._engine,
+                content_sha256=req.content_sha256,
+                source_url_redacted=req.source_url_redacted,
+                referring_page_url_redacted=req.referring_page_url_redacted,
+                redirect_chain_redacted=req.redirect_chain_redacted,
+                source_org_ein=req.source_org_ein,
+                discovered_via=req.discovered_via,
+                hosting_platform=req.hosting_platform,
+                attribution_confidence=req.attribution_confidence,
+                content_type=req.content_type,
+                file_size_bytes=req.file_size_bytes,
+                page_count=req.page_count,
+                first_page_text=req.first_page_text,
+                pdf_creator=req.pdf_creator,
+                pdf_producer=req.pdf_producer,
+                pdf_creation_date=req.pdf_creation_date,
+                pdf_has_javascript=req.pdf_has_javascript,
+                pdf_has_launch=req.pdf_has_launch,
+                pdf_has_embedded=req.pdf_has_embedded,
+                pdf_has_uri_actions=req.pdf_has_uri_actions,
+                classification=req.classification,
+                classification_confidence=req.classification_confidence,
+                classifier_model=req.classifier_model,
+                classifier_version=req.classifier_version,
+                report_year=req.report_year,
+                report_year_source=req.report_year_source,
+                extractor_version=req.extractor_version,
+                original_source_url_redacted=req.original_source_url_redacted,
+            )
+        elif isinstance(req, UpsertCrawledOrgRequest):
+            db_writer.upsert_crawled_org(
+                self._engine,
+                ein=req.ein,
+                candidate_count=req.candidate_count,
+                fetched_count=req.fetched_count,
+                confirmed_report_count=req.confirmed_report_count,
+                status=req.status,
+                notes=req.notes,
+            )
 
     async def flush_and_stop(self) -> None:
+        """Signal run() to drain and exit, then shut down the executor.
+
+        Uses queue.join() to wait for run() to finish processing all
+        items (including the in-progress batch flush, since run() now
+        defers task_done(None) until after the post-loop flush). This
+        replaces an earlier racy implementation that drained the queue
+        concurrently with run() and lost in-flight batches when the
+        orchestrator subsequently cancelled the run task.
+        """
         await self._queue.put(None)
-        remaining: list[tuple[WriteRequest, asyncio.Future[bool]]] = []
-        while not self._queue.empty():
-            item = self._queue.get_nowait()
-            if item is not None:
-                remaining.append(item)
-            self._queue.task_done()
-        if remaining:
-            await self._flush_batch(remaining)
+        await self._queue.join()
         self._executor.shutdown(wait=True)
 
     @property

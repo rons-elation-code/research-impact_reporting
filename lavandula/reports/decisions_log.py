@@ -25,6 +25,10 @@ _ALLOWED_FIELDS = frozenset({
     "strong_path_hit", "weak_path_hit",
     "anchor_text", "anchor_hit",
     "decision", "discovered_via",
+    # Spec 0022: wayback_query event fields (AC19)
+    "event_type", "domain", "outcome", "reason",
+    "cdx_http_status", "row_count_raw", "row_count_after_dedup",
+    "elapsed_ms", "capture_hosts",
 })
 
 
