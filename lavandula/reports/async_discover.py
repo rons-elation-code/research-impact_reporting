@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
@@ -32,6 +34,13 @@ if TYPE_CHECKING:
 MAX_SUBPAGES_PER_ORG = config.MAX_SUBPAGES_PER_ORG
 
 _log = logging.getLogger(__name__)
+
+
+@dataclass
+class DiscoveryResult:
+    candidates: list[Candidate] = field(default_factory=list)
+    homepage_ok: bool = False
+    robots_disallowed_all: bool = False
 
 _REPORT_PATH_KEYWORDS = frozenset({
     "/annual-report", "/annualreport", "/annual_report",
@@ -66,6 +75,9 @@ def _is_html_subpage_candidate(c: Candidate) -> bool:
     return True
 
 
+AsyncFetcher = Callable[[str, str], Awaitable[tuple[bytes, str]]]
+
+
 async def discover_org(
     *,
     seed_url: str,
@@ -73,12 +85,25 @@ async def discover_org(
     client: AsyncHTTPClient,
     robots_text: str,
     ein: str = "",
-) -> list[Candidate]:
-    """Async equivalent of discover.per_org_candidates."""
+    fetcher: AsyncFetcher | None = None,
+) -> DiscoveryResult:
+    """Async equivalent of discover.per_org_candidates.
+
+    When ``fetcher`` is supplied it is called as ``await fetcher(url, kind)``
+    for homepage/subpage/sitemap GETs — this is how the caller injects retry
+    logic and fetch-log recording (AC8 parity with the sync crawler).
+    """
+    result = DiscoveryResult()
     candidates: list[Candidate] = []
     seen_canonical: set[str] = set()
     ua = config.USER_AGENT
     home_base = seed_url.rstrip("/") or seed_url
+
+    async def _default_fetch(url: str, kind: str) -> tuple[bytes, str]:
+        r = await client.get(url, kind=kind, seed_etld1=seed_etld1)
+        return (r.body or b""), r.status
+
+    _fetch = fetcher or _default_fetch
 
     def _remember(c: Candidate) -> bool:
         canonical = canonicalize_url(c.url)
@@ -96,10 +121,10 @@ async def discover_org(
         if etld1(s_parsed.hostname or "") == seed_etld1:
             if not _allowed(s_parsed.path or "/"):
                 return None
-        r = await client.get(url, kind="sitemap", seed_etld1=seed_etld1)
-        if r.status != "ok" or not r.body:
+        body, status = await _fetch(url, "sitemap")
+        if status != "ok" or not body:
             return None
-        return r.body
+        return body
 
     robots_sitemap_urls = sitemap_urls_from_robots(robots_text)
     if robots_sitemap_urls:
@@ -154,14 +179,17 @@ async def discover_org(
     # --- homepage ---
     if not _allowed("/"):
         _log.info("async_discover: robots disallows / for %s", home_base)
-        return candidates
+        result.robots_disallowed_all = True
+        result.candidates = candidates
+        return result
 
     homepage_subpages: list[Candidate] = []
 
-    home_result = await client.get(home_base, kind="homepage", seed_etld1=seed_etld1)
-    if home_result.status == "ok" and home_result.body:
+    home_body, home_status = await _fetch(home_base, "homepage")
+    result.homepage_ok = home_status == "ok"
+    if home_status == "ok" and home_body:
         page_candidates = extract_candidates(
-            html=home_result.body.decode("utf-8", errors="replace"),
+            html=home_body.decode("utf-8", errors="replace"),
             base_url=home_base + "/",
             seed_etld1=seed_etld1,
             referring_page_url=home_base,
@@ -196,15 +224,15 @@ async def discover_org(
                 continue
             if not _allowed(sub_parsed.path or "/"):
                 continue
-            sub_result = await client.get(sub.url, kind="subpage", seed_etld1=seed_etld1)
-            if sub_result.status != "ok" or not sub_result.body:
+            sub_body, sub_status = await _fetch(sub.url, "subpage")
+            if sub_status != "ok" or not sub_body:
                 continue
             parent_is_report_anchor = (
                 _anchor_matches(sub.anchor_text)
                 or _path_matches(sub_parsed.path or "")
             )
             sub_candidates = extract_candidates(
-                html=sub_result.body.decode("utf-8", errors="replace"),
+                html=sub_body.decode("utf-8", errors="replace"),
                 base_url=sub.url,
                 seed_etld1=seed_etld1,
                 referring_page_url=sub.url,
@@ -221,7 +249,8 @@ async def discover_org(
                 _remember(c)
 
     candidates.sort(key=lambda c: (0 if c.url.lower().endswith(".pdf") else 1))
-    return candidates[:CANDIDATE_CAP_PER_ORG]
+    result.candidates = candidates[:CANDIDATE_CAP_PER_ORG]
+    return result
 
 
-__all__ = ["discover_org", "MAX_SUBPAGES_PER_ORG"]
+__all__ = ["discover_org", "DiscoveryResult", "MAX_SUBPAGES_PER_ORG"]

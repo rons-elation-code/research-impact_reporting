@@ -71,6 +71,7 @@ class UpsertCrawledOrgRequest:
     candidate_count: int = 0
     fetched_count: int = 0
     confirmed_report_count: int = 0
+    status: str = "ok"  # "ok" | "permanent_skip"
 
 
 WriteRequest = RecordFetchRequest | UpsertReportRequest | UpsertCrawledOrgRequest

@@ -678,13 +678,15 @@ def run(argv: list[str] | None = None) -> int:
                 ))
                 logger.info(
                     "=== ASYNC CRAWLER DONE === run_id=%s orgs=%d "
-                    "completed=%d transient=%d permanent=%d pdfs=%d",
+                    "completed=%d transient=%d permanent=%d pdfs=%d exit_code=%d",
                     run_id, len(pending),
                     crawl_stats.orgs_completed,
                     crawl_stats.orgs_transient_failed,
                     crawl_stats.orgs_permanent_failed,
                     crawl_stats.pdfs_downloaded,
+                    crawl_stats.exit_code,
                 )
+                return crawl_stats.exit_code
             else:
                 succeeded = 0
                 failed = 0

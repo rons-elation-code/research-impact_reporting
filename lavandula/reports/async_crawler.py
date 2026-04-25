@@ -59,6 +59,8 @@ class CrawlStats:
     bytes_downloaded: int = 0
     errors_by_type: dict[str, int] = field(default_factory=dict)
     start_time: float = 0.0
+    flush_failures: int = 0
+    exit_code: int = 0
 
 
 def _pick_discovered_via(c: Candidate) -> str:
@@ -140,6 +142,7 @@ async def _org_worker(
                         candidate_count=0,
                         fetched_count=0,
                         confirmed_report_count=0,
+                        status="permanent_skip",
                     ))
                 except Exception:  # noqa: BLE001
                     _log.warning("failed to record permanent_skip for ein=%s", ein)
@@ -205,14 +208,21 @@ async def _process_org_async(
                 await asyncio.sleep(config.RETRY_BACKOFF_SEC[backoff_idx])
         return (r.body or b""), r.status
 
-    candidates = await discover_org(
+    discovery = await discover_org(
         seed_url=website,
         seed_etld1=seed_etld1,
         client=client,
         robots_text=robots_text,
         ein=ein,
+        fetcher=_fetcher_with_retry,
     )
+    candidates = discovery.candidates
     stats.candidates_discovered += len(candidates)
+
+    if not candidates and not discovery.homepage_ok and not discovery.robots_disallowed_all:
+        _log.warning("transient discovery failure ein=%s (homepage unreachable, 0 candidates)", ein)
+        stats.orgs_transient_failed += 1
+        return
 
     org_tracker = OrgDownloadTracker()
     org_fetched = [0]
@@ -310,6 +320,8 @@ async def _process_download(
     creator = None
     producer = None
     creation_date = None
+    extract_status = "ok"
+    extract_note = ""
     try:
         import io as _io
         from pypdf import PdfReader as _PdfReader
@@ -324,8 +336,9 @@ async def _process_download(
             meta.get("/CreationDate") if isinstance(meta, dict)
             else getattr(meta, "creation_date_raw", None)
         )
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        extract_status = "server_error"
+        extract_note = sanitize(str(exc))
 
     import datetime
     archive_metadata = {
@@ -395,6 +408,16 @@ async def _process_download(
         fetch_status=outcome.status,
         notes=sanitize(outcome.note),
     ))
+    await db_actor.enqueue(RecordFetchRequest(
+        ein=ein,
+        url_redacted=outcome.final_url_redacted or redact_url(cand.url),
+        kind="extract",
+        fetch_status=extract_status,
+        notes=extract_note or (
+            f"page_count={page_count}" if page_count is not None
+            else "no_pages_extracted"
+        ),
+    ))
 
     try:
         await report_future
@@ -420,9 +443,12 @@ async def _halt_sentinel(
 async def _progress_reporter(
     stats: CrawlStats,
     shutdown_event: asyncio.Event,
+    download_queue: asyncio.Queue | None = None,
 ) -> None:
     while not shutdown_event.is_set():
         await asyncio.sleep(60)
+        if download_queue is not None:
+            stats.download_queue_depth = download_queue.qsize()
         elapsed = time.monotonic() - stats.start_time
         rate = stats.orgs_completed / (elapsed / 3600) if elapsed > 0 else 0
         remaining = stats.orgs_total - stats.orgs_completed
@@ -497,7 +523,9 @@ async def run_async(
 
         db_task = asyncio.create_task(db_actor.run())
         halt_task = asyncio.create_task(_halt_sentinel(halt_dir, shutdown_event))
-        reporter_task = asyncio.create_task(_progress_reporter(stats, shutdown_event))
+        reporter_task = asyncio.create_task(
+            _progress_reporter(stats, shutdown_event, download_queue)
+        )
 
         producer_task = asyncio.create_task(
             _org_producer(seeds, org_queue, shutdown_event, max_concurrent_orgs)
@@ -560,8 +588,9 @@ async def run_async(
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.remove_signal_handler(sig)
 
-    exit_code = 1 if db_actor.flush_failures > 0 else 0
-    if exit_code != 0:
+    stats.flush_failures = db_actor.flush_failures
+    stats.exit_code = 1 if db_actor.flush_failures > 0 else 0
+    if stats.exit_code != 0:
         _log.warning("exit_code=1 due to %d unresolved flush failures",
                       db_actor.flush_failures)
 
