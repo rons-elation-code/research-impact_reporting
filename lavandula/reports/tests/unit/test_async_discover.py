@@ -12,6 +12,7 @@ from lavandula.reports.async_discover import (
     discover_org,
 )
 from lavandula.reports.candidate_filter import Candidate
+from lavandula.reports.discover import per_org_candidates
 
 
 @dataclass
@@ -52,6 +53,24 @@ class _FakeResult:
 _MINIMAL_HTML = b"""<html><body>
 <a href="https://example.com/report.pdf">Annual Report</a>
 </body></html>"""
+
+_PARITY_HTML = b"""<html><body>
+<a href="https://example.com/2024-annual-report.pdf">2024 Annual Report</a>
+<a href="https://example.com/financials/2023-statement.pdf">Financial Statement</a>
+<a href="https://issuu.com/testorg/docs/impact-2024">Impact Report on Issuu</a>
+<a href="https://example.com/about">About Us</a>
+<a href="https://example.com/reports">Reports Page</a>
+</body></html>"""
+
+_PARITY_SUBPAGE_HTML = b"""<html><body>
+<a href="https://example.com/uploads/full-impact-report.pdf">Full Impact Report</a>
+</body></html>"""
+
+_PARITY_SITEMAP = b"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/transparency/2024-audit.pdf</loc></url>
+  <url><loc>https://example.com/year-in-review</loc></url>
+</urlset>"""
 
 
 @pytest.mark.asyncio
@@ -178,3 +197,71 @@ async def test_discover_extracts_pdf_candidates():
     )
     pdf_urls = [c.url for c in result.candidates if c.url.endswith(".pdf")]
     assert len(pdf_urls) >= 1
+
+
+# ---------- AC26: sync/async parity ----------
+
+def _make_parity_fetcher_responses():
+    return {
+        "https://example.com": (_PARITY_HTML, "ok"),
+        "https://example.com/sitemap.xml": (_PARITY_SITEMAP, "ok"),
+        "https://example.com/about": (b"<html><body>About page</body></html>", "ok"),
+        "https://example.com/reports": (_PARITY_SUBPAGE_HTML, "ok"),
+        "https://example.com/year-in-review": (
+            b"<html><body>Year in review page</body></html>", "ok"
+        ),
+    }
+
+
+def _sync_fetcher(url: str, kind: str) -> tuple[bytes, str]:
+    responses = _make_parity_fetcher_responses()
+    return responses.get(url, (b"", "not_found"))
+
+
+async def _async_fetcher(url: str, kind: str) -> tuple[bytes, str]:
+    responses = _make_parity_fetcher_responses()
+    return responses.get(url, (b"", "not_found"))
+
+
+@pytest.mark.asyncio
+async def test_ac26_async_matches_sync_candidates():
+    """AC26: same canned HTML produces identical candidate set in sync and async."""
+    sync_candidates = per_org_candidates(
+        seed_url="https://example.com",
+        seed_etld1="example.com",
+        fetcher=_sync_fetcher,
+        robots_text="",
+        ein="12-3456789",
+    )
+
+    client = _StubHTTPClient()
+    async_result = await discover_org(
+        seed_url="https://example.com",
+        seed_etld1="example.com",
+        client=client,
+        robots_text="",
+        ein="12-3456789",
+        fetcher=_async_fetcher,
+    )
+    async_candidates = async_result.candidates
+
+    sync_urls = sorted(c.url for c in sync_candidates)
+    async_urls = sorted(c.url for c in async_result.candidates)
+    assert sync_urls == async_urls, (
+        f"URL mismatch:\n  sync:  {sync_urls}\n  async: {async_urls}"
+    )
+
+    sync_by_url = {c.url: c for c in sync_candidates}
+    async_by_url = {c.url: c for c in async_candidates}
+    for url in sync_by_url:
+        sc = sync_by_url[url]
+        ac = async_by_url[url]
+        assert sc.hosting_platform == ac.hosting_platform, (
+            f"{url}: hosting_platform {sc.hosting_platform!r} != {ac.hosting_platform!r}"
+        )
+        assert sc.attribution_confidence == ac.attribution_confidence, (
+            f"{url}: attribution_confidence {sc.attribution_confidence!r} != {ac.attribution_confidence!r}"
+        )
+        assert sc.discovered_via == ac.discovered_via, (
+            f"{url}: discovered_via {sc.discovered_via!r} != {ac.discovered_via!r}"
+        )

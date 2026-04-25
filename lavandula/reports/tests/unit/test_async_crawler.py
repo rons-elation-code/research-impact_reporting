@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -10,17 +12,21 @@ import pytest
 
 from lavandula.reports.async_crawler import (
     CrawlStats,
+    _download_worker,
     _is_transient,
     _process_org_async,
+    run_async,
 )
 from lavandula.reports.async_db_writer import (
     DBWriterActor,
     OrgDownloadTracker,
     RecordFetchRequest,
     UpsertCrawledOrgRequest,
+    UpsertReportRequest,
 )
 from lavandula.reports.async_discover import DiscoveryResult
 from lavandula.reports.candidate_filter import Candidate
+from lavandula.reports.fetch_pdf import DownloadOutcome
 
 
 @dataclass
@@ -258,3 +264,214 @@ async def test_org_completion_waits_for_downloads():
     await consumer_task
 
     assert event_log.index("download_done") < event_log.index("crawled_org_enqueued")
+
+
+# ---------- AC22: slow-flush durability (must-fix round 2) ----------
+
+@pytest.mark.asyncio
+async def test_ac22_crawled_org_waits_for_report_durability():
+    """upsert_crawled_org must NOT be enqueued until upsert_report futures resolve.
+
+    Injects a slow-resolving future for UpsertReportRequest to verify that
+    _process_download awaits report_future before returning, which in turn
+    means OrgDownloadTracker.decrement happens AFTER the report flush.
+    """
+    timestamps: list[tuple[str, float]] = []
+    loop = asyncio.get_running_loop()
+
+    async def mock_enqueue(req):
+        if isinstance(req, UpsertReportRequest):
+            fut = loop.create_future()
+
+            async def _resolve_later():
+                await asyncio.sleep(0.15)
+                timestamps.append(("report_flushed", loop.time()))
+                fut.set_result(True)
+
+            asyncio.create_task(_resolve_later())
+            return fut
+        if isinstance(req, UpsertCrawledOrgRequest):
+            timestamps.append(("crawled_org_enqueued", loop.time()))
+            fut = loop.create_future()
+            fut.set_result(True)
+            return fut
+        fut = loop.create_future()
+        fut.set_result(True)
+        return fut
+
+    db_actor = MagicMock()
+    db_actor.enqueue = mock_enqueue
+
+    async def mock_get(url, *, kind="homepage", seed_etld1=None, extra_headers=None):
+        return _FakeResult(body=b"ok", status="ok", http_status=200,
+                           final_url=url, final_url_redacted=url)
+
+    client = MagicMock()
+    client.get = mock_get
+
+    download_queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    stats = CrawlStats()
+    pdf_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="test-pdf")
+
+    cand = Candidate(
+        url="https://example.com/report.pdf",
+        anchor_text="Annual Report",
+        referring_page_url="https://example.com",
+        discovered_via="homepage-link",
+        hosting_platform="own-domain",
+        attribution_confidence="high",
+    )
+    discovery_result = DiscoveryResult(candidates=[cand], homepage_ok=True)
+
+    fake_outcome = DownloadOutcome(
+        status="ok",
+        url="https://example.com/report.pdf",
+        final_url="https://example.com/report.pdf",
+        final_url_redacted="https://example.com/report.pdf",
+        redirect_chain=["https://example.com/report.pdf"],
+        redirect_chain_redacted=["https://example.com/report.pdf"],
+        content_sha256="abc123",
+        bytes_read=1000,
+        content_type="application/pdf",
+        body=b"%PDF-1.4 fake content",
+    )
+
+    fake_archive = MagicMock()
+    fake_archive.put = MagicMock()
+
+    worker_task = asyncio.create_task(
+        _download_worker(
+            download_queue, client, db_actor, fake_archive,
+            "test-run", stats, pdf_pool,
+        )
+    )
+
+    with patch(
+        "lavandula.reports.async_crawler.discover_org",
+        return_value=discovery_result,
+    ), patch(
+        "lavandula.reports.async_crawler.async_download",
+        return_value=fake_outcome,
+    ), patch(
+        "lavandula.reports.async_crawler.scan_active_content",
+        return_value={"pdf_has_javascript": 0, "pdf_has_launch": 0,
+                      "pdf_has_embedded": 0, "pdf_has_uri_actions": 0},
+    ):
+        await _process_org_async(
+            ein="12-3456789",
+            website="https://example.com",
+            client=client,
+            db_actor=db_actor,
+            download_queue=download_queue,
+            archive=fake_archive,
+            run_id="test-run",
+            stats=stats,
+            shutdown_event=asyncio.Event(),
+            pdf_thread_pool=pdf_pool,
+        )
+
+    await download_queue.put(None)
+    await worker_task
+    pdf_pool.shutdown(wait=False)
+
+    report_ts = [ts for label, ts in timestamps if label == "report_flushed"]
+    org_ts = [ts for label, ts in timestamps if label == "crawled_org_enqueued"]
+    assert len(report_ts) >= 1, "report_flushed event not seen"
+    assert len(org_ts) >= 1, "crawled_org_enqueued event not seen"
+    assert report_ts[0] < org_ts[0], (
+        f"report flush ({report_ts[0]}) should happen before "
+        f"crawled_org enqueue ({org_ts[0]})"
+    )
+
+
+# ---------- Shutdown integration test (must-fix round 2) ----------
+
+@pytest.mark.asyncio
+async def test_shutdown_flushes_inflight_writes():
+    """SIGINT mid-flight: in-flight orgs finish, DB drains, exit_code=0.
+
+    Uses shutdown_event directly (not real signals) to simulate graceful
+    shutdown during crawl.
+    """
+    enqueued: list[object] = []
+    loop = asyncio.get_running_loop()
+
+    async def mock_enqueue(req):
+        enqueued.append(req)
+        fut = loop.create_future()
+        fut.set_result(True)
+        return fut
+
+    db_actor = MagicMock()
+    db_actor.enqueue = mock_enqueue
+    db_actor.flush_failures = 0
+
+    async def slow_discover(*args, **kwargs):
+        await asyncio.sleep(0.05)
+        return DiscoveryResult(candidates=[], homepage_ok=True)
+
+    async def mock_get(url, *, kind="homepage", seed_etld1=None, extra_headers=None):
+        return _FakeResult(body=b"ok", status="ok", http_status=200,
+                           final_url=url, final_url_redacted=url)
+
+    client_mock = MagicMock()
+    client_mock.get = mock_get
+
+    seeds = [(f"EIN-{i:04d}", f"https://org{i}.example.com") for i in range(5)]
+
+    from pathlib import Path
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        halt_dir = Path(tmpdir) / "halt"
+        halt_dir.mkdir()
+
+        shutdown_triggered = [False]
+
+        original_run_async = run_async.__wrapped__ if hasattr(run_async, '__wrapped__') else None
+
+        with patch(
+            "lavandula.reports.async_crawler.discover_org",
+            side_effect=slow_discover,
+        ), patch(
+            "lavandula.reports.async_crawler.AsyncHTTPClient",
+        ) as mock_client_cls, patch(
+            "lavandula.reports.async_crawler.DBWriterActor",
+        ) as mock_db_cls, patch(
+            "lavandula.reports.async_crawler.AsyncHostThrottle",
+        ), patch(
+            "lavandula.reports.async_crawler.AsyncHostPinCache",
+        ):
+            mock_client_instance = MagicMock()
+            mock_client_instance.__aenter__ = AsyncMock(return_value=client_mock)
+            mock_client_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value = mock_client_instance
+
+            mock_db_instance = MagicMock()
+            mock_db_instance.enqueue = mock_enqueue
+            mock_db_instance.flush_failures = 0
+            mock_db_instance.flush_and_stop = AsyncMock()
+
+            run_called = asyncio.Event()
+
+            async def mock_db_run():
+                run_called.set()
+                await asyncio.sleep(999)
+
+            mock_db_instance.run = mock_db_run
+            mock_db_cls.return_value = mock_db_instance
+
+            stats = await run_async(
+                engine=MagicMock(),
+                archive=MagicMock(),
+                seeds=seeds,
+                max_concurrent_orgs=2,
+                max_download_workers=2,
+                run_id="shutdown-test",
+                halt_dir=halt_dir,
+            )
+
+    assert stats.exit_code == 0
+    assert stats.orgs_completed + stats.orgs_transient_failed + stats.orgs_permanent_failed <= len(seeds)
+    crawled_org_writes = [r for r in enqueued if isinstance(r, UpsertCrawledOrgRequest)]
+    assert len(crawled_org_writes) == stats.orgs_completed

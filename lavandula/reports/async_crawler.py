@@ -130,6 +130,8 @@ async def _org_worker(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            err_key = type(exc).__name__
+            stats.errors_by_type[err_key] = stats.errors_by_type.get(err_key, 0) + 1
             if _is_transient(exc):
                 _log.warning("transient failure ein=%s: %s", ein, exc)
                 stats.orgs_transient_failed += 1
