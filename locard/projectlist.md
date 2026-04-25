@@ -371,8 +371,8 @@ projects:
 
   - id: "0021"
     title: "Async I/O Crawler Pipeline"
-    summary: "Replace synchronous requests + ThreadPoolExecutor with aiohttp + asyncio event loop. Per-host rate limiting via async semaphores instead of time.sleep(). Producer-consumer separation (discovery feeds download queue). Conditional fetching for re-crawls. Org prioritization by crawl value. Target: 100K+ orgs on a single machine."
-    status: conceived
+    summary: "Replace synchronous requests + ThreadPoolExecutor with aiohttp + asyncio event loop. Per-host rate limiting via async semaphores instead of time.sleep(). Producer-consumer separation (discovery feeds download queue). Target: 100K+ orgs on a single machine."
+    status: specified
     priority: high
     files:
       spec: locard/specs/0021-async-crawler-pipeline.md

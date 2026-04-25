@@ -1,6 +1,6 @@
 # Spec 0021 — Async I/O Crawler Pipeline
 
-**Status**: Draft (v3 — post-red-team)
+**Status**: Approved
 **Author**: Architect
 **Created**: 2026-04-25
 **Dependencies**: 0004 (site-crawl catalogue), 0020 (data-driven taxonomy)
