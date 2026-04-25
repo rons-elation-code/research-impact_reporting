@@ -62,6 +62,7 @@ class UpsertReportRequest:
     report_year: int | None = None
     report_year_source: str | None = None
     extractor_version: int = 0
+    original_source_url_redacted: str | None = None
 
 
 @dataclass
@@ -71,7 +72,8 @@ class UpsertCrawledOrgRequest:
     candidate_count: int = 0
     fetched_count: int = 0
     confirmed_report_count: int = 0
-    status: str = "ok"  # "ok" | "permanent_skip"
+    status: str = "ok"  # "ok" | "transient" | "permanent_skip"
+    notes: str | None = None
 
 
 WriteRequest = RecordFetchRequest | UpsertReportRequest | UpsertCrawledOrgRequest
@@ -268,6 +270,7 @@ class DBWriterActor:
                 report_year=req.report_year,
                 report_year_source=req.report_year_source,
                 extractor_version=req.extractor_version,
+                original_source_url_redacted=req.original_source_url_redacted,
             )
         elif isinstance(req, UpsertCrawledOrgRequest):
             db_writer.upsert_crawled_org(
@@ -277,6 +280,7 @@ class DBWriterActor:
                 fetched_count=req.fetched_count,
                 confirmed_report_count=req.confirmed_report_count,
                 status=req.status,
+                notes=req.notes,
             )
 
     async def flush_and_stop(self) -> None:
