@@ -553,7 +553,16 @@ def run(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-workers", type=int, default=8,
                         help="Per-org parallelism (TICK-002). Min 1, max 32. "
                              "Default 8. Use 1 for deterministic serial runs.")
+    parser.add_argument("--async", dest="use_async", action="store_true",
+                        help="Use async I/O pipeline (spec 0021)")
+    parser.add_argument("--max-concurrent-orgs", type=int, default=200,
+                        help="(async only) Max concurrent org workers. Default 200.")
+    parser.add_argument("--max-download-workers", type=int, default=20,
+                        help="(async only) Max concurrent download workers. Default 20.")
     args = parser.parse_args(argv)
+
+    if args.use_async and args.max_workers != 8:
+        parser.error("--async is incompatible with --max-workers")
 
     if args.max_workers < 1 or args.max_workers > 32:
         parser.error("--max-workers must be between 1 and 32")
@@ -649,37 +658,65 @@ def run(argv: list[str] | None = None) -> int:
                 logger.info("=== CRAWLER DONE === nothing to crawl")
                 return 0
 
-            succeeded = 0
-            failed = 0
-            try:
-                with ThreadPoolExecutor(
-                    max_workers=args.max_workers,
-                    thread_name_prefix="lavandula-crawler",
-                ) as pool:
-                    futures = {
-                        pool.submit(
-                            process_org,
-                            ein=ein,
-                            website=website,
-                            engine=engine,
-                            archive=archive,
-                            run_id=run_id,
-                        ): (ein, website)
-                        for ein, website in pending
-                    }
-                    for fut in as_completed(futures):
-                        ein, website = futures[fut]
-                        try:
-                            fut.result()
-                            succeeded += 1
-                        except Exception as exc:  # noqa: BLE001
-                            failed += 1
-                            logger.exception("ein=%s failed: %s", ein, exc)
-            finally:
-                _close_thread_clients()
+            if args.use_async:
+                import asyncio as _asyncio
+                from .async_crawler import run_async
 
-            logger.info("=== CRAWLER DONE === run_id=%s orgs=%d succeeded=%d failed=%d",
-                        run_id, len(pending), succeeded, failed)
+                logger.info(
+                    "=== ASYNC CRAWLER START === run_id=%s orgs=%d "
+                    "concurrent_orgs=%d download_workers=%d",
+                    run_id, len(pending),
+                    args.max_concurrent_orgs, args.max_download_workers,
+                )
+                crawl_stats = _asyncio.run(run_async(
+                    engine,
+                    archive,
+                    pending,
+                    max_concurrent_orgs=args.max_concurrent_orgs,
+                    max_download_workers=args.max_download_workers,
+                    run_id=run_id,
+                ))
+                logger.info(
+                    "=== ASYNC CRAWLER DONE === run_id=%s orgs=%d "
+                    "completed=%d transient=%d permanent=%d pdfs=%d",
+                    run_id, len(pending),
+                    crawl_stats.orgs_completed,
+                    crawl_stats.orgs_transient_failed,
+                    crawl_stats.orgs_permanent_failed,
+                    crawl_stats.pdfs_downloaded,
+                )
+            else:
+                succeeded = 0
+                failed = 0
+                try:
+                    with ThreadPoolExecutor(
+                        max_workers=args.max_workers,
+                        thread_name_prefix="lavandula-crawler",
+                    ) as pool:
+                        futures = {
+                            pool.submit(
+                                process_org,
+                                ein=ein,
+                                website=website,
+                                engine=engine,
+                                archive=archive,
+                                run_id=run_id,
+                            ): (ein, website)
+                            for ein, website in pending
+                        }
+                        for fut in as_completed(futures):
+                            ein, website = futures[fut]
+                            try:
+                                fut.result()
+                                succeeded += 1
+                            except Exception as exc:  # noqa: BLE001
+                                failed += 1
+                                logger.exception("ein=%s failed: %s", ein, exc)
+                finally:
+                    _close_thread_clients()
+
+                logger.info("=== CRAWLER DONE === run_id=%s orgs=%d succeeded=%d failed=%d",
+                            run_id, len(pending), succeeded, failed)
         finally:
             engine.dispose()
 
