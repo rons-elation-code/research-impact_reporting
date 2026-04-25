@@ -19,6 +19,38 @@
 
 Combined: 14 distinct issues across both reviewers, all addressed in v2. See "Changes in v2" below.
 
+### Red Team Security Review (MANDATORY)
+**Date**: 2026-04-25
+**Commands**:
+```
+consult --model codex  --type red-team-plan plan 0022
+consult --model claude --type red-team-plan plan 0022
+```
+
+**Verdicts**: REQUEST_CHANGES (Codex HIGH, Claude HIGH)
+
+| Model | Verdict | Top issues |
+|-------|---------|------------|
+| Codex | REQUEST_CHANGES (HIGH) | `DiscoveryResult.wayback_cdx_http_status` field missing — runtime break; `row_count_raw` mis-defined (counts validated, not raw); `wayback_attempts` increments on INVALID_DOMAIN where no query fires; recovered-path `wayback_recoveries++` and AC19 emission unwired |
+| Claude | REQUEST_CHANGES (HIGH) | `wayback-cdx` not in `_KIND_TO_CAP` — body cap silently unwired (AC15.5); `stats` not threaded through `discover_via_wayback`/`discover_org` — counter never increments; CDX `digest` interpolated into notes without `sanitize()` — log injection vector; other note interpolations bypass `sanitize()`; `cdx_http_status` lost on EMPTY outcome; static-analysis taint check too shallow (misses indirect assignment + classifier-prompt sinks) |
+
+10 distinct issues across both reviewers (some overlap), all addressed in v3. See "Changes in v3 (post-red-team)" above.
+
+### Changes in v3 (post-red-team)
+
+Codex (HIGH) and Claude (HIGH) red-team plan-review — both REQUEST_CHANGES. 10 distinct issues, all observability/security plumbing gaps that would have shipped silently weakened defenses:
+
+1. **HIGH (Claude): `wayback-cdx` kind not registered in `_KIND_TO_CAP`.** AC15.5 body cap was unwired — Phase 4's `client.get(cdx_url, kind="wayback-cdx", ...)` would have fallen through to a default cap or raised `unknown fetch kind`. **Fix:** Phase 3 explicitly adds `"wayback-cdx": config.MAX_TEXT_BYTES` to the `_KIND_TO_CAP` table in `async_http_client.py`.
+2. **HIGH (Claude): `stats` not threaded through `discover_via_wayback` / `discover_org`.** v2 added the parameter to the function signature but didn't update the call site in Phase 5. **Fix:** Phase 5's `discover_org()` signature gains `stats: CrawlStats`; Phase 6's `_process_org_async` passes `stats=stats` through.
+3. **HIGH (Claude): CDX `digest` interpolated into `notes` without `sanitize()`.** Log-injection vector via attacker-influenced archive captures. **Fix:** Phase 6 wraps `notes=sanitize(f"wayback_digest:{digest}")` and the same applies to all attacker-touched values entering `notes`.
+4. **HIGH (Codex): `DiscoveryResult.wayback_cdx_http_status` field was missing.** Phase 4 produced it; Phase 6 read it; Phase 5 didn't declare it. **Fix:** Phase 5 adds `wayback_cdx_http_status: int | None = None` to `DiscoveryResult` and assigns it from `WaybackResult.cdx_http_status`. AC19 test verifies it's populated.
+5. **HIGH (Codex): `row_count_raw` misdefined — collapsed validated count.** Spec wants the raw row count for forensics on schema-drift / malformed-row rates. **Fix:** `WaybackResult` now has `raw_row_count` (total rows from CDX before validation) and `validated_row_count` (survivors of `validate_cdx_row`). Phase 6 logs both: `row_count_raw=raw_row_count`, `row_count_after_dedup=len(candidates)`.
+6. **MEDIUM (Codex): `wayback_attempts` increments on INVALID_DOMAIN.** Spec defines as "total CDX queries fired"; INVALID_DOMAIN issues no outbound call. **Fix:** Increment moved to AFTER `_build_cdx_url()` returns non-None and BEFORE `client.get(cdx_url, ...)` actually fires. INVALID_DOMAIN paths exit before the increment. `WaybackResult.cdx_query_fired` documents this.
+7. **HIGH (Codex): Recovered-path `wayback_recoveries++` and AC19 emission unwired.** v2 only handled `_record_no_candidates` and `_record_post_download_outcome`; the happy path was implicit. **Fix:** Phase 6 adds `_record_recovered()` called after the org's download barrier when `wayback`-discovered candidates produced ≥1 successful download. Increments `stats.wayback_recoveries` and emits the AC19 event with `outcome="recovered"`.
+8. **MEDIUM (Claude): Other note interpolations bypass `sanitize()`.** `wayback_redirect_to_{host}`, `wayback_error`, `wayback_active_content`, etc. pass through the same DB column. **Fix:** all `notes` writes route through `sanitize()` in Phase 3 (`_check_wayback_redirect`'s note) and Phase 6 (every `_enqueue_status` call).
+9. **MEDIUM (Claude): `cdx_http_status` lost on EMPTY outcome.** Phase 4's EMPTY-return branch returned `cdx_http_status=None`. AC19 forensics for "empty 200" vs "empty schema-drift" cases would be hampered. **Fix:** All `WaybackResult` returns from `_parse_cdx_response` paths carry the `r.http_status` through, including EMPTY.
+10. **MEDIUM (Claude): Static-analysis taint check too shallow.** AST check only inspected fetcher-call args. **Fix:** Phase 7 test extended with two more sink categories: (a) classifier-prompt sinks (`classify(...)`, `prompt(...)`, `complete(...)`, `chat.create(...)`); (b) indirect-assignment chains where `original_source_url` flows through a local variable into a forbidden sink. Inverse test confirms `db_writer.upsert_report` still references the column.
+
 ### Changes in v2
 
 Codex (HIGH) and Claude (HIGH) plan-review feedback — both REQUEST_CHANGES. 14 issues addressed:
@@ -248,11 +280,29 @@ throttle = AsyncHostThrottle(host_overrides={
 
 ---
 
-### Phase 3: HTTP Client Modifications — Retry-After + Wayback Redirect Policy + Timeout Override
+### Phase 3: HTTP Client Modifications — Retry-After + Wayback Redirect Policy + Timeout Override + `wayback-cdx` Kind Registration
 
-**Modify**: `lavandula/reports/async_http_client.py` (~80 lines added)
+**Modify**: `lavandula/reports/async_http_client.py` (~85 lines added)
 
-**Three additions, all in `AsyncHTTPClient`:**
+**Four additions, all in `AsyncHTTPClient`:**
+
+#### 3z. Register `wayback-cdx` in `_KIND_TO_CAP` (AC15.5)
+
+Add a single entry to the existing `_KIND_TO_CAP` table so `client.get(cdx_url, kind="wayback-cdx", ...)` correctly applies `MAX_TEXT_BYTES=5MB`. Without this, `client.get` raises `ValueError(f"unknown fetch kind: 'wayback-cdx'")` — Claude's red-team caught this gap.
+
+```python
+_KIND_TO_CAP = {
+    "robots":           config.MAX_TEXT_BYTES,
+    "sitemap":          config.MAX_TEXT_BYTES,
+    "homepage":         config.MAX_TEXT_BYTES,
+    "subpage":          config.MAX_TEXT_BYTES,
+    "pdf-head":         config.MAX_TEXT_BYTES,
+    "pdf-get":          config.MAX_PDF_BYTES,
+    "classify":         config.MAX_TEXT_BYTES,
+    "resolver-verify":  config.MAX_TEXT_BYTES,
+    "wayback-cdx":      config.MAX_TEXT_BYTES,  # NEW (Spec 0022 AC15.5)
+}
+```
 
 #### 3a. Retry-After honor for Wayback hosts only (AC17.2)
 
@@ -293,10 +343,12 @@ def _check_wayback_redirect(redirect_chain: list[str]) -> ReceiveCheckResult:
         return ReceiveCheckResult(ok=True, reason=None, note=None)
     target_host = urlsplit(redirect_chain[-1]).hostname or ""
     if _canonical_host(target_host) != "archive.org":
+        # AC15.3 / Claude red-team #8: sanitize attacker-influenced host
+        # before interpolation into notes to prevent log injection.
         return ReceiveCheckResult(
             ok=False,
             reason="blocked_redirect",
-            note=f"wayback_redirect_to_{target_host}",
+            note=sanitize(f"wayback_redirect_to_{target_host}"),
         )
     return ReceiveCheckResult(ok=True, reason=None, note=None)
 ```
@@ -348,10 +400,14 @@ class WaybackOutcome(str, Enum):
 class WaybackResult:
     outcome: WaybackOutcome
     candidates: list[Candidate]
-    capture_hosts: list[str]            # for decisions_log
-    raw_row_count: int                  # how many rows CDX returned (pre-dedup)
+    capture_hosts: list[str]                  # for decisions_log
+    raw_row_count: int                        # AC19: total rows CDX returned (pre-validation),
+                                              # for forensics on schema-drift / malformed-row rates
+    validated_row_count: int                  # rows surviving validate_cdx_row
     elapsed_ms: int
-    cdx_http_status: int | None = None  # for decisions_log AC19
+    cdx_http_status: int | None = None        # AC19
+    cdx_query_fired: bool = False             # True iff client.get(cdx_url) was actually called
+                                              # (False on INVALID_DOMAIN). Controls AC18 increment site.
 
 async def discover_via_wayback(
     *,
@@ -365,10 +421,12 @@ async def discover_via_wayback(
     enforce capture-host policy, return candidates pointing at
     web.archive.org raw-bytes URLs.
     
-    Increments stats.wayback_attempts on entry (one per CDX query fired,
-    even for invalid-domain rejections that don't reach the network).
+    Per Codex red-team #6: stats.wayback_attempts increments only when
+    an outbound CDX query is actually fired — i.e., AFTER domain
+    validation succeeds. INVALID_DOMAIN paths do not increment the
+    counter (no network request issued). This matches AC18's spec
+    definition "total CDX queries fired".
     """
-    stats.wayback_attempts += 1
     ...
 ```
 
@@ -392,31 +450,37 @@ def _build_cdx_url(domain: str) -> str | None:
     )
 
 
-def _parse_cdx_response(body: bytes) -> tuple[WaybackOutcome, list[dict]]:
-    """Parse CDX JSON. Returns (outcome, validated_rows).
+def _parse_cdx_response(body: bytes) -> tuple[WaybackOutcome, list[dict], int]:
+    """Parse CDX JSON. Returns (outcome, validated_rows, raw_data_row_count).
     
     AC15.3: row-level validation via validate_cdx_row.
+    Codex red-team #5: caller distinguishes raw vs validated count for
+    AC19 forensics on schema-drift / malformed-row rates.
+    
     State machine per spec section 'State machine: outcome classification':
     - JSON parse failure → ERROR
-    - Empty list or header-only → EMPTY
-    - All rows fail validation → EMPTY (no usable coverage)
+    - Empty list or header-only → EMPTY (raw_count=0)
+    - All rows fail validation → EMPTY (raw_count>0 — useful signal for
+      schema-drift forensics; ops can see "CDX returned 30 rows but all
+      failed validation")
     - Some rows valid → RECOVERED
     """
     try:
         rows = json.loads(body.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return (WaybackOutcome.ERROR, [])
+        return (WaybackOutcome.ERROR, [], 0)
     if not isinstance(rows, list) or len(rows) < 1:
-        return (WaybackOutcome.EMPTY, [])
-    # First row is header; skip and validate the rest.
+        return (WaybackOutcome.EMPTY, [], 0)
+    raw_data_rows = rows[1:]   # skip header
+    raw_count = len(raw_data_rows)
     validated = []
-    for row in rows[1:]:
+    for row in raw_data_rows:
         v = validate_cdx_row(row)
         if v is not None:
             validated.append(v)
     if not validated:
-        return (WaybackOutcome.EMPTY, [])
-    return (WaybackOutcome.RECOVERED, validated)
+        return (WaybackOutcome.EMPTY, [], raw_count)
+    return (WaybackOutcome.RECOVERED, validated, raw_count)
 
 
 def _dedupe_and_cap(
@@ -495,23 +559,43 @@ async def discover_via_wayback(*, seed_url, seed_etld1, client, ein) -> WaybackR
     domain = urlsplit(seed_url).hostname or seed_etld1
     cdx_url = _build_cdx_url(domain)
     if cdx_url is None:
-        # Domain failed validation — AC15.2 / AC25.2. Distinct from ERROR so
-        # Phase 6 can record `notes='wayback_invalid_domain'` and ops can
-        # distinguish bad seed data from genuine Wayback failures.
-        return WaybackResult(WaybackOutcome.INVALID_DOMAIN, [], [], 0, 0)
+        # Domain failed validation — AC15.2 / AC25.2. No outbound query
+        # fired, so do NOT increment stats.wayback_attempts (Codex red-team #6).
+        return WaybackResult(
+            outcome=WaybackOutcome.INVALID_DOMAIN,
+            candidates=[],
+            capture_hosts=[],
+            raw_row_count=0,
+            validated_row_count=0,
+            elapsed_ms=0,
+            cdx_http_status=None,
+            cdx_query_fired=False,
+        )
+
+    # AC18: increment counter only AFTER domain validation succeeds and
+    # immediately before the outbound query.
+    stats.wayback_attempts += 1
     
     # AC6: explicit 15s timeout override.
     # AC15.5: body cap enforced by AsyncHTTPClient via _KIND_TO_CAP[wayback-cdx]
-    #         which maps to MAX_TEXT_BYTES (5 MB). Oversized responses return
-    #         status='size_capped' which we route to ERROR below.
+    #         (registered in Phase 3) which maps to MAX_TEXT_BYTES (5 MB).
+    #         Oversized responses return status='size_capped' which we route
+    #         to ERROR below.
     r = await client.get(cdx_url, kind="wayback-cdx", timeout_override=15.0)
     elapsed = int((asyncio.get_event_loop().time() - t_start) * 1000)
 
     if r.status != "ok" or not r.body:
         # 'size_capped' (AC15.5), 'network_error', '5xx', etc. all → ERROR.
+        # cdx_http_status preserved for AC19 forensics (Claude red-team #9).
         return WaybackResult(
-            WaybackOutcome.ERROR, [], [], 0, elapsed,
+            outcome=WaybackOutcome.ERROR,
+            candidates=[],
+            capture_hosts=[],
+            raw_row_count=0,
+            validated_row_count=0,
+            elapsed_ms=elapsed,
             cdx_http_status=r.http_status,
+            cdx_query_fired=True,
         )
     
     outcome, validated = _parse_cdx_response(r.body)
@@ -706,7 +790,9 @@ async def _record_no_candidates(*, ein, domain, db_actor, stats, discovery):
         log_outcome = "empty_first"   # SQL CASE promotes to empty_second on the next observation
 
     stats.orgs_transient_failed += 1
-    await _enqueue_status(db_actor, ein, "transient", notes)
+    # Note values above are static enums — sanitize() is defense-in-depth in
+    # case the enum is ever generated dynamically (Claude red-team #8).
+    await _enqueue_status(db_actor, ein, "transient", sanitize(notes))
     if discovery.wayback_outcome is not None:
         await _log_wayback_decision(
             db_actor=db_actor, ein=ein, domain=domain,
@@ -719,16 +805,45 @@ async def _record_post_download_outcome(
     *, ein, domain, db_actor, stats, discovery,
     successful_downloads: int, candidates: list[Candidate],
 ):
-    """AC14 fifth state: Wayback returned candidates but ALL downloads failed.
-    Distinct from 'EMPTY' or 'ERROR' — the CDX query worked but the per-PDF
-    fetches all failed validation/download.
+    """Post-download state machine for Wayback-sourced orgs.
+    
+    Two cases (Codex red-team #4 + #7):
+    - successful_downloads >= 1 → 'recovered' path (AC18: wayback_recoveries++,
+      AC19: outcome='recovered')
+    - successful_downloads == 0 → 'all_downloads_failed' path (AC14 fifth state)
+    
+    Only runs when the org's candidates came from Wayback (i.e.,
+    discovery.wayback_outcome == RECOVERED). Standard direct-crawl
+    orgs are completed by the existing happy-path code in Spec 0021.
     """
-    is_wayback = any(c.discovered_via == "wayback" for c in candidates)
-    if not is_wayback or successful_downloads > 0:
-        return  # not the case we handle here; standard 'ok' path applies
+    is_wayback = (
+        discovery.wayback_outcome == WaybackOutcome.RECOVERED
+        and any(c.discovered_via == "wayback" for c in candidates)
+    )
+    if not is_wayback:
+        return  # not a Wayback recovery; standard direct-crawl 'ok' path applies
+
+    if successful_downloads >= 1:
+        # Recovered path — AC14 'ok', AC18 wayback_recoveries++, AC19 'recovered'.
+        stats.wayback_recoveries += 1
+        await _log_wayback_decision(
+            db_actor=db_actor, ein=ein, domain=domain,
+            outcome="recovered",
+            reason=discovery.homepage_failure_reason,
+            discovery=discovery,
+        )
+        # The 'ok' status row itself is written by the existing happy-path
+        # code in _process_org_async (UpsertCrawledOrgRequest with status='ok').
+        # No additional state write here.
+        return
+
+    # All downloads failed — AC14 fifth state.
     stats.orgs_transient_failed += 1
     stats.wayback_errors += 1
-    await _enqueue_status(db_actor, ein, "transient", "wayback_all_downloads_failed")
+    await _enqueue_status(
+        db_actor, ein, "transient",
+        sanitize("wayback_all_downloads_failed"),
+    )
     await _log_wayback_decision(
         db_actor=db_actor, ein=ein, domain=domain,
         outcome="all_downloads_failed",
@@ -890,7 +1005,24 @@ COMMIT;
 
 **Update `Candidate` dataclass**: add `original_source_url: str | None = None` and `wayback_digest: str | None = None`.
 
-**Modify `_process_download`** to wire `original_source_url_redacted = redact_url(cand.original_source_url)` into `UpsertReportRequest`. If `cand.wayback_digest` is set, append to `RecordFetchRequest.notes` as `wayback_digest:{sha1}` (AC19.1).
+**Modify `_process_download`** to wire `original_source_url_redacted = redact_url(cand.original_source_url)` into `UpsertReportRequest`. If `cand.wayback_digest` is set, append to `RecordFetchRequest.notes` as `sanitize(f"wayback_digest:{cand.wayback_digest}")` (AC19.1, Claude red-team #3 — `digest` comes from CDX which is attacker-influenced).
+
+**Wire `_record_post_download_outcome` into the orchestrator.** After the existing per-org download barrier in `_process_org_async`, count successful downloads (where `outcome.status == "ok"` and a `reports` row was written), then call:
+
+```python
+# AC18 + AC19 wiring for Wayback orgs (Codex red-team #4, #7).
+await _record_post_download_outcome(
+    ein=ein,
+    domain=urlsplit(website).hostname or seed_etld1,
+    db_actor=db_actor,
+    stats=stats,
+    discovery=discovery,
+    successful_downloads=org_fetched[0],
+    candidates=candidates,
+)
+```
+
+For non-Wayback orgs, the function returns early (no state change). For Wayback recoveries, it increments `wayback_recoveries` and emits `outcome='recovered'`. For all-failures, it writes `transient` `wayback_all_downloads_failed`.
 
 **Static-analysis test** (`test_wayback_static_safety.py`, ~80 lines, AC25.1):
 
@@ -902,13 +1034,19 @@ Plus an inverse test: assert that `db_writer.upsert_report` is called with `orig
 import ast
 import pathlib
 
-FORBIDDEN_FETCHER_NAMES = {
+FORBIDDEN_SINK_NAMES = {
+    # Fetcher / resolver sinks (Codex spec red-team)
     "get", "head", "request",   # client/session methods
     "urlopen", "fetch",
+    # Classifier / LLM-prompt sinks (Claude plan red-team #6)
+    "classify", "prompt", "complete", "create",  # openai-style chat.create, etc.
+    "invoke", "ainvoke",                          # langchain-style
+    "ask", "generate",                            # generic
 }
 FORBIDDEN_PROVENANCE_REFS = {"original_source_url", "original_source_url_redacted"}
 
 def _references_provenance(node: ast.AST) -> bool:
+    """True if any sub-node directly names the forbidden field."""
     for child in ast.walk(node):
         if isinstance(child, ast.Name) and child.id in FORBIDDEN_PROVENANCE_REFS:
             return True
@@ -917,9 +1055,38 @@ def _references_provenance(node: ast.AST) -> bool:
     return False
 
 
-def test_original_source_url_never_passed_to_fetcher():
-    """AC15.1 + AC25.1: original_source_url must not appear as an arg
-    to any fetcher/resolver call."""
+def _build_taint_set_from_assignments(tree: ast.AST) -> set[str]:
+    """One-level indirect-assignment chain: collect local names that
+    were assigned the value of original_source_url[_redacted]. A
+    forbidden sink that consumes these tainted names is also a violation.
+    """
+    tainted: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _references_provenance(node.value):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    tainted.add(target.id)
+                elif isinstance(target, ast.Tuple):
+                    for elt in target.elts:
+                        if isinstance(elt, ast.Name):
+                            tainted.add(elt.id)
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if node.value is not None and _references_provenance(node.value):
+                tainted.add(node.target.id)
+    return tainted
+
+
+def _references_taint(node: ast.AST, tainted: set[str]) -> bool:
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name) and child.id in tainted:
+            return True
+    return False
+
+
+def test_original_source_url_never_passed_to_forbidden_sink():
+    """AC15.1 + AC25.1: original_source_url must not appear (directly or
+    via one-level indirect assignment) as an arg to any fetcher / resolver
+    / classifier-prompt call."""
     repo_root = pathlib.Path(__file__).resolve().parents[5]
     src_files = [
         p for p in repo_root.rglob("lavandula/**/*.py")
@@ -928,6 +1095,7 @@ def test_original_source_url_never_passed_to_fetcher():
     violations = []
     for f in src_files:
         tree = ast.parse(f.read_text())
+        tainted = _build_taint_set_from_assignments(tree)
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
@@ -935,13 +1103,14 @@ def test_original_source_url_never_passed_to_fetcher():
                 node.func.attr if isinstance(node.func, ast.Attribute)
                 else getattr(node.func, "id", None)
             )
-            if func_name not in FORBIDDEN_FETCHER_NAMES:
+            if func_name not in FORBIDDEN_SINK_NAMES:
                 continue
             for arg in [*node.args, *(kw.value for kw in node.keywords)]:
-                if _references_provenance(arg):
-                    violations.append(f"{f}:{node.lineno}")
+                if _references_provenance(arg) or _references_taint(arg, tainted):
+                    violations.append(f"{f}:{node.lineno}: {func_name}()")
     assert not violations, (
-        "original_source_url passed to fetcher:\n" + "\n".join(violations)
+        "original_source_url flowed into a forbidden sink:\n"
+        + "\n".join(violations)
     )
 
 
