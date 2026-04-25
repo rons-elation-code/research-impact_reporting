@@ -70,7 +70,13 @@ class CrawlStats:
 
 
 def _pick_discovered_via(c: Candidate) -> str:
-    if c.hosting_platform and c.hosting_platform != "own-domain":
+    # Wayback candidates carry hosting_platform='wayback' as provenance, but
+    # their discovered_via='wayback' is the load-bearing attribution. Don't
+    # let the hosting-platform override clobber it (Spec 0022 AC11).
+    if (
+        c.hosting_platform
+        and c.hosting_platform not in ("own-domain", "wayback")
+    ):
         return "hosting-platform"
     return c.discovered_via
 

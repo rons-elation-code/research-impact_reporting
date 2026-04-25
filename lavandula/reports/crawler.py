@@ -224,7 +224,12 @@ class OrgResult:
 
 
 def _pick_discovered_via(c: Candidate) -> str:
-    if c.hosting_platform and c.hosting_platform != "own-domain":
+    # Defense in depth: align with async_crawler. Sync crawler doesn't
+    # produce wayback candidates today, but parity prevents future surprise.
+    if (
+        c.hosting_platform
+        and c.hosting_platform not in ("own-domain", "wayback")
+    ):
         return "hosting-platform"
     return c.discovered_via
 
