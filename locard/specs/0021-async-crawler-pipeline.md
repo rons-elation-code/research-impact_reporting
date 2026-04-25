@@ -30,8 +30,8 @@
 
 1. **Content-Encoding defense**: Explicit AC rejecting any encoding other than `gzip` or `identity`/absent. `auto_decompress=False` + manual zlib. Matches sync client behavior (spec 0004 AC8).
 2. **TLS hostname verification AC**: Integration test verifying cert-for-hostname, not cert-for-IP, when using custom resolver.
-3. **ProcessPool worker recycling**: `max_tasks_per_child=1` preserves subprocess-per-PDF isolation from sync client.
-4. **PDF validation timeout**: 30s per-task via `Future.result(timeout=30)` + process termination on timeout.
+3. **PDF validation via existing subprocess**: Reuse `_validate_pdf_structure` (spawns/kills subprocess per PDF) wrapped in `ThreadPoolExecutor`, not `ProcessPoolExecutor`. Preserves isolation + kill-on-timeout.
+4. **PDF validation timeout**: Existing `_STRUCTURE_TIMEOUT_SEC` timeout in `_validate_pdf_structure` handles this natively — subprocess is terminated/killed if it hangs.
 5. **Org completion semantics**: Per-org `asyncio.Event` fires only after all downloads for that org are confirmed archived + DB-flushed. `upsert_crawled_org` enqueued only after the barrier.
 6. **Transient vs permanent failure**: Orgs with transient failures (network, timeout, TLS) are NOT marked complete — resume retries them. Only permanent failures (robots disallow, SSRF rejection) and successful crawls are marked.
 7. **DNS pinning tightened**: Single IP pinned (first IPv4 result preferred). Negative results cached. Multi-address hosts use only the pinned IP. Each new host in redirect chain is independently resolved.
@@ -126,7 +126,7 @@ asyncio event loop (1 thread)
 
 **D5: DB Writer Actor pattern.** A single `DBWriterActor` coroutine owns a bounded `asyncio.Queue(maxsize=200)`. All DB writes flow through it — download workers, discovery coroutines, and org-completion all enqueue typed `WriteRequest` dataclass instances (discriminated union: `RecordFetchRequest`, `UpsertReportRequest`, `UpsertCrawledOrgRequest`). The actor drains the queue, batches rows by operation type, and flushes via `loop.run_in_executor(single_thread_executor, flush_batch, ...)`. A single-thread executor simplifies ordering and avoids contention. Flush failures are logged and retried once; persistent failures are logged with the full request for manual recovery.
 
-**D6: ProcessPoolExecutor with per-task recycling.** Download workers call `await loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body)`. The pool is configured as `ProcessPoolExecutor(max_workers=4, max_tasks_per_child=1)` — each worker process handles exactly one PDF then exits, preserving the subprocess-per-PDF isolation of the synchronous client. This prevents a malicious PDF that corrupts parser state from tainting subsequent validations. Cost: ~10ms fork overhead per validation, negligible vs network I/O. Additionally, `Future.result(timeout=30)` ensures hostile PDFs cannot hang the validation pool; on timeout the worker is terminated.
+**D6: Subprocess-per-PDF validation via ThreadPoolExecutor.** Download workers call `await loop.run_in_executor(thread_pool, _validate_pdf_structure, body)` — reusing the EXISTING `_validate_pdf_structure` from `fetch_pdf.py` which already: (a) spawns a fresh `multiprocessing.Process` per PDF, (b) joins with a timeout, (c) terminates/kills the process if it's still alive, (d) returns `(False, "pdf_structure_timeout")`. A `ThreadPoolExecutor(max_workers=4)` bounds concurrent validations; each thread blocks on its subprocess join without blocking the event loop. This preserves both the subprocess-per-PDF isolation AND the kill-on-timeout semantics of the synchronous client, without the issues of `ProcessPoolExecutor` (which cannot terminate individual hung workers).
 
 **D7: Custom aiohttp resolver for DNS pinning.** `AsyncHostPinCache` implements `aiohttp.abc.AbstractResolver`. On first resolution, it calls `socket.getaddrinfo` via `loop.run_in_executor` (non-blocking), selects the first IPv4 result (AF_INET preferred for consistency; falls back to IPv6 if no IPv4), checks `is_address_allowed`, and caches the single pinned IP. Negative results (disallowed IPs) are also cached for the session lifetime to prevent CPU-amplification via repeated resolution of private-IP hosts. Each new hostname encountered in a redirect chain is independently resolved and validated. The resolver preserves the original hostname in the result dict so aiohttp uses it for SNI and TLS certificate validation (not the IP). The resolver is injected into `aiohttp.TCPConnector(resolver=async_pin_cache)`.
 
@@ -173,6 +173,7 @@ class AsyncHTTPClient:
   - `resolver=async_pin_cache`: SSRF-safe DNS pinning (D7)
   - `keepalive_timeout=60`: connections recycled periodically; prevents stale pinned connections
 - `auto_decompress=False` on the session: we decompress manually to enforce the byte cap
+- `cookie_jar=aiohttp.DummyCookieJar()`: ignores all `Set-Cookie` headers. The sync client resets cookies before each request; `DummyCookieJar` is the async equivalent (stricter: cookies never stored). Prevents cross-site cookie leakage and tracking across orgs.
 - `timeout=aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=15)`: granular timeouts catch slow-loris-style trickle reads
 
 **Content-Encoding policy (security-critical):** Only `gzip` and `identity`/absent are accepted. If the response has `Content-Encoding` set to anything else (`br`, `deflate`, `zstd`, etc.), the response is rejected as `blocked_content_type`. This matches the synchronous client (spec 0004 AC8) and the outbound `Accept-Encoding: gzip, identity` header — any other encoding is a protocol violation. The decompressed-byte cap is enforced via manual `zlib.decompressobj(zlib.MAX_WBITS | 16)` for gzip, using `resp.content.read(8192)` chunks. SHA256 is always computed over decompressed bytes.
@@ -268,13 +269,13 @@ async def download(
     *,
     seed_etld1: str | None = None,
     validate_structure: bool = True,
-    process_pool: ProcessPoolExecutor | None = None,
+    thread_pool: ThreadPoolExecutor | None = None,
 ) -> DownloadOutcome:
 ```
 
 Same logic as `fetch_pdf.download`, but:
 - `client.head()` / `client.get()` are awaited
-- PDF structure validation: `await loop.run_in_executor(process_pool, _validate_pdf_structure_inner, body)`
+- PDF structure validation: `await loop.run_in_executor(thread_pool, _validate_pdf_structure, body)` — reuses existing subprocess-spawning function
 - Returns the same `DownloadOutcome` dataclass
 
 ### Phase 6: DB Writer Actor (`async_db_writer.py`)
@@ -477,8 +478,8 @@ Once validated, async becomes the default and the flag is inverted to `--sync`.
 - **AC17**: Download workers (default 20) pull from the shared queue. Worker count configurable via `--max-download-workers`.
 - **AC18**: `DBWriterActor` is a single coroutine owning a bounded queue (maxsize=200). Write requests are typed dataclasses (`RecordFetchRequest`, `UpsertReportRequest`, `UpsertCrawledOrgRequest`). The actor batches (up to 50 rows) and flushes via `run_in_executor` on a single-thread executor.
 - **AC19**: If a DB flush fails, the actor retries once. Persistent failures are logged with the full request payload for manual recovery. The actor does not crash on DB errors.
-- **AC20**: PDF structure validation runs via `run_in_executor` on a `ProcessPoolExecutor(max_workers=4, max_tasks_per_child=1)`. Worker processes are recycled after each task to prevent cross-PDF state corruption.
-- **AC21**: PDF validation has a 30-second timeout. On timeout, the worker is terminated and the candidate is recorded as a validation failure (`pdf_structure_timeout`).
+- **AC20**: PDF structure validation reuses the existing `_validate_pdf_structure` function (which spawns a fresh `multiprocessing.Process` per PDF), called via `run_in_executor` on a `ThreadPoolExecutor(max_workers=4)`. Each validation runs in an isolated subprocess.
+- **AC21**: PDF validation timeout is handled by the existing `_validate_pdf_structure` function which joins with `_STRUCTURE_TIMEOUT_SEC` and terminates/kills the subprocess if it's still alive. The candidate is recorded as `pdf_structure_timeout`.
 
 ### Org Completion (Durability)
 - **AC22**: `upsert_crawled_org` is enqueued to the DB writer ONLY after all downloads for that org have been archived and their corresponding `upsert_report` writes have been enqueued. The per-org barrier (D9) enforces this.
@@ -497,7 +498,7 @@ Once validated, async becomes the default and the flag is inverted to `--sync`.
 - **AC31**: Resume semantics: already-crawled EINs (those with a `crawled_orgs` row with status != `permanent_skip` if desired) are skipped unless `--refresh`.
 - **AC32**: Encryption-at-rest check and TLS self-test run before the event loop starts.
 - **AC33**: Halt-file sentinel checks `config.HALT` every 30 seconds. Halt-dir permissions validated at startup (refuse to start if world-writable).
-- **AC34**: Graceful shutdown on SIGINT/SIGTERM/halt-file: (a) stop accepting new orgs, (b) let in-flight org workers finish their current org (including download barrier), (c) drain remaining download queue items, (d) `DBWriterActor.flush_and_stop()` (shielded from cancellation), (e) close HTTP client, (f) exit 0.
+- **AC34**: Graceful shutdown on SIGINT/SIGTERM/halt-file: (a) stop accepting new orgs, (b) let in-flight org workers finish their current org (including download barrier), (c) drain remaining download queue items, (d) `DBWriterActor.flush_and_stop()` (shielded from cancellation), (e) close HTTP client, (f) exit 0 on success, exit 1 if any flush failures remain unresolved.
 - **AC35**: Double-SIGINT within 5 seconds forces `os._exit(1)`, accepting that in-flight DB writes may be lost.
 
 ### Observability
@@ -536,14 +537,14 @@ Once validated, async becomes the default and the flag is inverted to `--sync`.
 
 10. **Don't mark orgs complete on transient failures.** A bare `except Exception` that records the org as crawled enables denial-of-crawl. Classify failures (D8) and only record permanent outcomes.
 
-11. **Don't skip `max_tasks_per_child=1` on the ProcessPool.** Without it, a malicious PDF can corrupt worker state and taint all subsequent validations. The ~10ms fork overhead is negligible vs network I/O.
+11. **Don't use `ProcessPoolExecutor` for PDF validation.** It can't kill individual hung workers. Instead, reuse the existing `_validate_pdf_structure` which spawns/kills its own subprocess per PDF. Wrap it in `ThreadPoolExecutor` for async compatibility.
 
 ## Security Considerations
 
 - **SSRF protections preserved.** `AsyncHostPinCache` (D7) provides the same DNS-pinning defense as `HostPinCache`, with explicit IPv4 preference, negative caching, and hostname-based TLS verification (AC10-AC14).
 - **Content-Encoding defense.** Only `gzip` and `identity` accepted. Non-advertised encodings are rejected as protocol violations (AC4). Decompressed-byte cap enforced via manual zlib (AC3).
 - **TLS hostname verification contractual.** The custom resolver preserves the original hostname for SNI/cert validation. An integration test (AC12) proves that IP-only certs are rejected.
-- **PDF parser isolation.** `ProcessPoolExecutor(max_tasks_per_child=1)` ensures each PDF is validated in a fresh process, preventing cross-PDF state corruption (AC20). 30s timeout prevents hostile PDFs from hanging the pool (AC21).
+- **PDF parser isolation.** Reuses existing `_validate_pdf_structure` which spawns a fresh subprocess per PDF and kills it on timeout. Each validation runs in complete isolation; no cross-PDF state corruption possible (AC20). Timeout + termination prevents hostile PDFs from hanging the pool (AC21).
 - **Denial-of-crawl defense.** Transient failures do NOT mark orgs complete (AC23). An adversary cannot permanently opt out of crawling by inducing reproducible errors.
 - **No new network exposure.** Client-only change; no listening sockets. Progress reporting is log-only (no Unix socket).
 - **Connection limits (defense-in-depth).** Connector: `limit=500, limit_per_host=2` (AC40). Application: per-host semaphore + org cap. Queue sizes bounded (AC39).
