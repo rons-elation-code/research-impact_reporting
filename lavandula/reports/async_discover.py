@@ -27,8 +27,10 @@ from .candidate_filter import (
 from .redirect_policy import etld1
 from .robots import can_fetch as robots_can_fetch, sitemap_urls_from_robots
 from .url_redact import canonicalize_url
+from .wayback_fallback import WaybackOutcome, discover_via_wayback
 
 if TYPE_CHECKING:
+    from .async_crawler import CrawlStats
     from .async_http_client import AsyncHTTPClient
 
 MAX_SUBPAGES_PER_ORG = config.MAX_SUBPAGES_PER_ORG
@@ -41,6 +43,13 @@ class DiscoveryResult:
     candidates: list[Candidate] = field(default_factory=list)
     homepage_ok: bool = False
     robots_disallowed_all: bool = False
+    homepage_failure_reason: str | None = None
+    wayback_outcome: WaybackOutcome | None = None
+    wayback_capture_hosts: list[str] = field(default_factory=list)
+    wayback_raw_row_count: int = 0
+    wayback_validated_row_count: int = 0
+    wayback_elapsed_ms: int = 0
+    wayback_cdx_http_status: int | None = None
 
 _REPORT_PATH_KEYWORDS = frozenset({
     "/annual-report", "/annualreport", "/annual_report",
@@ -86,6 +95,7 @@ async def discover_org(
     robots_text: str,
     ein: str = "",
     fetcher: AsyncFetcher | None = None,
+    stats: CrawlStats | None = None,
 ) -> DiscoveryResult:
     """Async equivalent of discover.per_org_candidates.
 
@@ -187,6 +197,8 @@ async def discover_org(
 
     home_body, home_status = await _fetch(home_base, "homepage")
     result.homepage_ok = home_status == "ok"
+    if not result.homepage_ok:
+        result.homepage_failure_reason = _classify_homepage_failure(home_status)
     if home_status == "ok" and home_body:
         page_candidates = extract_candidates(
             html=home_body.decode("utf-8", errors="replace"),
@@ -250,7 +262,48 @@ async def discover_org(
 
     candidates.sort(key=lambda c: (0 if c.url.lower().endswith(".pdf") else 1))
     result.candidates = candidates[:CANDIDATE_CAP_PER_ORG]
+
+    # AC1: Wayback fallback gate
+    if (
+        not result.candidates
+        and not result.homepage_ok
+        and not result.robots_disallowed_all
+        and stats is not None
+    ):
+        wayback = await discover_via_wayback(
+            seed_url=seed_url,
+            seed_etld1=seed_etld1,
+            client=client,
+            ein=ein,
+            stats=stats,
+        )
+        result.wayback_outcome = wayback.outcome
+        result.wayback_capture_hosts = wayback.capture_hosts
+        result.wayback_raw_row_count = wayback.raw_row_count
+        result.wayback_validated_row_count = wayback.validated_row_count
+        result.wayback_elapsed_ms = wayback.elapsed_ms
+        result.wayback_cdx_http_status = wayback.cdx_http_status
+        if wayback.outcome == WaybackOutcome.RECOVERED:
+            result.candidates = wayback.candidates
+
     return result
+
+
+def _classify_homepage_failure(status: str) -> str:
+    """AC3.1: bounded enum of failure reasons."""
+    if status == "forbidden":
+        return "homepage_cloudflare_challenge"
+    if status == "not_found":
+        return "homepage_4xx"
+    if status == "server_error":
+        return "homepage_5xx"
+    if status == "network_error":
+        return "homepage_network_error"
+    if status == "size_capped":
+        return "homepage_size_capped"
+    if status == "blocked_content_type":
+        return "homepage_blocked_content_type"
+    return "homepage_unknown"
 
 
 __all__ = ["discover_org", "DiscoveryResult", "MAX_SUBPAGES_PER_ORG"]
