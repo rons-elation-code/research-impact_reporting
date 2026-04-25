@@ -387,12 +387,15 @@ async def test_ac22_crawled_org_waits_for_report_durability():
 # ---------- Shutdown integration test (must-fix round 2) ----------
 
 @pytest.mark.asyncio
-async def test_shutdown_flushes_inflight_writes():
-    """SIGINT mid-flight: in-flight orgs finish, DB drains, exit_code=0.
+async def test_sigint_mid_flight_drains_cleanly():
+    """Real SIGINT mid-flight: producer stops, in-flight orgs finish,
+    DB drains, fewer than all seeds completed, exit_code=0, and every
+    completed org has exactly one crawled_orgs row (no half-writes)."""
+    import os
+    import signal
+    import tempfile
+    from pathlib import Path
 
-    Uses shutdown_event directly (not real signals) to simulate graceful
-    shutdown during crawl.
-    """
     enqueued: list[object] = []
     loop = asyncio.get_running_loop()
 
@@ -402,12 +405,8 @@ async def test_shutdown_flushes_inflight_writes():
         fut.set_result(True)
         return fut
 
-    db_actor = MagicMock()
-    db_actor.enqueue = mock_enqueue
-    db_actor.flush_failures = 0
-
     async def slow_discover(*args, **kwargs):
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.1)
         return DiscoveryResult(candidates=[], homepage_ok=True)
 
     async def mock_get(url, *, kind="homepage", seed_etld1=None, extra_headers=None):
@@ -417,18 +416,11 @@ async def test_shutdown_flushes_inflight_writes():
     client_mock = MagicMock()
     client_mock.get = mock_get
 
-    seeds = [(f"EIN-{i:04d}", f"https://org{i}.example.com") for i in range(5)]
-
-    from pathlib import Path
-    import tempfile
+    seeds = [(f"EIN-{i:04d}", f"https://org{i}.example.com") for i in range(20)]
 
     with tempfile.TemporaryDirectory() as tmpdir:
         halt_dir = Path(tmpdir) / "halt"
         halt_dir.mkdir()
-
-        shutdown_triggered = [False]
-
-        original_run_async = run_async.__wrapped__ if hasattr(run_async, '__wrapped__') else None
 
         with patch(
             "lavandula.reports.async_crawler.discover_org",
@@ -452,26 +444,39 @@ async def test_shutdown_flushes_inflight_writes():
             mock_db_instance.flush_failures = 0
             mock_db_instance.flush_and_stop = AsyncMock()
 
-            run_called = asyncio.Event()
-
             async def mock_db_run():
-                run_called.set()
-                await asyncio.sleep(999)
+                try:
+                    await asyncio.sleep(999)
+                except asyncio.CancelledError:
+                    pass
 
             mock_db_instance.run = mock_db_run
             mock_db_cls.return_value = mock_db_instance
+
+            async def send_sigint_soon():
+                await asyncio.sleep(0.25)
+                os.kill(os.getpid(), signal.SIGINT)
+
+            asyncio.create_task(send_sigint_soon())
 
             stats = await run_async(
                 engine=MagicMock(),
                 archive=MagicMock(),
                 seeds=seeds,
-                max_concurrent_orgs=2,
+                max_concurrent_orgs=3,
                 max_download_workers=2,
                 run_id="shutdown-test",
                 halt_dir=halt_dir,
             )
 
     assert stats.exit_code == 0
-    assert stats.orgs_completed + stats.orgs_transient_failed + stats.orgs_permanent_failed <= len(seeds)
+    assert stats.orgs_completed < len(seeds), (
+        f"expected fewer than {len(seeds)} completed, got {stats.orgs_completed} — "
+        "shutdown didn't interrupt the crawl"
+    )
+    assert stats.orgs_completed > 0, "at least one org should have completed before SIGINT"
     crawled_org_writes = [r for r in enqueued if isinstance(r, UpsertCrawledOrgRequest)]
-    assert len(crawled_org_writes) == stats.orgs_completed
+    assert len(crawled_org_writes) == stats.orgs_completed, (
+        f"crawled_org writes ({len(crawled_org_writes)}) != orgs_completed "
+        f"({stats.orgs_completed}) — partial/missing writes detected"
+    )
