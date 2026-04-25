@@ -24,7 +24,7 @@ _ALLOWED_FIELDS = frozenset({
     "basename", "filename_score", "triage",
     "strong_path_hit", "weak_path_hit",
     "anchor_text", "anchor_hit",
-    "decision",
+    "decision", "discovered_via",
 })
 
 

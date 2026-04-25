@@ -11,7 +11,7 @@ version: 1
 
 thresholds:
   filename_score_accept: 0.8
-  filename_score_reject: 0.15
+  filename_score_reject: 0.2
   filename_score_weak_path_min: 0.65
   base_score: 0.5
 
@@ -55,6 +55,10 @@ material_types:
       - our impact
       - impact
       - story report
+      - read the report
+      - view report
+      - download report
+      - full report
     description: "Impact/outcomes-focused report"
 
   - id: year_in_review
@@ -65,6 +69,20 @@ material_types:
     anchor_signals:
       - year in review
     description: "Year in review publication"
+
+  - id: financial_report
+    group: reports
+    tier: web
+    filename_signals:
+      strong_positive: [financial-statement, financial-report, audited-financial, financial-audit, consolidated-financial]
+      medium_positive: [financial, "990", audit, char-500, char500]
+    anchor_signals:
+      - financial statements
+      - financial report
+      - audited financial
+      - "990"
+      - financial audit
+    description: "Audited financial statements, 990s, and financial reports"
 
   - id: community_benefit_report
     group: reports
@@ -787,6 +805,25 @@ filename_negative_signals:
     - poster
     - catering
     - roster
+    - verification
+    - counseling
+    - webinar
+    - golf
+    - tournament
+    - prom
+    - contest
+    - postcard
+    - brochure
+    - calendar
+    - dental
+    - disposal
+    - glossary
+    - user-guide
+    - compliance
+    - breach
+    - matching-gift
+    - org-chart
+    - occupancy
   medium:
     - notes
     - letter
@@ -795,3 +832,10 @@ filename_negative_signals:
     - instastories
     - lawn-signs
     - diagram
+    - presentation
+    - directory
+    - pledge-form
+    - pledge-card
+    - donation-form
+    - map
+    - transcript

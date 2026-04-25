@@ -368,11 +368,24 @@ projects:
     dependencies: ["0004", "0018"]
     tags: [crawler, taxonomy, precision, data-driven, config]
     notes: "Driven by observed junk in 2026-04-23 crawl (Fordham returned 207 false-positive PDFs via /media path keyword). Taxonomy approved 2026-04-24. Phase 1 ships precision/recall improvements; Phase 2 (classifier expansion) and Phase 3 (DB rename + dashboard) follow."
+
+  - id: "0021"
+    title: "Async I/O Crawler Pipeline"
+    summary: "Replace synchronous requests + ThreadPoolExecutor with aiohttp + asyncio event loop. Per-host rate limiting via async semaphores instead of time.sleep(). Producer-consumer separation (discovery feeds download queue). Target: 100K+ orgs on a single machine."
+    status: planned
+    priority: high
+    files:
+      spec: locard/specs/0021-async-crawler-pipeline.md
+      plan: locard/plans/0021-async-crawler-pipeline.md
+      review: null
+    dependencies: ["0004", "0020"]
+    tags: [crawler, performance, async, architecture, national-scale]
+    notes: "Motivated by 100-org test run taking ~4 hours with 8 threads. National crawl (100K+ orgs) would take weeks at current throughput. Most time spent in time.sleep() throttle waits — async I/O can multiplex those idle periods across hundreds of orgs. Plan approved 2026-04-25 after 2 review rounds (plan-review + red-team). Spec synced with plan: ThreadPoolExecutor PDF validation, DummyCookieJar, non-zero exit on flush failure."
 ```
 
 ## Next Available Number
 
-**0021** - Reserve this number for your next project
+**0022** - Reserve this number for your next project
 
 ---
 

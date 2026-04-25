@@ -215,6 +215,8 @@ class ReportsHTTPClient:
         if kind not in _KIND_TO_CAP:
             raise ValueError(f"unknown fetch kind: {kind!r}")
         cap = _KIND_TO_CAP[kind]
+        if url.startswith("//"):
+            url = "https:" + url
         parsed = urlsplit(url)
         host = parsed.hostname or ""
         scheme = parsed.scheme.lower()
@@ -403,6 +405,8 @@ class ReportsHTTPClient:
         )
 
     def head(self, url: str, *, kind: str = "pdf-head") -> FetchResult:
+        if url.startswith("//"):
+            url = "https:" + url
         t_start = self._monotonic()
         parsed = urlsplit(url)
         host = parsed.hostname or ""

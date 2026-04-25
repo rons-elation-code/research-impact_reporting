@@ -546,12 +546,23 @@ def run(argv: list[str] | None = None) -> int:
                         help="(ops only) skip startup TLS self-test")
     parser.add_argument("--skip-encryption-check", action="store_true",
                         help="(ops only) skip encryption-at-rest check")
+    parser.add_argument("--ein", type=str, default=None,
+                        help="Crawl a single org by EIN (for debugging)")
     parser.add_argument("--limit", type=int, default=0,
                         help="Max orgs to crawl (0 = no limit)")
     parser.add_argument("--max-workers", type=int, default=8,
                         help="Per-org parallelism (TICK-002). Min 1, max 32. "
                              "Default 8. Use 1 for deterministic serial runs.")
+    parser.add_argument("--async", dest="use_async", action="store_true",
+                        help="Use async I/O pipeline (spec 0021)")
+    parser.add_argument("--max-concurrent-orgs", type=int, default=200,
+                        help="(async only) Max concurrent org workers. Default 200.")
+    parser.add_argument("--max-download-workers", type=int, default=20,
+                        help="(async only) Max concurrent download workers. Default 20.")
     args = parser.parse_args(argv)
+
+    if args.use_async and args.max_workers != 8:
+        parser.error("--async is incompatible with --max-workers")
 
     if args.max_workers < 1 or args.max_workers > 32:
         parser.error("--max-workers must be between 1 and 32")
@@ -560,6 +571,9 @@ def run(argv: list[str] | None = None) -> int:
     run_id = uuid.uuid4().hex
 
     logger = setup_logging(config.LOGS, name="reports-crawler")
+
+    logger.info("=== CRAWLER START === run_id=%s limit=%s workers=%d",
+                run_id, args.limit or "unlimited", args.max_workers)
 
     try:
         archive.startup_probe()
@@ -570,7 +584,7 @@ def run(argv: list[str] | None = None) -> int:
     try:
         lock_fd = acquire_flock(config.LOCK_PATH)
     except FlockBusy:
-        logger.error("another crawler instance is running; exit 3")
+        logger.error("=== CRAWLER ABORT === another instance holds the lock; exit 3")
         return 3
 
     try:
@@ -606,7 +620,14 @@ def run(argv: list[str] | None = None) -> int:
             if reclaimed:
                 logger.info("reconciled %d stale classifier preflights", reclaimed)
 
-            seeds: Iterable[tuple[str, str]] = fetch_seeds(engine)
+            if args.ein:
+                seeds = [(args.ein, url) for (e, url) in fetch_seeds(engine) if e == args.ein]
+                if not seeds:
+                    logger.error("EIN %s not found in seeds or has no website", args.ein)
+                    return 1
+                logger.info("single-org mode: ein=%s url=%s", args.ein, seeds[0][1])
+            else:
+                seeds = fetch_seeds(engine)
 
             validated: list[tuple[str, str]] = []
             for ein, website in seeds:
@@ -623,37 +644,81 @@ def run(argv: list[str] | None = None) -> int:
                 if ein in seen_eins:
                     continue
                 seen_eins.add(ein)
-                if should_skip_ein(engine, ein=ein, refresh=args.refresh):
+                if not args.ein and should_skip_ein(engine, ein=ein, refresh=args.refresh):
                     continue
                 pending.append((ein, website))
 
             if args.limit > 0:
                 pending = pending[:args.limit]
 
-            try:
-                with ThreadPoolExecutor(
-                    max_workers=args.max_workers,
-                    thread_name_prefix="lavandula-crawler",
-                ) as pool:
-                    futures = {
-                        pool.submit(
-                            process_org,
-                            ein=ein,
-                            website=website,
-                            engine=engine,
-                            archive=archive,
-                            run_id=run_id,
-                        ): (ein, website)
-                        for ein, website in pending
-                    }
-                    for fut in as_completed(futures):
-                        ein, website = futures[fut]
-                        try:
-                            fut.result()
-                        except Exception as exc:  # noqa: BLE001
-                            logger.exception("ein=%s failed: %s", ein, exc)
-            finally:
-                _close_thread_clients()
+            logger.info("crawl_plan validated=%d pending=%d (skipped=%d already-crawled or limit-capped)",
+                        len(validated), len(pending), len(validated) - len(pending))
+
+            if not pending:
+                logger.info("=== CRAWLER DONE === nothing to crawl")
+                return 0
+
+            if args.use_async:
+                import asyncio as _asyncio
+                from .async_crawler import run_async
+
+                logger.info(
+                    "=== ASYNC CRAWLER START === run_id=%s orgs=%d "
+                    "concurrent_orgs=%d download_workers=%d",
+                    run_id, len(pending),
+                    args.max_concurrent_orgs, args.max_download_workers,
+                )
+                crawl_stats = _asyncio.run(run_async(
+                    engine,
+                    archive,
+                    pending,
+                    max_concurrent_orgs=args.max_concurrent_orgs,
+                    max_download_workers=args.max_download_workers,
+                    run_id=run_id,
+                ))
+                logger.info(
+                    "=== ASYNC CRAWLER DONE === run_id=%s orgs=%d "
+                    "completed=%d transient=%d permanent=%d pdfs=%d exit_code=%d",
+                    run_id, len(pending),
+                    crawl_stats.orgs_completed,
+                    crawl_stats.orgs_transient_failed,
+                    crawl_stats.orgs_permanent_failed,
+                    crawl_stats.pdfs_downloaded,
+                    crawl_stats.exit_code,
+                )
+                return crawl_stats.exit_code
+            else:
+                succeeded = 0
+                failed = 0
+                try:
+                    with ThreadPoolExecutor(
+                        max_workers=args.max_workers,
+                        thread_name_prefix="lavandula-crawler",
+                    ) as pool:
+                        futures = {
+                            pool.submit(
+                                process_org,
+                                ein=ein,
+                                website=website,
+                                engine=engine,
+                                archive=archive,
+                                run_id=run_id,
+                            ): (ein, website)
+                            for ein, website in pending
+                        }
+                        for fut in as_completed(futures):
+                            ein, website = futures[fut]
+                            try:
+                                fut.result()
+                                succeeded += 1
+                            except Exception as exc:  # noqa: BLE001
+                                failed += 1
+                                logger.exception("ein=%s failed: %s", ein, exc)
+                finally:
+                    _close_thread_clients()
+
+                logger.info("=== CRAWLER DONE === run_id=%s orgs=%d succeeded=%d failed=%d",
+                            run_id, len(pending), succeeded, failed)
         finally:
             engine.dispose()
 

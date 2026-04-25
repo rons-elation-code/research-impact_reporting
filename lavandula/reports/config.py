@@ -82,7 +82,17 @@ PDF_MODE = 0o600
 ROBOTS_CACHE_TTL_SEC = 24 * 3600
 
 # --- Hosting platform allowlist ----------------------------------------
-HOSTING_PLATFORMS = frozenset({"issuu.com", "flipsnack.com", "canva.com"})
+HOSTING_PLATFORMS = frozenset({
+    "issuu.com", "flipsnack.com", "canva.com",
+    # CDN domains used by common website builders (Wix, Squarespace, etc.)
+    "wixstatic.com", "wixmp.com",
+    "squarespace-cdn.com", "sqspcdn.com",
+    "ctfassets.net",       # Contentful
+    "amazonaws.com",       # S3-hosted PDFs
+    "cloudfront.net",      # CloudFront CDN
+    "azureedge.net",       # Azure CDN
+    "googleusercontent.com",
+})
 
 # --- Candidate keywords (taxonomy-driven) --------------------------------
 from .taxonomy import load_taxonomy, bind as _bind_taxonomy
