@@ -372,7 +372,7 @@ projects:
   - id: "0021"
     title: "Async I/O Crawler Pipeline"
     summary: "Replace synchronous requests + ThreadPoolExecutor with aiohttp + asyncio event loop. Per-host rate limiting via async semaphores instead of time.sleep(). Producer-consumer separation (discovery feeds download queue). Target: 100K+ orgs on a single machine."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0021-async-crawler-pipeline.md
@@ -380,7 +380,7 @@ projects:
       review: null
     dependencies: ["0004", "0020"]
     tags: [crawler, performance, async, architecture, national-scale]
-    notes: "Motivated by 100-org test run taking ~4 hours with 8 threads. National crawl (100K+ orgs) would take weeks at current throughput. Most time spent in time.sleep() throttle waits — async I/O can multiplex those idle periods across hundreds of orgs. Plan approved 2026-04-25 after 2 review rounds (plan-review + red-team). Spec synced with plan: ThreadPoolExecutor PDF validation, DummyCookieJar, non-zero exit on flush failure."
+    notes: "Motivated by 100-org test run taking ~4 hours with 8 threads. National crawl (100K+ orgs) would take weeks at current throughput. Most time spent in time.sleep() throttle waits — async I/O can multiplex those idle periods across hundreds of orgs. Plan approved 2026-04-25 after 2 review rounds (plan-review + red-team). Spec synced with plan: ThreadPoolExecutor PDF validation, DummyCookieJar, non-zero exit on flush failure. PR #12 merged 2026-04-25 after 3 architect review rounds: round 1 caught 8 issues (AC23 transient handling, AC34 exit code, AC24 permanent_skip, AC8 retries, AC22 ordering, AC36 queue depth, AC26 extract parity, plus dead code); round 2 fixed all 8 + added 3 must-fix tests (AC26 parity, AC22 slow-flush durability, shutdown integration); round 3 fixed mislabeled shutdown test to actually trigger SIGINT mid-flight. 329 tests passing (66 new async + 263 existing). Pending validation run: 100-org real-world async vs sync benchmark for AC42 (<30 min) and AC43 (<2 GB peak RSS)."
 ```
 
 ## Next Available Number
