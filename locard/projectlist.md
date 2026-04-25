@@ -380,12 +380,25 @@ projects:
       review: null
     dependencies: ["0004", "0020"]
     tags: [crawler, performance, async, architecture, national-scale]
-    notes: "Motivated by 100-org test run taking ~4 hours with 8 threads. National crawl (100K+ orgs) would take weeks at current throughput. Most time spent in time.sleep() throttle waits — async I/O can multiplex those idle periods across hundreds of orgs. Plan approved 2026-04-25 after 2 review rounds (plan-review + red-team). Spec synced with plan: ThreadPoolExecutor PDF validation, DummyCookieJar, non-zero exit on flush failure. PR #12 merged 2026-04-25 after 3 architect review rounds: round 1 caught 8 issues (AC23 transient handling, AC34 exit code, AC24 permanent_skip, AC8 retries, AC22 ordering, AC36 queue depth, AC26 extract parity, plus dead code); round 2 fixed all 8 + added 3 must-fix tests (AC26 parity, AC22 slow-flush durability, shutdown integration); round 3 fixed mislabeled shutdown test to actually trigger SIGINT mid-flight. 329 tests passing (66 new async + 263 existing). Pending validation run: 100-org real-world async vs sync benchmark for AC42 (<30 min) and AC43 (<2 GB peak RSS)."
+    notes: "Motivated by 100-org test run taking ~4 hours with 8 threads. National crawl (100K+ orgs) would take weeks at current throughput. Most time spent in time.sleep() throttle waits — async I/O can multiplex those idle periods across hundreds of orgs. Plan approved 2026-04-25 after 2 review rounds (plan-review + red-team). Spec synced with plan: ThreadPoolExecutor PDF validation, DummyCookieJar, non-zero exit on flush failure. PR #12 merged 2026-04-25 after 3 architect review rounds: round 1 caught 8 issues (AC23 transient handling, AC34 exit code, AC24 permanent_skip, AC8 retries, AC22 ordering, AC36 queue depth, AC26 extract parity, plus dead code); round 2 fixed all 8 + added 3 must-fix tests (AC26 parity, AC22 slow-flush durability, shutdown integration); round 3 fixed mislabeled shutdown test to actually trigger SIGINT mid-flight. 329 tests passing (66 new async + 263 existing). 100-org validation 2026-04-25: 83 completed/17 transient/0 permanent, 487 PDFs, 60 min wall, 605 MB peak RSS, exit 0. Found NUL byte bug (commit c611181) and shutdown race (commit 188bc25), both fixed. Migration 004 applied 2026-04-25: status + attempts columns + auto-promotion to permanent_skip after MAX_TRANSIENT_ATTEMPTS=3. Verified end-to-end: transient row written, attempts increments on retry, auto-promoted on 3rd attempt."
+
+  - id: "0022"
+    title: "Wayback Machine CDX Fallback for Cloudflare-blocked Sites"
+    summary: "When a nonprofit site returns Cloudflare 403 (cf-mitigated: challenge) or otherwise yields zero candidates, query the Wayback Machine CDX API for archived PDFs under the domain and download via web.archive.org. Recovers ~70-80% of the otherwise-lost ~17% of orgs. Tagged discovered_via='wayback' for traceability."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0022-wayback-cdx-fallback.md
+      plan: null
+      review: null
+    dependencies: ["0021"]
+    tags: [crawler, fallback, wayback, cloudflare, national-scale, data-recovery]
+    notes: "Motivated by Spec 0021 100-org validation 2026-04-25 finding: 17% transient failure rate, with 5/5 sampled failures showing Cloudflare bot-challenge responses (server: cloudflare, cf-mitigated: challenge, HTTP 403). Curl/aiohttp can't pass the JS challenge regardless of User-Agent. Wayback CDX query verified to have recent PDF captures for 4 of 5 tested sites (sloan.org, endfund.org with annual reports + 990s; cbcny.org homepage; rffund.org has minimal coverage). At national scale: direct-only ≈ 83% coverage, direct + Wayback fallback ≈ 95-96% coverage. Long-tail (4-5%) remains for commercial scrapers (deferred)."
 ```
 
 ## Next Available Number
 
-**0022** - Reserve this number for your next project
+**0023** - Reserve this number for your next project
 
 ---
 
