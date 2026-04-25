@@ -132,6 +132,9 @@ async def discover_via_wayback(
     stats: CrawlStats,
 ) -> WaybackResult:
     """Query Wayback CDX for PDFs under the domain."""
+    if not config.WAYBACK_ENABLED:
+        return WaybackResult(outcome=WaybackOutcome.ERROR, elapsed_ms=0, cdx_query_fired=False)
+
     loop = asyncio.get_running_loop()
     t_start = loop.time()
     domain = urlsplit(seed_url).hostname or seed_etld1

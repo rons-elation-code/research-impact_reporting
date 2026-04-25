@@ -14,7 +14,7 @@ from typing import AsyncIterator
 from . import config
 
 
-def _canonical_host(host: str) -> str:
+def canonical_host(host: str) -> str:
     """Normalize host for throttle bucketing.
 
     AC17.3: web.archive.org and archive.org share one bucket
@@ -65,7 +65,7 @@ class AsyncHostThrottle:
     @asynccontextmanager
     async def request(self, host: str) -> AsyncIterator[None]:
         """Acquire host slot, sleep for politeness gap, yield, release."""
-        canonical = _canonical_host(host)
+        canonical = canonical_host(host)
         sem = await self._get_semaphore(canonical)
         await sem.acquire()
         try:
@@ -91,4 +91,4 @@ class AsyncHostThrottle:
         self._last_fetch.clear()
 
 
-__all__ = ["AsyncHostThrottle"]
+__all__ = ["AsyncHostThrottle", "canonical_host"]

@@ -123,6 +123,7 @@ def upsert_crawled_org(
                 "    WHEN EXCLUDED.status = 'permanent_skip' THEN 'permanent_skip' "
                 "    WHEN EXCLUDED.status = 'transient' "
                 "         AND EXCLUDED.notes = 'wayback_no_coverage' "
+                f"         AND {_SCHEMA}.crawled_orgs.status = 'transient' "
                 f"         AND {_SCHEMA}.crawled_orgs.notes = 'wayback_no_coverage' "
                 "         THEN 'permanent_skip' "
                 f"    WHEN {_SCHEMA}.crawled_orgs.attempts + 1 >= :max_attempts "

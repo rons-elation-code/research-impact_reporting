@@ -95,7 +95,7 @@ async def discover_org(
     robots_text: str,
     ein: str = "",
     fetcher: AsyncFetcher | None = None,
-    stats: CrawlStats | None = None,
+    stats: CrawlStats,
 ) -> DiscoveryResult:
     """Async equivalent of discover.per_org_candidates.
 
@@ -268,7 +268,6 @@ async def discover_org(
         not result.candidates
         and not result.homepage_ok
         and not result.robots_disallowed_all
-        and stats is not None
     ):
         wayback = await discover_via_wayback(
             seed_url=seed_url,

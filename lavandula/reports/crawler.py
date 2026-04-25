@@ -570,6 +570,8 @@ def run(argv: list[str] | None = None) -> int:
                         help="(async only) Max concurrent org workers. Default 200.")
     parser.add_argument("--max-download-workers", type=int, default=20,
                         help="(async only) Max concurrent download workers. Default 20.")
+    parser.add_argument("--no-wayback", action="store_true",
+                        help="Disable Wayback CDX fallback (spec 0022 kill-switch)")
     args = parser.parse_args(argv)
 
     if args.use_async and args.max_workers != 8:
@@ -668,6 +670,9 @@ def run(argv: list[str] | None = None) -> int:
             if not pending:
                 logger.info("=== CRAWLER DONE === nothing to crawl")
                 return 0
+
+            if args.no_wayback:
+                config.WAYBACK_ENABLED = False
 
             if args.use_async:
                 import asyncio as _asyncio

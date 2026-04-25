@@ -258,12 +258,13 @@ async def _process_org_async(
 
     org_tracker = OrgDownloadTracker()
     org_fetched = [0]
+    org_active_content_rejections = [0]
 
     for cand in candidates:
         if shutdown_event.is_set():
             break
         org_tracker.increment()
-        await download_queue.put((ein, cand, org_tracker, seed_etld1, org_fetched))
+        await download_queue.put((ein, cand, org_tracker, seed_etld1, org_fetched, org_active_content_rejections))
 
     await org_tracker.wait_all_done()
 
@@ -273,7 +274,20 @@ async def _process_org_async(
         and any(c.discovered_via == "wayback" for c in candidates)
     )
     if is_wayback_recovery and org_fetched[0] == 0:
-        stats.orgs_transient_failed += 1
+        all_active_content = (
+            org_active_content_rejections[0] > 0
+            and org_active_content_rejections[0] == len(candidates)
+        )
+        if all_active_content:
+            status = "permanent_skip"
+            notes = "wayback_unsafe_archive"
+            outcome_label = "unsafe_archive"
+            stats.orgs_permanent_failed += 1
+        else:
+            status = "transient"
+            notes = "wayback_all_downloads_failed"
+            outcome_label = "all_downloads_failed"
+            stats.orgs_transient_failed += 1
         stats.wayback_errors += 1
         try:
             await db_actor.enqueue(UpsertCrawledOrgRequest(
@@ -281,15 +295,15 @@ async def _process_org_async(
                 candidate_count=len(candidates),
                 fetched_count=0,
                 confirmed_report_count=0,
-                status="transient",
-                notes=sanitize("wayback_all_downloads_failed"),
+                status=status,
+                notes=sanitize(notes),
             ))
         except Exception:  # noqa: BLE001
-            _log.warning("failed to record wayback all_downloads_failed for ein=%s", ein)
+            _log.warning("failed to record wayback %s for ein=%s", notes, ein)
         _log_wayback_decision(
             ein=ein,
             domain=urlsplit(website).hostname or seed_etld1,
-            outcome="all_downloads_failed",
+            outcome=outcome_label,
             discovery=discovery,
         )
         return
@@ -330,7 +344,7 @@ async def _download_worker(
         if item is None:
             download_queue.task_done()
             break
-        ein, cand, org_tracker, seed_etld1, org_fetched = item
+        ein, cand, org_tracker, seed_etld1, org_fetched, org_active_content_rej = item
         try:
             await _process_download(
                 ein=ein,
@@ -343,6 +357,7 @@ async def _download_worker(
                 stats=stats,
                 pdf_thread_pool=pdf_thread_pool,
                 org_fetched=org_fetched,
+                org_active_content_rejections=org_active_content_rej,
             )
         except asyncio.CancelledError:
             raise
@@ -365,6 +380,7 @@ async def _process_download(
     stats: CrawlStats,
     pdf_thread_pool: ThreadPoolExecutor,
     org_fetched: list[int] | None = None,
+    org_active_content_rejections: list[int] | None = None,
 ) -> None:
     outcome = await async_download(
         cand.url, client, seed_etld1=seed_etld1,
@@ -389,6 +405,8 @@ async def _process_download(
         or flags["pdf_has_launch"]
         or flags["pdf_has_uri_actions"]
     ):
+        if org_active_content_rejections is not None:
+            org_active_content_rejections[0] += 1
         await db_actor.enqueue(RecordFetchRequest(
             ein=ein,
             url_redacted=outcome.final_url_redacted or redact_url(cand.url),

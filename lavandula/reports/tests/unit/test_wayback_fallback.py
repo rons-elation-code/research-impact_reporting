@@ -351,3 +351,19 @@ class TestDiscoverViaWayback:
             stats=stats,
         )
         assert result.outcome == WaybackOutcome.ERROR
+
+    @pytest.mark.asyncio
+    async def test_kill_switch_disables_wayback(self, monkeypatch):
+        from lavandula.reports import config
+        monkeypatch.setattr(config, "WAYBACK_ENABLED", False)
+        stats = _FakeStats()
+        result = await discover_via_wayback(
+            seed_url="https://sloan.org",
+            seed_etld1="sloan.org",
+            client=_FakeClient(),
+            ein="123",
+            stats=stats,
+        )
+        assert result.outcome == WaybackOutcome.ERROR
+        assert not result.cdx_query_fired
+        assert stats.wayback_attempts == 0

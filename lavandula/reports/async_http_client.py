@@ -22,7 +22,7 @@ import aiohttp
 
 from . import config
 from .async_host_pin_cache import AsyncHostPinCache
-from .async_host_throttle import AsyncHostThrottle, _canonical_host
+from .async_host_throttle import AsyncHostThrottle, canonical_host
 from .http_client import FetchResult
 from .logging_utils import sanitize, sanitize_exception
 from .redirect_policy import check_redirect_chain, RedirectCheckResult
@@ -50,10 +50,10 @@ def _check_wayback_redirect(redirect_chain: list[str]) -> RedirectCheckResult:
     if len(redirect_chain) < 2:
         return RedirectCheckResult(ok=True)
     origin_host = urlsplit(redirect_chain[0]).hostname or ""
-    if _canonical_host(origin_host) != "archive.org":
+    if canonical_host(origin_host) != "archive.org":
         return RedirectCheckResult(ok=True)
     target_host = urlsplit(redirect_chain[-1]).hostname or ""
-    if _canonical_host(target_host) != "archive.org":
+    if canonical_host(target_host) != "archive.org":
         return RedirectCheckResult(
             ok=False,
             reason="blocked_redirect",
@@ -193,7 +193,7 @@ class AsyncHTTPClient:
         self, host: str, resp: aiohttp.ClientResponse,
     ) -> None:
         """AC17.2: honor Retry-After from Wayback hosts only."""
-        if _canonical_host(host) != "archive.org":
+        if canonical_host(host) != "archive.org":
             return
         if resp.status not in (429, 503):
             return
