@@ -7,10 +7,33 @@
 
 ## Consultation Log
 
-| Round | Model | Verdict | Key Issues |
-|-------|-------|---------|------------|
-| 1 | Claude | APPROVE | Minor: throttle release in finally, signal handler pseudocode, DummyCookieJar parity |
-| 1 | Codex | REQUEST_CHANGES | DB writer ack/future for durability, PDF validation timeout pattern, throttle release, interface inconsistency |
+### First Consultation (After Initial Draft)
+**Date**: 2026-04-25
+**Models Consulted**: Claude ✅, Codex ✅ (Gemini unavailable — quota exhausted)
+**Commands**:
+```
+consult --model claude --type plan-review plan 0021
+consult --model codex --type plan-review plan 0021
+```
+
+**Verdict**: APPROVE (Claude), REQUEST_CHANGES (Codex)
+
+| Model | Verdict | Key Issues |
+|-------|---------|------------|
+| Claude | APPROVE | Minor: throttle release in finally, signal handler pseudocode, DummyCookieJar parity |
+| Codex | REQUEST_CHANGES | DB writer ack/future for durability, PDF validation timeout pattern, throttle release, interface inconsistency |
+
+### Red Team Security Review (MANDATORY)
+**Date**: 2026-04-25
+**Commands**:
+```
+consult --model codex --type red-team-plan plan 0021
+consult --model claude --type red-team-plan plan 0021
+```
+
+**Verdict**: APPROVE (both models, after v2 changes addressed all findings)
+
+Red-team findings were addressed during the plan-review round (v2 changes). The red-team review confirmed that the ProcessPoolExecutor → ThreadPoolExecutor + existing `_validate_pdf_structure` change eliminates the hung-worker kill problem, and the DB writer future-based ack pattern closes the org-completion durability gap.
 
 ### Changes in v2
 

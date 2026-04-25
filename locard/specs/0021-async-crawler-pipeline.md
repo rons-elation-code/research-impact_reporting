@@ -9,12 +9,36 @@
 
 ## Consultation Log
 
-| Round | Model | Type | Verdict | Key Issues |
-|-------|-------|------|---------|------------|
-| 1 | Claude | spec-review | REQUEST_CHANGES | DNS pinning under aiohttp; scope bundles 3 features; missing ACs for halt-file, retry, DB writer |
-| 1 | Codex | spec-review | REQUEST_CHANGES | Over-scoped; DB writer ambiguity; shutdown/resume underspecified; task fanout |
-| 2 | Codex | red-team | REQUEST_CHANGES | Org-completion durability; shutdown drain/abandon inconsistency; DNS multi-address underspecified |
-| 2 | Claude | red-team | REQUEST_CHANGES | Non-gzip Content-Encoding bypass; TLS hostname verification; ProcessPool worker tainting; denial-of-crawl via transient errors |
+### First Consultation (After Initial Draft)
+**Date**: 2026-04-25
+**Models Consulted**: Claude ✅, Codex ✅ (Gemini unavailable — quota exhausted)
+**Commands**:
+```
+consult --model claude --type spec-review spec 0021
+consult --model codex --type spec-review spec 0021
+```
+
+**Verdict**: REQUEST_CHANGES (both models)
+
+| Model | Verdict | Key Issues |
+|-------|---------|------------|
+| Claude | REQUEST_CHANGES | DNS pinning under aiohttp; scope bundles 3 features; missing ACs for halt-file, retry, DB writer |
+| Codex | REQUEST_CHANGES | Over-scoped; DB writer ambiguity; shutdown/resume underspecified; task fanout |
+
+### Red Team Security Review (MANDATORY)
+**Date**: 2026-04-25
+**Commands**:
+```
+consult --model codex --type red-team-spec spec 0021
+consult --model claude --type red-team-spec spec 0021
+```
+
+**Verdict**: REQUEST_CHANGES (both models) — all findings addressed in v3
+
+| Model | Verdict | Key Issues |
+|-------|---------|------------|
+| Codex | REQUEST_CHANGES | Org-completion durability; shutdown drain/abandon inconsistency; DNS multi-address underspecified |
+| Claude | REQUEST_CHANGES | Non-gzip Content-Encoding bypass; TLS hostname verification; ProcessPool worker tainting; denial-of-crawl via transient errors |
 
 ### Changes in v2 (post spec-review)
 
