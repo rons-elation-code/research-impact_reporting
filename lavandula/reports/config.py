@@ -166,6 +166,11 @@ PARSE_VERSION = 1
 EXTRACTOR_VERSION = 1
 CLASSIFIER_VERSION = 1
 
+# --- Wayback fallback (Spec 0022) --------------------------------------
+WAYBACK_REQUEST_DELAY_SEC = 0.25
+WAYBACK_MAX_PDFS_PER_ORG = 30
+WAYBACK_MAX_DISTINCT_SUBDOMAINS = 3
+
 # --- S3 archive (spec 0007) --------------------------------------------
 DEFAULT_S3_PREFIX = "pdfs"
 MAX_S3_METADATA_URL_LEN = 1024
