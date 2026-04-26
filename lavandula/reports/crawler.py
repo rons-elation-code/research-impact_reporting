@@ -42,6 +42,7 @@ from . import db_writer
 from . import fetch_pdf
 from . import archive as _archive
 from . import budget
+from .taxonomy import ensure_loaded as _ensure_taxonomy
 from .candidate_filter import Candidate
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
@@ -632,6 +633,7 @@ def run(argv: list[str] | None = None) -> int:
 
         engine = make_app_engine()
         assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
+        _ensure_taxonomy()
 
         try:
             reclaimed = budget.reconcile_stale_reservations(engine)

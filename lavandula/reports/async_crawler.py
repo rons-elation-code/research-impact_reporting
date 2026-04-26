@@ -24,6 +24,7 @@ import aiohttp
 
 from . import config
 from . import archive as _archive
+from .taxonomy import ensure_loaded as _ensure_taxonomy
 from .async_db_writer import (
     DBWriterActor,
     OrgDownloadTracker,
@@ -674,6 +675,8 @@ async def run_async(
     run_id: str = "",
     halt_dir: Path | None = None,
 ) -> CrawlStats:
+    _ensure_taxonomy()
+
     if halt_dir is None:
         halt_dir = config.HALT
 
