@@ -165,6 +165,8 @@ Crawl jobs are submitted independently via the Crawler Controls page (`/crawler/
 
 A job with `depends_on` only becomes eligible for execution when its dependency reaches `completed`. If a dependency fails, dependent jobs stay pending (operator decides whether to retry or cancel).
 
+**Duplicate job policy**: A "Run State" submission is rejected if there is already a `pending` or `running` job for the same `state_code + phase` combination. The UI displays an error message pointing to the existing job. `completed`, `failed`, and `cancelled` jobs do not block new submissions.
+
 The dependency is stored as a foreign key:
 
 ```python
@@ -194,6 +196,23 @@ The orchestrator runner is a Django management command (`manage.py run_orchestra
 7. Checks for next eligible job
 
 Concurrency limit: **1 job at a time per phase** (one seed, one resolve, one crawl can run simultaneously). This matches the existing pipeline architecture where each phase has its own DB write path.
+
+#### Multi-Host Job Ownership
+
+Jobs are assigned `host=<hostname>` at creation time — taken from `socket.gethostname()` on the dashboard instance that created the job, or set explicitly by the operator. Each host's `run_orchestrator` only picks up jobs where `host` matches its own `socket.gethostname()`. Jobs cannot be reassigned between hosts. If a host is decommissioned, its pending jobs must be manually cancelled and resubmitted on the new host. Host name changes are operationally disallowed; the hostname is a stable identity for job ownership purposes.
+
+**Crash recovery**: The orchestrator runner writes a `last_heartbeat` timestamp to each `running` job every 30 seconds. On startup, the orchestrator scans for `running` jobs assigned to its own host. For each such job, it checks whether the recorded PID is still alive via `os.kill(pid, 0)`. If the PID is dead, the job is immediately marked `failed` with `error_message="orphaned: PID not found on restart"`. The dashboard UI shows a warning badge on any `running` job whose `last_heartbeat` is older than 2 minutes. For jobs on remote hosts, a stale heartbeat (>5 minutes) causes a "stale" warning to be displayed in the dashboard, but only that host's own orchestrator can transition those jobs to `failed`.
+
+#### Progress Tracking
+
+Progress values are tracked differently per phase:
+
+- **Seed**: `progress_total = NULL` (unknown; ProPublica pages are unbounded). The UI shows "X orgs found" derived from a live DB count query rather than a progress bar.
+- **Resolve**: `progress_total` is set at job start from the `load_unresolved_orgs` count. `progress_current` is updated via DB query counting rows where `resolver_updated_at >= job.started_at`.
+- **Crawl**: `progress_total` is set from the pending org count at job start. `progress_current` is updated via DB query on `crawled_orgs`.
+- **Classify**: `progress_total` is set from the NULL-classification report count at job start. `progress_current` is updated via DB query.
+
+Update cadence: the HTMX polling on the job detail page runs these DB queries every 5 seconds. When `progress_total` is NULL, the UI displays an indeterminate progress indicator alongside the current count.
 
 #### "Run State" Convenience
 
@@ -287,6 +306,8 @@ class PipelineAuditLog(models.Model):
     class Meta:
         db_table = 'pipeline_audit_log'
 ```
+
+The "1 per phase" concurrency limit applies **jointly** across queued jobs and ad-hoc processes. Before starting an ad-hoc process for a given phase, the process manager checks whether a queued job is already `running` for that phase (and vice versa — the orchestrator runner checks for a running ad-hoc process before starting a new job). If a conflict is detected, the later request is rejected with an error message.
 
 The process manager:
 1. Acquires a row-level lock (`select_for_update`) on the `PipelineProcess` row to prevent double-start races
@@ -442,7 +463,7 @@ Paginated table of all classified reports:
 - Filters: org (EIN or name search), classification, report_year, archived_at range
 - Columns: filename (URL basename), org, classification, confidence, year, size, archived_at
 - Click-through to detail: full source URL, SHA, first_page_text, PDF metadata
-- Download link via signed S3 URL (5-minute expiry)
+- Download link via signed S3 URL (5-minute expiry). Signed URLs are generated only for `content_sha256` values that exist in the `reports` table. The view accepts a `content_sha256` parameter, validates it via ORM lookup (`Report.objects.get(content_sha256=...)`), then constructs the S3 key deterministically as `pdfs/{content_sha256}.pdf`. No arbitrary bucket or key input is accepted from the client.
 
 ## Database Configuration
 
@@ -478,6 +499,8 @@ DATABASES = {
 
 **Schema separation**: Django's managed tables (`jobs`, `pipeline_processes`, `pipeline_audit_log`, `django_migrations`, `auth_user`, etc.) live in `lava_dashboard` schema. Pipeline data stays in `lava_impact`. A custom database router directs reads for unmanaged models to the `pipeline` DB alias.
 
+**DB role privileges**: The `rds-dashboard-user` PostgreSQL role must have only `USAGE` on the `lava_impact` schema and `SELECT` on all tables within it. No `INSERT`, `UPDATE`, or `DELETE` grants are permitted. This is enforced at the PostgreSQL role level, not merely in Django routing. The `rds-app-user` (used by pipeline subprocesses directly) retains full read/write access to `lava_impact` — it is a separate role from the dashboard user.
+
 **Managed table strategy**: Django migrations run only against the `lava_dashboard` schema via `manage.py migrate` (the `default` alias). Auth, session, and content_type framework tables are in scope and land in `lava_dashboard`. The database router must prevent any write operation (including `migrate`) from touching the `pipeline` DB alias:
 
 ```python
@@ -508,8 +531,10 @@ class PipelineRouter:
 
 ## Security
 
-- **Network binding**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel or Tailscale
-- **Authentication**: Django's built-in `AuthenticationMiddleware` + `LoginRequiredMixin` on all views. Single superuser created via `manage.py createsuperuser`
+- **Network binding**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel or Tailscale. The SSH/Tailscale tunnel is the primary authentication layer; Django login is defense-in-depth behind it.
+- **Authentication**: Django's built-in `AuthenticationMiddleware` + `LoginRequiredMixin` on all views. Single superuser created via `manage.py createsuperuser` with a minimum 16-character password. No password recovery mechanism is needed — the single operator re-creates the account via CLI if needed. Settings require:
+  - `SESSION_COOKIE_AGE = 3600` (1-hour session timeout)
+  - `LOGOUT_REDIRECT_URL = '/login/'`
 - **DEBUG = False**: Hardcoded in production settings
 - **Process execution**: Only predefined CLI commands via `COMMAND_MAP` allowlist. Commands built as `argv` arrays (never shell strings)
 - **No secrets via CLI flags**: Pipeline tools load their own credentials from SSM/environment. The dashboard never passes secrets as command-line arguments
@@ -605,6 +630,7 @@ class PipelineRouter:
 6. **Don't build CLI commands as shell strings** — always `argv` arrays
 7. **Don't forget CSRF + HTMX** — configure `hx-headers` on body tag
 8. **Don't make the orchestrator mandatory** — ad-hoc process controls still work independently for quick one-off runs
+9. **Don't let log files accumulate indefinitely** — log files older than 30 days are eligible for deletion by a periodic cleanup (cron job or management command). Audit log rows (`PipelineAuditLog`) are retained indefinitely; they are small and serve as the authoritative action history.
 
 ## Future Iterations
 
@@ -650,3 +676,26 @@ class PipelineRouter:
 6. **Subprocess failure handling underspecified** (HIGH): Process Manager section extended with four explicit failure scenarios: `Popen` OSError/FileNotFoundError, immediate exit (< 1 s), DB update failure during state transition (retry-once then kill), and orphaned children via `os.setpgrp()` / `os.killpg`.
 7. **Security gaps** (MEDIUM): Added `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SECURE`, explicit HTMX CSRF enforcement requirement, and prohibition on `|safe` filter for log/error content.
 8. **Integration test coverage gaps** (LOW): Four new integration test cases added: retry rewiring, cancel cascade, concurrent submissions, and crawl independence.
+
+### Round 4 — Red Team Security Review (2026-04-26)
+
+**Codex Red Team (REQUEST_CHANGES)** — 10 findings, all addressed:
+
+**HIGH (3)**
+
+1. **Authentication model**: Auth requirements strengthened — SSH/Tailscale tunnel is the primary auth layer; Django login is defense-in-depth. Added `SESSION_COOKIE_AGE = 3600`, `LOGOUT_REDIRECT_URL = '/login/'`, minimum 16-char password policy, and explicit note that no password recovery mechanism is needed (operator re-creates via CLI). Addressed in Security section.
+2. **Cross-host job ownership**: Added "Multi-Host Job Ownership" subsection under Job Orchestrator. Jobs are assigned `host` at creation from `socket.gethostname()`. Each host's `run_orchestrator` only processes jobs matching its own hostname. Jobs cannot be reassigned; decommissioned-host jobs must be manually cancelled and resubmitted. Hostnames are a stable identity.
+3. **Crash recovery for running jobs**: Added to "Multi-Host Job Ownership" subsection. Orchestrator writes `last_heartbeat` every 30 seconds. On startup, scans for `running` jobs on its own host and marks dead PIDs (checked via `os.kill(pid, 0)`) as `failed` with `"orphaned: PID not found on restart"`. Dashboard shows warning badge for `last_heartbeat` older than 2 minutes; remote stale jobs (>5 min) show "stale" warning but only that host's orchestrator can mark them failed.
+
+**MEDIUM (5)**
+
+4. **Duplicate job policy**: Added to Phase Sequencing section. Submissions are rejected if a `pending` or `running` job already exists for the same `state_code + phase`. UI shows an error pointing to the existing job. Completed/failed/cancelled jobs do not block new submissions.
+5. **Progress tracking**: Added "Progress Tracking" subsection under Job Orchestrator. Specifies per-phase behavior: seed uses NULL total with live DB count; resolve/crawl/classify set `progress_total` at job start and update `progress_current` via DB queries. HTMX polls every 5 seconds on detail page. NULL total shows indeterminate indicator with current count.
+6. **Job vs ad-hoc conflict**: Added to Process Manager section. The "1 per phase" concurrency limit applies jointly across queued jobs and ad-hoc processes. Both directions checked before starting; conflicts are rejected with an error.
+7. **DB read-only at privilege level**: Added to Database Configuration section. `rds-dashboard-user` is granted only `USAGE` on `lava_impact` schema and `SELECT` on its tables at the PostgreSQL role level — not just via Django routing. `rds-app-user` retains full read/write and is a separate role.
+8. **S3 signed URL scope**: Added to Reports Browser section (AC24 area). Signed URLs are generated only for `content_sha256` values validated via ORM lookup. S3 key constructed deterministically as `pdfs/{content_sha256}.pdf`. No arbitrary bucket/key input accepted from client.
+
+**LOW (2)**
+
+9. **Log retention**: Added to Traps to Avoid section. Log files older than 30 days are eligible for deletion via periodic cleanup (cron or management command). Audit log rows are retained indefinitely.
+10. **AC failure behavior**: No change needed — existing error handling requirements in the Process Manager section already cover these cases adequately.
