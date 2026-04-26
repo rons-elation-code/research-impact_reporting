@@ -47,7 +47,7 @@ The app is delivered in three iterations:
 - User management / multi-tenancy — single operator for now
 - Mobile-responsive design — desktop browser only
 - Report creation or editing — that's Iteration 3
-- Remote agent execution — jobs run on the dashboard's host via subprocess; multi-host execution is SSH-triggered from the dashboard host or manually started on remote hosts
+- Remote agent execution — in Iteration 1, remote jobs are metadata-only placeholders. The `host` field records where a job ran, but the runner only executes jobs on localhost. Jobs for remote hosts are created via that host's own orchestrator instance (each host runs its own `manage.py run_orchestrator`). All hosts share the same RDS job table, so the dashboard shows jobs from all hosts regardless of where they execute.
 - Replacing the CLI tools — the dashboard calls them, doesn't replace them
 
 ## Architecture
@@ -111,8 +111,8 @@ The orchestrator is the core addition. It manages **jobs** — units of work tha
 class Job(models.Model):
     """A unit of pipeline work. Django-managed table."""
     id = models.AutoField(primary_key=True)
-    state_code = models.CharField(max_length=2)  # e.g., "NY", "MA"
-    phase = models.CharField(max_length=20)       # seed, resolve, crawl
+    state_code = models.CharField(max_length=2, null=True)  # e.g., "NY", "MA"; null for global phases (crawl)
+    phase = models.CharField(max_length=20)       # canonical enum: seed | resolve | crawl | classify
     status = models.CharField(max_length=20)      # pending, running, completed, failed, cancelled
     host = models.CharField(max_length=100, default="localhost")
     pid = models.IntegerField(null=True)
@@ -152,13 +152,16 @@ pending → cancelled
 
 #### Phase Sequencing
 
-When the operator submits a "Run State" request (e.g., "Run MA"), the orchestrator creates up to 3 jobs:
+The crawl phase is **global** — it operates on the full pool of resolved orgs regardless of state. It is not chained to per-state seed/resolve jobs.
+
+When the operator submits a "Run State" request (e.g., "Run MA"), the orchestrator creates 2 chained jobs:
 
 ```
-Job 1: seed MA   (pending)
-Job 2: resolve MA (pending, depends_on=Job 1)
-Job 3: crawl MA  (pending, depends_on=Job 2)
+Job 1: seed MA    (pending, state_code="MA")
+Job 2: resolve MA (pending, state_code="MA", depends_on=Job 1)
 ```
+
+Crawl jobs are submitted independently via the Crawler Controls page (`/crawler/`). A crawl job has `state_code=NULL` and no `depends_on` — it runs against the global pool of resolved orgs.
 
 A job with `depends_on` only becomes eligible for execution when its dependency reaches `completed`. If a dependency fails, dependent jobs stay pending (operator decides whether to retry or cancel).
 
@@ -167,6 +170,16 @@ The dependency is stored as a foreign key:
 ```python
 depends_on = models.ForeignKey('self', null=True, on_delete=models.SET_NULL, related_name='dependents')
 ```
+
+#### State Machine — Retry and Cancel Dependency Rules
+
+When the state machine transitions jobs, dependent job wiring is updated as follows:
+
+- **Retry (failed → new pending)**: A new pending job is created as the replacement. Any downstream jobs whose `depends_on` points to the failed job are automatically rewired to point to the new job.
+- **Cancel running job**: The job is sent SIGTERM (then SIGKILL after 10 s). All downstream dependents (jobs with `depends_on` pointing to this job) are also cancelled immediately.
+- **Cancel pending job**: The job is marked `cancelled`. All downstream dependents are also cancelled (cascade).
+
+These rules ensure the dependency graph never contains dangling references to terminal (failed/cancelled) jobs.
 
 #### Runner
 
@@ -184,13 +197,15 @@ Concurrency limit: **1 job at a time per phase** (one seed, one resolve, one cra
 
 #### "Run State" Convenience
 
-The most common operation is "seed + resolve + crawl state X." The UI provides a single form:
+The most common per-state operation is "seed + resolve state X." The UI provides a single form:
 
 - State code (dropdown or multi-select)
-- Phases to run (checkboxes: seed, resolve, crawl — all checked by default)
-- Configuration overrides (LLM model, brave QPS, consumer threads, crawl concurrency)
+- Phases to run (checkboxes: seed, resolve — all checked by default)
+- Configuration overrides (LLM model, brave QPS, consumer threads)
 
-Submitting creates the chained jobs automatically. For multi-state submissions (e.g., "Run MA, VA, FL, MD"), jobs are created for all states. The runner processes them in submission order, respecting per-state phase dependencies.
+Submitting creates the seed→resolve chain automatically. For multi-state submissions (e.g., "Run MA, VA, FL, MD"), jobs are created for all states. The runner processes them in submission order, respecting per-state phase dependencies.
+
+**Crawl is managed separately** on the Crawler Controls page, since it runs against the global resolved-org pool and is not tied to any single state.
 
 ### Unmanaged Models
 
@@ -250,7 +265,7 @@ For ad-hoc process execution outside the job queue (e.g., one-off classifier run
 ```python
 class PipelineProcess(models.Model):
     """Managed by Django — tracks running ad-hoc pipeline processes."""
-    name = models.CharField(max_length=50, unique=True)  # resolver, crawler, classifier
+    name = models.CharField(max_length=50, unique=True)  # canonical: resolve, crawl, classify
     pid = models.IntegerField(null=True)
     status = models.CharField(max_length=20)  # running, stopped, error
     started_at = models.DateTimeField(null=True)
@@ -276,11 +291,15 @@ class PipelineAuditLog(models.Model):
 The process manager:
 1. Acquires a row-level lock (`select_for_update`) on the `PipelineProcess` row to prevent double-start races
 2. Builds the CLI command from form parameters using a strict allowlist (see Command Mapping below)
-3. Spawns via `subprocess.Popen` with `cwd` set to the project root and `PYTHONPATH` explicitly set, stdout/stderr redirected to `lavandula/logs/dashboard/{name}_{timestamp}.log`
+3. Spawns via `subprocess.Popen` with `cwd` set to the project root and `PYTHONPATH` explicitly set, stdout/stderr redirected to `lavandula/logs/dashboard/{name}_{timestamp}.log`. Pipeline commands are launched with `os.setpgrp()` as `preexec_fn` so that SIGTERM can target the entire process group.
 4. Records PID and log file path in `PipelineProcess`
 5. On dashboard refresh, verifies PID liveness AND validates `/proc/{pid}/cmdline` matches the expected command to guard against PID reuse
 6. On stop: sends SIGTERM, waits up to 10 seconds, then SIGKILL if still alive
 7. On dashboard startup: scans all `running` rows, validates each PID is still alive and matches; marks stale entries as `stopped`
+8. **`Popen` OSError / FileNotFoundError**: if the subprocess cannot be spawned (missing executable, permission denied), the job or process row is immediately marked `failed` with the exception message stored in `error_message`; PID remains null.
+9. **Immediate exit (< 1 s)**: if the process exits within one poll cycle after launch, it is detected on the next poll and marked `failed` (or `completed` if exit code is 0). PID is recorded from the `Popen` object before the poll.
+10. **DB update failure during state transition**: the status write is retried once after a short delay. If the retry also fails, the error is logged to stderr and the subprocess is killed to avoid an untracked orphan process.
+11. **Orphaned children**: because pipeline commands use `os.setpgrp()`, the orchestrator can send SIGTERM to the entire process group (`os.killpg`) rather than just the top-level PID, ensuring child processes do not outlive the parent.
 
 ### Command Mapping
 
@@ -298,7 +317,7 @@ COMMAND_MAP = {
             "revenue_max": {"type": "int", "min": 0, "flag": "--revenue-max"},
         },
     },
-    "resolver": {
+    "resolve": {
         "cmd": ["python3", "-m", "lavandula.nonprofits.tools.pipeline_resolve"],
         "params": {
             "state": {"type": "choice", "choices": "US_STATES", "flag": "--state"},
@@ -312,7 +331,7 @@ COMMAND_MAP = {
             "fresh_only": {"type": "bool", "flag": "--fresh-only"},
         },
     },
-    "crawler": {
+    "crawl": {
         "cmd": ["python3", "-m", "lavandula.reports.crawler"],
         "params": {
             "archive": {"type": "text", "pattern": r"^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[a-zA-Z0-9._-]+)*$", "flag": "--archive"},
@@ -323,7 +342,7 @@ COMMAND_MAP = {
             "skip_encryption_check": {"type": "bool", "flag": "--skip-encryption-check"},
         },
     },
-    "classifier": {
+    "classify": {
         "cmd": ["python3", "-m", "lavandula.nonprofits.tools.pipeline_classify"],
         "params": {
             "llm_url": {"type": "text", "pattern": r"^https?://", "flag": "--llm-url"},
@@ -459,6 +478,34 @@ DATABASES = {
 
 **Schema separation**: Django's managed tables (`jobs`, `pipeline_processes`, `pipeline_audit_log`, `django_migrations`, `auth_user`, etc.) live in `lava_dashboard` schema. Pipeline data stays in `lava_impact`. A custom database router directs reads for unmanaged models to the `pipeline` DB alias.
 
+**Managed table strategy**: Django migrations run only against the `lava_dashboard` schema via `manage.py migrate` (the `default` alias). Auth, session, and content_type framework tables are in scope and land in `lava_dashboard`. The database router must prevent any write operation (including `migrate`) from touching the `pipeline` DB alias:
+
+```python
+class PipelineRouter:
+    """Route unmanaged pipeline models to the read-only pipeline DB alias."""
+
+    pipeline_app = 'pipeline'
+
+    def db_for_read(self, model, **hints):
+        if not model._meta.managed:
+            return 'pipeline'
+        return 'default'
+
+    def db_for_write(self, model, **hints):
+        if not model._meta.managed:
+            raise RuntimeError(
+                f"Write blocked: {model._meta.label} is an unmanaged model; "
+                "lava_impact schema is owned by lavandula/migrations/rds/."
+            )
+        return 'default'
+
+    def allow_migrate(self, db, app_label, model_name=None, **hints):
+        # Never run migrations on the pipeline alias
+        if db == 'pipeline':
+            return False
+        return True
+```
+
 ## Security
 
 - **Network binding**: Binds to `127.0.0.1:8000` only, accessed via SSH tunnel or Tailscale
@@ -471,11 +518,14 @@ DATABASES = {
 - **Log viewing safety**: Log file paths stored in DB at creation, validated via `os.path.realpath` against allowed directory before reading
 - **Audit logging**: All job creation, cancellation, and process start/stop actions logged to `PipelineAuditLog`
 - **Process limits**: Maximum 1 job per phase running simultaneously. Ad-hoc processes also limited to 1 per pipeline stage
+- **Session cookie flags**: `SESSION_COOKIE_HTTPONLY = True` and `SESSION_COOKIE_SECURE = True` (the dashboard is accessed via HTTPS-terminated SSH tunnel or Tailscale).
+- **HTMX CSRF enforcement**: All HTMX POST/PUT/DELETE endpoints require a valid CSRF token. The base template sets `hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'` on the `<body>` tag so every HTMX mutation includes the token automatically.
+- **Log output escaping**: Log content and `error_message` values rendered in templates rely on Django's default auto-escaping. The `|safe` filter must never be applied to log content or any operator-controlled text.
 
 ## Acceptance Criteria
 
 ### Job Orchestrator
-- AC01: "Run State" form creates chained seed→resolve→crawl jobs with correct dependencies
+- AC01: "Run State" form creates chained seed→resolve jobs with correct dependencies; crawl jobs are submitted separately via the Crawler Controls page
 - AC02: Orchestrator runner picks and executes eligible jobs automatically
 - AC03: Job with unfinished dependency stays pending until dependency completes
 - AC04: Failed job can be retried from the UI (creates new pending job)
@@ -538,8 +588,12 @@ DATABASES = {
 ### Integration Tests
 - **Unmanaged models**: Django can read from `nonprofits_seed`, `reports`, `crawled_orgs`
 - **Job lifecycle**: Create job → runner picks it → subprocess completes → status updates
-- **Dependency chain**: Seed job completes → resolve job becomes eligible → crawl follows
+- **Dependency chain**: Seed job completes → resolve job becomes eligible → resolve completes → no automatic crawl enqueued
 - **Process lifecycle**: Start dummy process, verify PID tracking, stop, verify cleanup
+- **Retry rewiring**: Failed job is retried → new pending job is created → dependents are rewired to new job → dependency chain completes successfully
+- **Cancel cascade**: Cancel a running job → downstream dependent jobs are also cancelled; same behaviour when cancelling a pending job with dependents
+- **Concurrent submissions**: Two "Run State" requests for the same state submitted in rapid succession → second submission is either rejected with an error or queued independently (no duplicate dependency violation)
+- **Crawl independence**: A crawl job is created with `state_code=NULL` and no `depends_on`; it becomes eligible immediately without waiting for any seed/resolve jobs
 
 ## Traps to Avoid
 
@@ -584,6 +638,15 @@ DATABASES = {
 - MEDIUM: DEBUG=False (fixed), resource exhaustion (fixed: process limits)
 - LOW: S3 regex, cleartext secrets — mitigated
 
-### Round 3 — Revised Spec Review (pending)
+### Round 3 — Revised Spec Review (2026-04-26)
 
-Orchestrator additions (job queue, state machine, "Run State" form, runner daemon) require re-review.
+**Codex (REQUEST_CHANGES)** — 8 issues addressed:
+
+1. **Phase naming inconsistency** (MEDIUM): `COMMAND_MAP` keys `"resolver"`, `"crawler"`, `"classifier"` did not match the canonical `phase` enum (`seed`, `resolve`, `crawl`, `classify`). Renamed keys to match. `PipelineProcess.name` comment updated. `state_code` made nullable for global phases.
+2. **Crawl is not state-scoped** (HIGH): Crawl phase operates on the global resolved-org pool, not per-state. "Run State" now creates seed→resolve chains only. Crawl is submitted independently via the Crawler Controls page. `state_code=NULL` and no `depends_on` for crawl jobs. AC01 and dependency-chain integration test updated.
+3. **Retry/cancel dependency behavior underspecified** (HIGH): Explicit rules added to the State Machine section: retry rewires dependents to the new job; cancelling a running or pending job cascades to all downstream dependents.
+4. **Multi-host scope ambiguous** (MEDIUM): Non-Goals clarified that remote jobs are metadata-only placeholders in Iteration 1. Each host runs its own `run_orchestrator`; all hosts share the same RDS job table so the dashboard shows all jobs.
+5. **Managed table strategy incomplete** (MEDIUM): Database Configuration section now specifies that `manage.py migrate` targets `lava_dashboard` only. Auth/session/content_type tables land there. `PipelineRouter` code example added with hard `RuntimeError` on any write attempt against the `pipeline` alias.
+6. **Subprocess failure handling underspecified** (HIGH): Process Manager section extended with four explicit failure scenarios: `Popen` OSError/FileNotFoundError, immediate exit (< 1 s), DB update failure during state transition (retry-once then kill), and orphaned children via `os.setpgrp()` / `os.killpg`.
+7. **Security gaps** (MEDIUM): Added `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SECURE`, explicit HTMX CSRF enforcement requirement, and prohibition on `|safe` filter for log/error content.
+8. **Integration test coverage gaps** (LOW): Four new integration test cases added: retry rewiring, cancel cascade, concurrent submissions, and crawl independence.
