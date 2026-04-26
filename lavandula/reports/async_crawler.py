@@ -24,6 +24,9 @@ import aiohttp
 
 from . import config
 from . import archive as _archive
+from .classify import classify_first_page_v2, ClassifierError
+from .classifier_clients import select_classifier_client
+from .taxonomy import ensure_loaded as _ensure_taxonomy, get_taxonomy, build_taxonomy_prompt_section
 from .async_db_writer import (
     DBWriterActor,
     OrgDownloadTracker,
@@ -344,6 +347,7 @@ async def _download_worker(
     run_id: str,
     stats: CrawlStats,
     pdf_thread_pool: ThreadPoolExecutor,
+    classifier_client: object | None = None,
 ) -> None:
     while True:
         item = await download_queue.get()
@@ -364,6 +368,7 @@ async def _download_worker(
                 pdf_thread_pool=pdf_thread_pool,
                 org_fetched=org_fetched,
                 org_active_content_rejections=org_active_content_rej,
+                classifier_client=classifier_client,
             )
         except asyncio.CancelledError:
             raise
@@ -387,6 +392,7 @@ async def _process_download(
     pdf_thread_pool: ThreadPoolExecutor,
     org_fetched: list[int] | None = None,
     org_active_content_rejections: list[int] | None = None,
+    classifier_client: object | None = None,
 ) -> None:
     outcome = await async_download(
         cand.url, client, seed_etld1=seed_etld1,
@@ -482,6 +488,25 @@ async def _process_download(
         pdf_creation_date=str(creation_date) if creation_date else None,
     )
 
+    cls_result = None
+    if first_page_text and classifier_client is not None:
+        loop = asyncio.get_running_loop()
+        taxonomy = get_taxonomy()
+        try:
+            cls_result = await loop.run_in_executor(
+                pdf_thread_pool,
+                lambda: classify_first_page_v2(
+                    first_page_text,
+                    client=classifier_client,
+                    taxonomy=taxonomy,
+                    raise_on_error=False,
+                ),
+            )
+            if cls_result.classification is None:
+                cls_result = None
+        except Exception:  # noqa: BLE001
+            cls_result = None
+
     report_future = await db_actor.enqueue(UpsertReportRequest(
         content_sha256=outcome.content_sha256,
         source_url_redacted=outcome.final_url_redacted or redact_url(cand.url),
@@ -501,10 +526,10 @@ async def _process_download(
         pdf_has_launch=flags["pdf_has_launch"],
         pdf_has_embedded=flags["pdf_has_embedded"],
         pdf_has_uri_actions=flags["pdf_has_uri_actions"],
-        classification=None,
-        classification_confidence=None,
-        classifier_model=config.CLASSIFIER_MODEL,
-        classifier_version=config.CLASSIFIER_VERSION,
+        classification=cls_result.classification if cls_result else None,
+        classification_confidence=cls_result.classification_confidence if cls_result else None,
+        classifier_model=cls_result.classifier_model if cls_result else config.CLASSIFIER_MODEL,
+        classifier_version=2 if cls_result else config.CLASSIFIER_VERSION,
         report_year=report_year,
         report_year_source=report_year_source,
         extractor_version=config.EXTRACTOR_VERSION,
@@ -512,6 +537,10 @@ async def _process_download(
             redact_url(cand.original_source_url)
             if cand.original_source_url else None
         ),
+        material_type=cls_result.material_type if cls_result else None,
+        material_group=cls_result.material_group if cls_result else None,
+        event_type=cls_result.event_type if cls_result else None,
+        reasoning=cls_result.reasoning if cls_result else None,
     ))
 
     # AC19.1: include wayback_digest in fetch_log notes
@@ -674,6 +703,8 @@ async def run_async(
     run_id: str = "",
     halt_dir: Path | None = None,
 ) -> CrawlStats:
+    _ensure_taxonomy()
+
     if halt_dir is None:
         halt_dir = config.HALT
 
@@ -698,6 +729,13 @@ async def run_async(
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, _on_signal)
+
+    try:
+        classifier_client = select_classifier_client()
+        _log.info("classifier client: %s", type(classifier_client).__name__)
+    except Exception:  # noqa: BLE001
+        classifier_client = None
+        _log.warning("no classifier client available — inline classification disabled")
 
     throttle = AsyncHostThrottle(host_overrides={
         "archive.org": config.WAYBACK_REQUEST_DELAY_SEC,
@@ -737,6 +775,7 @@ async def run_async(
                 _download_worker(
                     download_queue, client, db_actor, archive,
                     run_id, stats, pdf_thread_pool,
+                    classifier_client=classifier_client,
                 )
             )
             for _ in range(max_download_workers)
