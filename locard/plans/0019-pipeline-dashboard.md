@@ -72,7 +72,7 @@ pipeline/models.py
    - `Report` — maps to `reports` (PK: `content_sha256`)
    - `CrawledOrg` — maps to `crawled_orgs` (PK: `ein`)
 2. Managed models:
-   - `Job` — per spec: `state_code` (nullable), `phase` (choices: seed/resolve/crawl/classify), `status` (choices: pending/running/completed/failed/cancelled), `host`, `pid`, `config_json`, timestamps, `exit_code`, `error_message`, `progress_current`, `progress_total`, `depends_on` (self FK), `last_heartbeat`. Indexes on `(status, phase)` and `(state_code, phase)`. **Partial unique index** on `(state_code, phase)` filtered to `status IN ('pending', 'running')` — DB-level backstop for duplicate job rejection. Table: `jobs`
+   - `Job` — per spec: `state_code` (nullable), `phase` (choices: seed/resolve/crawl/classify), `status` (choices: pending/running/completed/failed/cancelled), `host`, `pid`, `config_json`, timestamps, `exit_code`, `error_message`, `progress_current`, `progress_total`, `depends_on` (self FK), `last_heartbeat`. Indexes on `(status, phase)` and `(state_code, phase)`. **Two partial unique indexes** for duplicate job rejection: (1) on `(state_code, phase)` filtered to `state_code IS NOT NULL AND status IN ('pending', 'running')` — prevents duplicate per-state jobs; (2) on `(phase,)` filtered to `state_code IS NULL AND status IN ('pending', 'running')` — prevents duplicate global jobs (crawl/classify) since PostgreSQL NULL values don't collide in unique indexes. Table: `jobs`
    - `PipelineProcess` — `name` (unique), `pid`, `status`, `started_at`, `config_json`, `last_heartbeat`, `log_file`. Table: `pipeline_processes`
    - `PipelineAuditLog` — `action`, `process_name`, `parameters` (JSON), `source_ip`, `timestamp`. Table: `pipeline_audit_log`
 3. `python manage.py makemigrations pipeline`
@@ -102,8 +102,9 @@ pipeline/management/commands/run_orchestrator.py
 
 1. `COMMAND_MAP` dict — per spec, keys: `seed`, `resolve`, `crawl`, `classify`. Each entry has `cmd` (argv prefix) and `params` (name → type/min/max/pattern/flag). Validation function `build_argv(phase, config_json) -> list[str]` that rejects unknown keys and validates each param against its type def
 2. `create_state_jobs(state_code, phases, config_overrides, host) -> list[Job]`:
-   - **Race-safe duplicate check**: wrap in `transaction.atomic()` with `select_for_update` on existing pending/running jobs for the same `state_code + phase`. Additionally, add a partial unique index on `(state_code, phase)` filtered to `status IN ('pending', 'running')` as a DB-level backstop against races that slip past the application check
-   - Create seed job (pending), then resolve job (pending, depends_on=seed)
+   - `phases` is a list from the form checkboxes. **Allowed combinations**: `['seed']` (seed only — useful for re-seeding without re-resolving), `['seed', 'resolve']` (full pipeline — default), `['resolve']` (resolve only — useful when seed data already exists). If `resolve` is selected without `seed`, no dependency is created (resolve job is immediately eligible). If both are selected, resolve `depends_on` seed. Other combinations are rejected at the form validation layer.
+   - **Race-safe duplicate check**: wrap in `transaction.atomic()` with `select_for_update` on existing pending/running jobs for the same `state_code + phase`. The partial unique indexes on the `jobs` table serve as a DB-level backstop against races that slip past the application check
+   - Create jobs per selected phases with correct dependency wiring
    - Return created jobs
 3. `create_crawl_job(config_overrides, host) -> Job`:
    - Race-safe duplicate check: same `transaction.atomic()` + `select_for_update` pattern for phase=crawl, status in (pending, running)
@@ -223,6 +224,7 @@ dashboard/urls.py (update)
    - `DashboardView(LoginRequiredMixin, TemplateView)` — aggregate queries across unmanaged models + Job model
    - `DashboardStatsPartial` — returns stats fragment for HTMX
    - `LoginView` — Django's built-in `auth_views.LoginView`
+   - **Host selection**: In Iteration 1, all jobs are created with `host=socket.gethostname()` — the host running the dashboard instance. There is no operator-selectable host field. Jobs for other hosts are created by that host's own dashboard/orchestrator instance (each host runs its own `manage.py run_orchestrator`). All hosts share the same RDS job table, so the dashboard view shows all jobs from all hosts regardless of where they were created. A future iteration may add host targeting with an allowlist.
 6. `pipeline_tags.py` — template filters: `duration` (timedelta → human-readable), `percentage` (current/total → percent string), `url_basename` (extracts filename from URL path via `urllib.parse.urlparse(url).path.rsplit('/', 1)[-1]` — used as primary identifier in reports tables per AC23), `stale_badge` (returns warning HTML class if `last_heartbeat` is older than threshold)
 7. URL configuration: `/` → dashboard, `/login/` → login, `/logout/` → logout
 
@@ -340,7 +342,7 @@ dashboard/urls.py (update)
 ### 7c: Reports Browser
 
 1. `reports.html` — paginated table (50/page) with filters: org (EIN/name search), classification, report_year, archived_at range
-2. `report_detail.html` — full detail: SHA, source URL (redacted), classification, confidence, year, size, first_page_text, page_count. S3 download link.
+2. `report_detail.html` — full detail: SHA, source URL (redacted), classification, confidence, year, size, first_page_text, page_count. S3 download link. **Note**: the spec says "full source URL" but the actual schema column is `source_url_redacted` (query params stripped for privacy). This is an intentional alignment to the existing schema — the redacted URL is sufficient for identifying the source page.
 3. Views: `ReportListView`, `ReportDetailView`
 4. S3 download view: accepts `content_sha256`, validates via ORM lookup (`Report.objects.get(content_sha256=sha)`), constructs S3 key as `pdfs/{sha}.pdf`, generates presigned URL via `boto3.client('s3').generate_presigned_url('get_object', ...)` with 300s expiry, returns HTTP redirect. **Dependency**: `boto3` is already installed (used by `lavandula.common.secrets` and the crawler's S3 archive). The S3 client uses the instance profile for credentials (same as the crawler). Bucket name sourced from `settings.S3_COLLATERAL_BUCKET = 'lavandula-nonprofit-collaterals'`. The signing code lives in `pipeline/views.py` in the `ReportDownloadView`
 
@@ -356,14 +358,21 @@ dashboard/urls.py (update)
 
 **Note**: Most security requirements are implemented inline in their respective phases (auth in Phase 1/5, CSRF in Phase 5, command safety in Phase 3, log validation in Phase 4, audit logging in Phase 6/7). This phase is a systematic audit to catch gaps, plus operational setup.
 
-**Audit checklist** (automated where possible):
+**Audit checklist** (grep sanity checks + authoritative test-based verification):
+
+Quick grep checks (catch obvious misses):
 1. `grep -rL 'LoginRequiredMixin' pipeline/views.py` — every view class must include it
 2. `grep 'DEBUG' dashboard/settings.py` — must be hardcoded `False`, not from env
 3. `grep 'SESSION_COOKIE\|LOGOUT_REDIRECT' dashboard/settings.py` — verify all four session settings present
 4. `grep 'hx-headers.*CSRFToken' pipeline/templates/pipeline/base.html` — CSRF token in HTMX headers
 5. `grep -r 'shell=True' pipeline/` — must return zero results
 6. `grep -r '|safe' pipeline/templates/` — must not apply to log content or error_message fields
-7. `grep 'PipelineAuditLog' pipeline/views.py` — all mutation views must log
+
+**Authoritative test-based verification** (added to `test_views.py` in Phase 9):
+- For every URL in `urls.py`, test unauthenticated GET → 302 to login
+- For every POST endpoint, test without CSRF token → 403
+- For every mutation endpoint (job create/cancel/retry, process start/stop), verify `PipelineAuditLog` entry created with correct action, process_name, parameters, and source_ip
+- These tests are the actual acceptance gate; greps are a supplementary check
 
 **Operational setup**:
 1. `LOGOUT_REDIRECT_URL = '/login/'` in settings (implemented in Phase 1 but verified here)
@@ -436,7 +445,7 @@ pipeline/tests/
    - Cancel cascade end-to-end: cancel running job → downstream dependents also cancelled
    - Concurrent duplicate submission: two `create_state_jobs` calls in rapid succession → second raises `DuplicateJobError` (verified at both application and DB constraint level)
    - Crawl job independence: `state_code=NULL`, no `depends_on`, immediately eligible without seed/resolve
-   - Race-safety: duplicate rejection holds under concurrent `transaction.atomic()` + `select_for_update`
+   - Race-safety: duplicate rejection tests **must use `TransactionTestCase`** (not `TestCase`) to ensure PostgreSQL locking semantics are exercised. Test uses two threads submitting `create_state_jobs` concurrently for the same state+phase; asserts exactly one succeeds and the other raises `DuplicateJobError` or `IntegrityError` from the partial unique index
 
 ### Smoke Tests (require RDS connection, run manually)
 8. `test_smoke.py` — decorated with `@unittest.skipUnless(os.environ.get('RUN_SMOKE_TESTS'), 'requires RDS')`:
@@ -542,3 +551,14 @@ These are manual steps the operator performs before the builder starts:
 8. **Phase 8 too audit-oriented** (MEDIUM): Restructured Phase 8 as verification audit + operational setup. Security requirements are now implemented inline in Phases 1-7; Phase 8 runs automated grep checks and adds log cleanup command.
 9. **Integration tests against real DB unreliable** (HIGH): Split Phase 9 into CI-safe tests (mocked subprocess, Django test DB only) and smoke tests (require RDS, gated by `RUN_SMOKE_TESTS` env var).
 10. **Duplicate job race-safety** (HIGH): Added `transaction.atomic()` + `select_for_update` in `create_state_jobs`. Added partial unique index on `(state_code, phase)` filtered to `status IN ('pending', 'running')` as DB-level backstop.
+
+### Round 2 — Red Team Security Review (2026-04-26)
+
+**Codex Red Team (REQUEST_CHANGES)** — 6 findings, all addressed:
+
+1. **NULL unique index hole for crawl jobs** (HIGH): PostgreSQL NULL values don't collide in unique indexes, so the partial unique index on `(state_code, phase)` didn't protect global phases (crawl/classify). Added second partial unique index on `(phase,)` filtered to `state_code IS NULL AND status IN ('pending', 'running')`.
+2. **Phase selection behavior unspecified** (HIGH): `create_state_jobs` now documents all three allowed phase combinations: `['seed']`, `['resolve']`, `['seed', 'resolve']`. Dependency wiring adapts per combination. Invalid combinations rejected at form layer.
+3. **Multi-host job creation ambiguous** (MEDIUM): Explicitly chose local-host-only submission in Iteration 1. `host=socket.gethostname()` always. No operator-selectable host field. Each host runs its own dashboard/orchestrator instance. All hosts share the same RDS job table.
+4. **Report detail spec/model mismatch** (MEDIUM): Called out explicitly in Phase 7 that `source_url_redacted` (actual schema) is used instead of spec's "full source URL" — intentional alignment to existing schema for privacy.
+5. **Concurrency tests underspecified** (MEDIUM): Race-safety tests now require `TransactionTestCase` with two threads and explicit `IntegrityError` assertions against PostgreSQL locking semantics.
+6. **Phase 8 grep checks insufficient** (LOW): Kept greps as supplementary checks; added authoritative test-based verification in Phase 9 `test_views.py` as the actual acceptance gate for auth/CSRF/audit coverage.
