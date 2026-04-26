@@ -72,7 +72,7 @@ pipeline/models.py
    - `Report` — maps to `reports` (PK: `content_sha256`)
    - `CrawledOrg` — maps to `crawled_orgs` (PK: `ein`)
 2. Managed models:
-   - `Job` — per spec: `state_code` (nullable), `phase` (choices: seed/resolve/crawl/classify), `status` (choices: pending/running/completed/failed/cancelled), `host`, `pid`, `config_json`, timestamps, `exit_code`, `error_message`, `progress_current`, `progress_total`, `depends_on` (self FK), `last_heartbeat`. Indexes on `(status, phase)` and `(state_code, phase)`. Table: `jobs`
+   - `Job` — per spec: `state_code` (nullable), `phase` (choices: seed/resolve/crawl/classify), `status` (choices: pending/running/completed/failed/cancelled), `host`, `pid`, `config_json`, timestamps, `exit_code`, `error_message`, `progress_current`, `progress_total`, `depends_on` (self FK), `last_heartbeat`. Indexes on `(status, phase)` and `(state_code, phase)`. **Partial unique index** on `(state_code, phase)` filtered to `status IN ('pending', 'running')` — DB-level backstop for duplicate job rejection. Table: `jobs`
    - `PipelineProcess` — `name` (unique), `pid`, `status`, `started_at`, `config_json`, `last_heartbeat`, `log_file`. Table: `pipeline_processes`
    - `PipelineAuditLog` — `action`, `process_name`, `parameters` (JSON), `source_ip`, `timestamp`. Table: `pipeline_audit_log`
 3. `python manage.py makemigrations pipeline`
@@ -102,11 +102,11 @@ pipeline/management/commands/run_orchestrator.py
 
 1. `COMMAND_MAP` dict — per spec, keys: `seed`, `resolve`, `crawl`, `classify`. Each entry has `cmd` (argv prefix) and `params` (name → type/min/max/pattern/flag). Validation function `build_argv(phase, config_json) -> list[str]` that rejects unknown keys and validates each param against its type def
 2. `create_state_jobs(state_code, phases, config_overrides, host) -> list[Job]`:
-   - Check duplicate policy: reject if pending/running job exists for same `state_code + phase`
+   - **Race-safe duplicate check**: wrap in `transaction.atomic()` with `select_for_update` on existing pending/running jobs for the same `state_code + phase`. Additionally, add a partial unique index on `(state_code, phase)` filtered to `status IN ('pending', 'running')` as a DB-level backstop against races that slip past the application check
    - Create seed job (pending), then resolve job (pending, depends_on=seed)
    - Return created jobs
 3. `create_crawl_job(config_overrides, host) -> Job`:
-   - Duplicate check for phase=crawl, status in (pending, running)
+   - Race-safe duplicate check: same `transaction.atomic()` + `select_for_update` pattern for phase=crawl, status in (pending, running)
    - Create with `state_code=NULL`, no depends_on
 4. `retry_job(job) -> Job`:
    - Create new pending job with same phase/state_code/config
@@ -125,12 +125,14 @@ pipeline/management/commands/run_orchestrator.py
 
 1. On startup: scan for `running` jobs where `host=socket.gethostname()`. For each, check PID liveness via `os.kill(pid, 0)`. Dead PIDs → mark failed with `error_message="orphaned: PID not found on restart"`
 2. Main loop (every 10s):
-   - For each running job owned by this host: poll PID, update `last_heartbeat`. If exited, update status (completed if exit 0, failed otherwise), record `exit_code`
+   - For each running job owned by this host: poll PID. If alive, write `last_heartbeat = now()` (ensures heartbeat is updated every ~10s, well within the 30s spec requirement; the spec's 30s is the *maximum* interval, not the target). If exited, update status (completed if exit 0, failed otherwise), record `exit_code`. **DB-update-failure handling**: if the status write fails, retry once after 1s. If the retry also fails, log to stderr and kill the subprocess via `os.killpg` to prevent an untracked orphan.
    - Query eligible jobs, pick oldest
-   - Build argv via `build_argv`, spawn via `subprocess.Popen` with `os.setpgrp` as `preexec_fn`, stdout/stderr to log file
+   - Build argv via `build_argv`, spawn via `subprocess.Popen` with `preexec_fn=os.setpgrp`, `cwd=PROJECT_ROOT` (the repo root, e.g. `/home/ubuntu/research`), and `env` dict that copies `os.environ` plus sets `PYTHONPATH=PROJECT_ROOT`. stdout/stderr redirected to `lavandula/logs/dashboard/{phase}_{state}_{timestamp}.log`
    - Record PID, `started_at`, `log_file` on the job
-   - Handle `Popen` OSError/FileNotFoundError: mark job failed immediately
+   - Handle `Popen` OSError/FileNotFoundError: mark job failed immediately with exception message in `error_message`
+   - Handle immediate exit (< 1 poll cycle): detected on next poll, marked `failed` or `completed` per exit code
 3. Signal handling: SIGTERM/SIGINT → set shutdown flag, finish current poll, exit cleanly
+4. Constants: `PROJECT_ROOT = Path(__file__).resolve().parents[3]` (three levels up from `pipeline/management/commands/`), `LOG_DIR = PROJECT_ROOT / "lavandula" / "logs" / "dashboard"`, `HEARTBEAT_STALE_LOCAL = 120` (2 min), `HEARTBEAT_STALE_REMOTE = 300` (5 min)
 
 **Verify**: Unit tests for state machine (create, retry with rewiring, cancel with cascade, eligibility filtering, duplicate rejection). Management command starts and exits on SIGTERM.
 
@@ -149,13 +151,14 @@ pipeline/process_manager.py
 
 **Steps**:
 1. `start_process(name, config_json) -> PipelineProcess`:
-   - Acquire `select_for_update` lock on PipelineProcess row (get_or_create by name)
+   - Acquire `select_for_update` lock on PipelineProcess row (get_or_create by name) inside `transaction.atomic()`
    - Check phase conflict with `check_phase_conflict(name)` — reject if job running for same phase
    - Check PipelineProcess.status != running (or if running, verify PID is actually alive + cmdline matches)
    - Build argv via `build_argv(name, config_json)`
-   - Spawn via `subprocess.Popen`, `os.setpgrp`, stdout/stderr to `lavandula/logs/dashboard/{name}_{timestamp}.log`
+   - Spawn via `subprocess.Popen` with `preexec_fn=os.setpgrp`, `cwd=PROJECT_ROOT`, `env={**os.environ, "PYTHONPATH": str(PROJECT_ROOT)}`. stdout/stderr to `LOG_DIR / f"{name}_{timestamp}.log"`
    - Record PID, started_at, log_file, status=running
-   - Handle OSError: mark failed, PID=null
+   - Handle OSError/FileNotFoundError: mark failed with exception message in `error_message`, PID=null
+   - **DB-update-failure on state transition**: retry once after 1s; if retry fails, log to stderr and kill subprocess via `os.killpg` to prevent untracked orphan
 2. `stop_process(name)`:
    - Send SIGTERM to process group via `os.killpg`
    - Wait up to 10s, then SIGKILL
@@ -209,7 +212,7 @@ dashboard/urls.py (update)
    - Logout link
 2. `login.html` — simple Django auth form
 3. `dashboard.html`:
-   - Job Queue summary: active/pending/completed counts
+   - Job Queue summary: active/pending/completed counts. **Running jobs with stale heartbeat** (`last_heartbeat` > 2 min for local, > 5 min for remote) display a yellow warning badge
    - Seed Pool: total orgs by state (top 10 states), by resolver_status
    - Resolver: resolved/unresolved/ambiguous counts
    - Crawler: crawled orgs, total reports
@@ -220,7 +223,7 @@ dashboard/urls.py (update)
    - `DashboardView(LoginRequiredMixin, TemplateView)` — aggregate queries across unmanaged models + Job model
    - `DashboardStatsPartial` — returns stats fragment for HTMX
    - `LoginView` — Django's built-in `auth_views.LoginView`
-6. `pipeline_tags.py` — template filters: `duration` (timedelta → human-readable), `percentage` (current/total → percent string)
+6. `pipeline_tags.py` — template filters: `duration` (timedelta → human-readable), `percentage` (current/total → percent string), `url_basename` (extracts filename from URL path via `urllib.parse.urlparse(url).path.rsplit('/', 1)[-1]` — used as primary identifier in reports tables per AC23), `stale_badge` (returns warning HTML class if `last_heartbeat` is older than threshold)
 7. URL configuration: `/` → dashboard, `/login/` → login, `/logout/` → logout
 
 **Verify**: `runserver` starts, login page renders, dashboard shows real pipeline stats from RDS.
@@ -248,7 +251,7 @@ dashboard/urls.py (update)
 
 **Steps**:
 1. `forms.py`:
-   - `RunStateForm`: multi-select state dropdown (all 50 + territories), phase checkboxes (seed, resolve — checked by default), expandable config panel (LLM model, brave QPS, consumer threads, etc.)
+   - `RunStateForm`: multi-select state dropdown (all 50 + territories), phase checkboxes (seed, resolve — checked by default). **Note**: the spec's "Run State Convenience" section lists seed+resolve only; the Job Queue view section mentions crawl as well. We follow the "Run State Convenience" section (seed+resolve only) because the spec explicitly says crawl is managed separately on the Crawler Controls page. The crawl checkbox on `/jobs/` is omitted to avoid confusion. Expandable config panel: LLM model, brave QPS, consumer threads, etc.
    - `RunCrawlForm`: archive dest, limit, concurrency settings
    - All form fields validated server-side against `COMMAND_MAP` type/range/pattern defs
 2. `jobs.html`:
@@ -259,6 +262,7 @@ dashboard/urls.py (update)
    - HTMX polling on active + pending sections
 3. `job_detail.html`:
    - Status, phase, state, host, PID, timestamps
+   - **Stale heartbeat warning**: yellow badge if `running` and `last_heartbeat` > 2 min (local host) or > 5 min (remote host). Uses `stale_badge` template tag
    - Progress bar (or indeterminate indicator if `progress_total` is NULL)
    - Configuration JSON display
    - Last 100 lines of log (HTMX-refreshed every 5s via `read_log_tail`)
@@ -317,7 +321,7 @@ dashboard/urls.py (update)
 
 1. Forms: `ResolverForm`, `CrawlerForm`, `ClassifierForm` — each mirrors the `COMMAND_MAP` params for that phase. Start/Stop buttons.
 2. Each control page:
-   - Status panel: current job or ad-hoc process state, PID, uptime, progress
+   - Status panel: current job or ad-hoc process state, PID, uptime, progress. **Stale heartbeat warning badge** if running with old heartbeat (same thresholds as job detail)
    - Ad-hoc form for one-off runs
    - Results table (recent items, HTMX-refreshed)
 3. Views:
@@ -338,7 +342,7 @@ dashboard/urls.py (update)
 1. `reports.html` — paginated table (50/page) with filters: org (EIN/name search), classification, report_year, archived_at range
 2. `report_detail.html` — full detail: SHA, source URL (redacted), classification, confidence, year, size, first_page_text, page_count. S3 download link.
 3. Views: `ReportListView`, `ReportDetailView`
-4. S3 download view: accepts `content_sha256`, validates via ORM lookup, generates presigned S3 URL (`pdfs/{sha}.pdf`, 300s expiry), returns redirect
+4. S3 download view: accepts `content_sha256`, validates via ORM lookup (`Report.objects.get(content_sha256=sha)`), constructs S3 key as `pdfs/{sha}.pdf`, generates presigned URL via `boto3.client('s3').generate_presigned_url('get_object', ...)` with 300s expiry, returns HTTP redirect. **Dependency**: `boto3` is already installed (used by `lavandula.common.secrets` and the crawler's S3 archive). The S3 client uses the instance profile for credentials (same as the crawler). Bucket name sourced from `settings.S3_COLLATERAL_BUCKET = 'lavandula-nonprofit-collaterals'`. The signing code lives in `pipeline/views.py` in the `ReportDownloadView`
 
 **Verify**: All control pages render, ad-hoc start/stop works, org/report browsers paginate and filter correctly, S3 download link works.
 
@@ -346,23 +350,27 @@ dashboard/urls.py (update)
 
 ---
 
-## Phase 8: Security Hardening
+## Phase 8: Security Audit & Operational Setup
 
-**Goal**: Ensure all security requirements from spec + red team reviews.
+**Goal**: Verify all security requirements implemented in Phases 1-7 are correct, plus set up operational items.
 
-**Steps**:
-1. Verify `LoginRequiredMixin` on every view (grep for views without it)
-2. Verify `DEBUG = False` is hardcoded (not from env)
-3. Verify session settings: `SESSION_COOKIE_AGE`, `SESSION_COOKIE_HTTPONLY`, `SESSION_COOKIE_SECURE`, `LOGOUT_REDIRECT_URL`
-4. Verify CSRF: HTMX body tag has `hx-headers` with CSRF token. All POST views have CSRF middleware
-5. Verify command builder: no shell=True anywhere, all commands built as argv arrays
-6. Verify log path validation: `os.path.realpath` check in `read_log_tail`
-7. Verify no `|safe` filter on log content or error messages in templates (grep templates)
-8. Verify audit logging: all mutation endpoints (job create/cancel/retry, process start/stop) write to `PipelineAuditLog`
-9. Create `manage.py createsuperuser` documentation in README within `lavandula/dashboard/`
-10. Verify PipelineRouter blocks writes to unmanaged models
+**Note**: Most security requirements are implemented inline in their respective phases (auth in Phase 1/5, CSRF in Phase 5, command safety in Phase 3, log validation in Phase 4, audit logging in Phase 6/7). This phase is a systematic audit to catch gaps, plus operational setup.
 
-**Verify**: Security checklist passes. Attempt to access views without login → redirect. Attempt shell injection via form params → rejected.
+**Audit checklist** (automated where possible):
+1. `grep -rL 'LoginRequiredMixin' pipeline/views.py` — every view class must include it
+2. `grep 'DEBUG' dashboard/settings.py` — must be hardcoded `False`, not from env
+3. `grep 'SESSION_COOKIE\|LOGOUT_REDIRECT' dashboard/settings.py` — verify all four session settings present
+4. `grep 'hx-headers.*CSRFToken' pipeline/templates/pipeline/base.html` — CSRF token in HTMX headers
+5. `grep -r 'shell=True' pipeline/` — must return zero results
+6. `grep -r '|safe' pipeline/templates/` — must not apply to log content or error_message fields
+7. `grep 'PipelineAuditLog' pipeline/views.py` — all mutation views must log
+
+**Operational setup**:
+1. `LOGOUT_REDIRECT_URL = '/login/'` in settings (implemented in Phase 1 but verified here)
+2. Create `lavandula/dashboard/README.md` with setup instructions: `createsuperuser` (min 16-char password), `run_orchestrator`, SSH tunnel access
+3. Log retention: add `management/commands/cleanup_logs.py` — deletes log files older than 30 days from `LOG_DIR`. Audit log rows (`PipelineAuditLog`) retained indefinitely.
+
+**Verify**: All audit checks pass. Manual test: unauthenticated request → 302 to login. Shell injection attempt via form params → rejected by `COMMAND_MAP` validation.
 
 **ACs**: AC29, AC34
 
@@ -420,17 +428,23 @@ pipeline/tests/
    - HTMX partials return fragments (no full page)
    - Audit log entries created on mutations
 
-### Integration Tests
-7. `test_integration.py`:
-   - Unmanaged models can query real `lava_impact` tables
+### Integration Tests (CI-safe, no external dependencies)
+7. `test_integration.py` — uses Django's test database only (no `lava_impact` access required). All subprocess calls mocked via `unittest.mock.patch('subprocess.Popen')`:
    - Job lifecycle: create → runner picks → (mock) subprocess completes → status updates
-   - Dependency chain: seed completes → resolve becomes eligible → completes → no automatic crawl
-   - Retry rewiring end-to-end
-   - Cancel cascade end-to-end
-   - Concurrent duplicate submission → second rejected
-   - Crawl job independence (state_code=NULL, no depends_on, immediately eligible)
+   - Dependency chain: seed completes → resolve becomes eligible → completes → no automatic crawl enqueued
+   - Retry rewiring end-to-end: failed job retried → new pending created → dependents rewired → chain completes
+   - Cancel cascade end-to-end: cancel running job → downstream dependents also cancelled
+   - Concurrent duplicate submission: two `create_state_jobs` calls in rapid succession → second raises `DuplicateJobError` (verified at both application and DB constraint level)
+   - Crawl job independence: `state_code=NULL`, no `depends_on`, immediately eligible without seed/resolve
+   - Race-safety: duplicate rejection holds under concurrent `transaction.atomic()` + `select_for_update`
 
-**Verify**: `python manage.py test pipeline` passes. Coverage on orchestrator, process manager, and command builder ≥80%.
+### Smoke Tests (require RDS connection, run manually)
+8. `test_smoke.py` — decorated with `@unittest.skipUnless(os.environ.get('RUN_SMOKE_TESTS'), 'requires RDS')`:
+   - Unmanaged models can query real `lava_impact` tables: `NonprofitSeed.objects.count()`, `Report.objects.count()`, `CrawledOrg.objects.count()`
+   - PipelineRouter blocks writes: `NonprofitSeed.objects.create(...)` raises `RuntimeError`
+   - S3 presigned URL generation works (requires instance profile)
+
+**Verify**: `python manage.py test pipeline` passes (CI-safe tests only). `RUN_SMOKE_TESTS=1 python manage.py test pipeline.tests.test_smoke` passes on hosts with RDS access. Coverage on orchestrator, process manager, and command builder ≥80%.
 
 **ACs**: All ACs verified via tests
 
@@ -512,4 +526,19 @@ These are manual steps the operator performs before the builder starts:
 
 ## Consultation Log
 
-(Pending — will be filled after reviews)
+### Round 1 — Plan Review (2026-04-26)
+
+**Gemini**: Quota exhausted (RetryableQuotaError after 10 retries). Unable to review.
+
+**Codex (REQUEST_CHANGES)** — 10 issues, all addressed:
+
+1. **"Run State" phase checkboxes** (MEDIUM): Spec's Job Queue section says seed/resolve/crawl, but "Run State Convenience" section says seed/resolve only. Resolved: follow "Run State Convenience" (crawl managed separately). Added explicit note in Phase 6.
+2. **Heartbeat cadence underspecified** (MEDIUM): Plan now specifies heartbeat writes every ~10s (poll cycle), well within spec's 30s maximum. Added stale heartbeat thresholds (2 min local, 5 min remote) as constants in Phase 3.
+3. **Missing `cwd` and `PYTHONPATH`** (HIGH): Added `cwd=PROJECT_ROOT` and `PYTHONPATH` env var to both orchestrator (Phase 3) and process manager (Phase 4) subprocess launches.
+4. **DB-update-failure handling missing** (HIGH): Added retry-once-then-kill behavior to both Phase 3 (orchestrator) and Phase 4 (process manager) for state transition DB writes.
+5. **Stale heartbeat indicators missing** (MEDIUM): Added warning badges to dashboard (Phase 5), job detail (Phase 6), and pipeline control pages (Phase 7).
+6. **AC23 URL basename implementation** (LOW): Added `url_basename` template filter to `pipeline_tags.py` (Phase 5) with specific implementation detail.
+7. **S3 presigned URL dependencies underspecified** (MEDIUM): Clarified that `boto3` is already installed (used by secrets + crawler). Added bucket name config, instance profile credentials, and view location.
+8. **Phase 8 too audit-oriented** (MEDIUM): Restructured Phase 8 as verification audit + operational setup. Security requirements are now implemented inline in Phases 1-7; Phase 8 runs automated grep checks and adds log cleanup command.
+9. **Integration tests against real DB unreliable** (HIGH): Split Phase 9 into CI-safe tests (mocked subprocess, Django test DB only) and smoke tests (require RDS, gated by `RUN_SMOKE_TESTS` env var).
+10. **Duplicate job race-safety** (HIGH): Added `transaction.atomic()` + `select_for_update` in `create_state_jobs`. Added partial unique index on `(state_code, phase)` filtered to `status IN ('pending', 'running')` as DB-level backstop.
