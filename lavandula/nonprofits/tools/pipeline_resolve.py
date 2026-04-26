@@ -127,6 +127,7 @@ def main(argv: list[str] | None = None) -> None:
 
         t_start = time.monotonic()
 
+        n_consumers = max(1, args.consumer_threads)
         producer_stats = [None]
 
         def _run_producer():
@@ -145,8 +146,6 @@ def main(argv: list[str] | None = None) -> None:
 
         producer_thread = threading.Thread(target=_run_producer, daemon=True)
         producer_thread.start()
-
-        n_consumers = max(1, args.consumer_threads)
         counter = [0]
         counter_lock = threading.Lock()
 
