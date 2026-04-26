@@ -399,7 +399,7 @@ projects:
   - id: "0023"
     title: "Classifier Expansion - Full Taxonomy Labels"
     summary: "Expand the binary report classifier to output the full collateral taxonomy from collateral_taxonomy.yaml with material_type, event_type, and group columns. Classifier prompt reads taxonomy YAML so PM-level edits flow through without code changes. Backfill existing classified rows."
-    status: specified
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0023-classifier-expansion.md
