@@ -86,7 +86,13 @@ _taxonomy: Taxonomy | None = None
 
 def get_taxonomy() -> Taxonomy:
     """Return cached taxonomy, loading on first call."""
+
+def ensure_loaded() -> None:
+    """Eagerly load taxonomy; raises TaxonomyLoadError on failure.
+    Called at crawler/tool startup for fail-fast semantics."""
 ```
+
+**Eager startup loading**: Crawlers (`async_crawler.py`, `crawler.py`) and tools (`classify_null.py`) MUST call `taxonomy.ensure_loaded()` during their initialization — before entering the work loop. This guarantees fail-fast: a missing or malformed YAML crashes the process immediately at startup rather than silently failing on the first classify call minutes later. `get_taxonomy()` still lazy-loads for test convenience, but production entry points use `ensure_loaded()`.
 
 **Legacy mapping** is hardcoded in `taxonomy.py` (not read from YAML — the mapping is a compatibility concern, not a taxonomy concern):
 
@@ -238,9 +244,10 @@ No new tests needed here — the existing upsert tests cover the pattern, and AC
 
 In the PDF processing section (around line 425-510), after first_page_text extraction:
 
-1. Import `get_taxonomy`, `classify_first_page_v2`
-2. Replace `classify_first_page()` call with `classify_first_page_v2()` passing `taxonomy=get_taxonomy()`
-3. Pass `material_type`, `material_group`, `event_type` from `ClassificationResult` to the upsert request
+1. Import `get_taxonomy`, `classify_first_page_v2`, `ensure_loaded`
+2. Add `taxonomy.ensure_loaded()` call in the crawler's startup/init path (before the work loop begins) for fail-fast semantics (AC10)
+3. Replace `classify_first_page()` call with `classify_first_page_v2()` passing `taxonomy=get_taxonomy()`
+4. Pass `material_type`, `material_group`, `event_type` from `ClassificationResult` to the upsert request
 
 ```python
 taxonomy = get_taxonomy()
@@ -257,7 +264,7 @@ event_type=result.event_type,
 
 ### `crawler.py` (sync)
 
-Same change in the sync crawler's classification path (around line 366-453). Identical pattern for parity.
+Same change in the sync crawler's classification path (around line 366-453). Identical pattern for parity, including `taxonomy.ensure_loaded()` at startup.
 
 ### `async_db_writer.py`
 
@@ -269,9 +276,10 @@ Add `material_type`, `material_group`, `event_type` to `UpsertReportRequest` dat
 
 Update `lavandula/reports/tools/classify_null.py`:
 
-1. Import `get_taxonomy`, `classify_first_page_v2`
-2. In `_classify_one()`, replace `classify_first_page()` with `classify_first_page_v2(taxonomy=get_taxonomy())`
-3. In `_write_result()`, add `material_type`, `material_group`, `event_type` to the UPDATE statement
+1. Import `get_taxonomy`, `classify_first_page_v2`, `ensure_loaded`
+2. Add `taxonomy.ensure_loaded()` in the tool's `main()` before entering the ThreadPoolExecutor work loop (fail-fast at CLI startup)
+3. In `_classify_one()`, replace `classify_first_page()` with `classify_first_page_v2(taxonomy=get_taxonomy())`
+4. In `_write_result()`, add `material_type`, `material_group`, `event_type` to the UPDATE statement
 4. Add `--backfill-material-type` mode:
    - Different SQL query: `material_type IS NULL AND first_page_text IS NOT NULL AND classification IS NOT NULL`
    - Same classify + write logic (writes all 6 columns)
@@ -422,6 +430,8 @@ COMMIT;
 - Exit code 0 on match, 1 on drift with diff output
 - Supports reading from stdin for CI pipeline integration
 
+**CI enforcement**: The test suite MUST include a test that runs `validate_taxonomy_check.py --validate` (or calls its validation logic directly) as part of the standard `pytest` run. This is already covered by the drift tests in `test_drift.py` (AC28, AC33), which perform the same bidirectional comparison. The drift tests serve as the CI gate — any YAML edit that adds/removes IDs without a matching migration update causes a test failure in the normal CI pipeline. No separate CI job or Makefile target is needed; `pytest` is the enforcement mechanism.
+
 ## Phase 7: Integration Tests
 
 **ACs**: AC20, AC21, AC31, AC36, AC38
@@ -435,6 +445,7 @@ Integration test file exercising the full path through both crawler paths:
 - `test_async_crawler_passes_v2_fields` — mock async crawler classify path, verify `UpsertReportRequest` includes material_type/material_group/event_type (AC20)
 - `test_sync_crawler_passes_v2_fields` — same for sync crawler path (AC21)
 - `test_v2_error_preserves_retry_path` — when v2 validation fails (unknown material_type), result has classification=None and error set, matching AC16.2 retry semantics (AC19)
+- `test_upsert_on_conflict_atomicity` — insert a row with v1 classification (no material_type), then upsert with higher-confidence v2 result. Verify all six columns (classification, classification_confidence, material_type, material_group, event_type, reasoning) updated atomically — no row should have v2 material_type with v1 reasoning or vice versa. (AC22)
 
 ## Dependency Order
 
@@ -458,8 +469,8 @@ Phases 1+3 can be built in parallel. Phase 2 follows Phase 1. Phases 4+5 follow 
 | Classifier v2 unit tests | ~11 | 2 |
 | Drift tests | ~4 | 2 |
 | classify_null v2 tests | ~4 | 5 |
-| Integration tests | ~7 | 7 |
-| **Total** | **~40** | |
+| Integration tests | ~8 | 7 |
+| **Total** | **~41** | |
 
 All tests use mocked classifier responses (no real API calls). The drift tests read the real YAML and migration SQL files.
 
@@ -493,3 +504,16 @@ All tests use mocked classifier responses (no real API calls). The drift tests r
 6. **Phase 7 integration tests too narrow** — Added 3 more tests: async crawler v2 field passing (AC20), sync crawler parity (AC21), v2 error preserving retry path (AC19).
 
 **Gemini** — Skipped (quota exhausted in spec review rounds).
+
+### Round 2: Red-Team Security Review (2026-04-26)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+4 findings, all addressed in v3:
+
+1. **`reports_mg_chk` missing `programs_journals`** — Already present in v2 plan (line 359). Verified: all 17 groups from spec's `_ALLOWED_GROUPS` are listed. No change needed.
+2. **ON CONFLICT atomicity test missing** — Added `test_upsert_on_conflict_atomicity` to Phase 7: inserts v1 row, upserts with higher-confidence v2, verifies all six columns updated atomically (AC22).
+3. **Startup taxonomy load not eagerly enforced** — Added `ensure_loaded()` function to taxonomy.py and explicit startup calls in async_crawler.py, crawler.py, and classify_null.py. Fail-fast at process start, not lazy on first classify call.
+4. **CI enforcement of `validate_taxonomy_check.py --validate` not explicit** — Clarified: drift tests in `test_drift.py` (AC28, AC33) perform the same bidirectional YAML↔SQL comparison as part of the standard `pytest` run. No separate CI job needed; pytest IS the enforcement mechanism.
+
+**Gemini** — Skipped (quota exhausted).
