@@ -148,7 +148,10 @@ async def discover_via_wayback(
 
     stats.wayback_attempts += 1
 
-    r = await client.get(cdx_url, kind="wayback-cdx", timeout_override=15.0)
+    # 30s timeout: empirically, sloan.org's CDX query (limit=500, ~120 KB
+    # response, deeply-archived domain) takes 7-9s on warm Wayback and can
+    # exceed 15s under load. 30s leaves headroom without unbounded waits.
+    r = await client.get(cdx_url, kind="wayback-cdx", timeout_override=30.0)
     elapsed = int((loop.time() - t_start) * 1000)
 
     if r.status != "ok" or not r.body:

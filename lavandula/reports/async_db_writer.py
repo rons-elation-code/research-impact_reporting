@@ -63,6 +63,10 @@ class UpsertReportRequest:
     report_year_source: str | None = None
     extractor_version: int = 0
     original_source_url_redacted: str | None = None
+    material_type: str | None = None
+    material_group: str | None = None
+    event_type: str | None = None
+    reasoning: str | None = None
 
 
 @dataclass
@@ -271,6 +275,10 @@ class DBWriterActor:
                 report_year_source=req.report_year_source,
                 extractor_version=req.extractor_version,
                 original_source_url_redacted=req.original_source_url_redacted,
+                material_type=req.material_type,
+                material_group=req.material_group,
+                event_type=req.event_type,
+                reasoning=req.reasoning,
             )
         elif isinstance(req, UpsertCrawledOrgRequest):
             db_writer.upsert_crawled_org(

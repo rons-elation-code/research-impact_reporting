@@ -288,7 +288,10 @@ class TestDiscoverViaWayback:
         assert stats.wayback_attempts == 1
 
     @pytest.mark.asyncio
-    async def test_timeout_override_15s(self):
+    async def test_timeout_override_30s(self):
+        # Bumped from 15s → 30s after smoke-test 2026-04-25 found that
+        # heavily-archived domains (sloan.org has 50+ PDFs in CDX) take
+        # 7-9s warm and intermittently exceed 15s under Wayback load.
         client = _FakeClient(default_response=_FakeResult(
             status="network_error", body=None,
         ))
@@ -303,7 +306,7 @@ class TestDiscoverViaWayback:
         assert len(client.calls) == 1
         _, kind, timeout = client.calls[0]
         assert kind == "wayback-cdx"
-        assert timeout == 15.0
+        assert timeout == 30.0
 
     @pytest.mark.asyncio
     async def test_html_body_treated_as_error(self):

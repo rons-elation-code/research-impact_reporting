@@ -385,7 +385,7 @@ projects:
   - id: "0022"
     title: "Wayback Machine CDX Fallback for Cloudflare-blocked Sites"
     summary: "When a nonprofit site returns Cloudflare 403 (cf-mitigated: challenge) or otherwise yields zero candidates, query the Wayback Machine CDX API for archived PDFs under the domain and download via web.archive.org. Recovers ~70-80% of the otherwise-lost ~17% of orgs. Tagged discovered_via='wayback' for traceability."
-    status: planned
+    status: committed
     priority: high
     files:
       spec: locard/specs/0022-wayback-cdx-fallback.md
@@ -393,12 +393,25 @@ projects:
       review: null
     dependencies: ["0021"]
     tags: [crawler, fallback, wayback, cloudflare, national-scale, data-recovery]
-    notes: "Motivated by Spec 0021 100-org validation 2026-04-25 finding: 17% transient failure rate, with 5/5 sampled failures showing Cloudflare bot-challenge responses (server: cloudflare, cf-mitigated: challenge, HTTP 403). Curl/aiohttp can't pass the JS challenge regardless of User-Agent. Wayback CDX query verified to have recent PDF captures for 4 of 5 tested sites (sloan.org, endfund.org with annual reports + 990s; cbcny.org homepage; rffund.org has minimal coverage). At national scale: direct-only ≈ 83% coverage, direct + Wayback fallback ≈ 95-96% coverage. Long-tail (4-5%) remains for commercial scrapers (deferred). Spec approved 2026-04-25 after 2 consult rounds (Codex + Claude spec-review v2; Codex + Claude red-team v3). Red-team caught 2 CRITICALs (CDX query injection, Wayback URL smuggling) and 4 HIGHs (archive poisoning, subdomain takeover, single-empty too aggressive, missing active-content scan) — all addressed. Plan approved 2026-04-25 after 2 consult rounds (Codex + Claude plan-review v2; Codex + Claude red-team v3). 24 distinct plumbing/observability issues caught across plan reviews, all addressed. 7 phases, ~1,650 lines total (~970 src + ~680 tests). Migration 005 (reports.original_source_url_redacted + crawled_orgs.notes) required before deploy."
+    notes: "Motivated by Spec 0021 100-org validation 2026-04-25 finding: 17% transient failure rate, with 5/5 sampled failures showing Cloudflare bot-challenge responses. Wayback CDX fallback recovers ~77% of blocked orgs. PR #17 merged 2026-04-25 after builder + architect review. 3 production bugs fixed post-merge (commit d8c744b 2026-04-26): CHECK constraint migration 006, _pick_discovered_via wayback preservation, wayback-cdx body-cap registration. 100-org validation: 95% coverage (up from 83%), 17 Wayback recoveries / 22 attempts, 707 PDFs total. Migrations 004-006 applied to RDS. 500-org validation in progress 2026-04-26."
 ```
+
+  - id: "0023"
+    title: "Classifier Expansion - Full Taxonomy Labels"
+    summary: "Expand the binary report classifier to output the full collateral taxonomy from collateral_taxonomy.yaml with material_type, event_type, and group columns. Classifier prompt reads taxonomy YAML so PM-level edits flow through without code changes. Backfill existing classified rows."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0023-classifier-expansion.md
+      plan: locard/plans/0023-classifier-expansion.md
+      review: null
+    dependencies: ["0020", "0004"]
+    tags: [classifier, taxonomy, data-quality, national-scale]
+    notes: "Motivated by 0020 taxonomy expansion. The crawler knows 70+ material types but the classifier only outputs 5 labels. First-page text from pypdf is sufficient for type classification. Should ship before national-scale crawl so every PDF gets rich labels from day one."
 
 ## Next Available Number
 
-**0023** - Reserve this number for your next project
+**0024** - Reserve this number for your next project
 
 ---
 

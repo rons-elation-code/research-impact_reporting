@@ -177,6 +177,55 @@ def test_is_not_transient_runtime_error():
     assert _is_transient(exc) is False
 
 
+# ---------- _pick_discovered_via — Spec 0022 AC11 attribution ----------
+
+def test_pick_discovered_via_preserves_wayback():
+    """Spec 0022 AC11: wayback candidates set hosting_platform='wayback' AND
+    discovered_via='wayback'. The function must return 'wayback', not
+    'hosting-platform' (which would silently strip Wayback origin).
+    Regression test for the smoke-test bug found 2026-04-25.
+    """
+    from lavandula.reports.async_crawler import _pick_discovered_via
+    cand = Candidate(
+        url="https://web.archive.org/web/...id_/...",
+        anchor_text="Annual Report",
+        referring_page_url="https://example.org",
+        discovered_via="wayback",
+        hosting_platform="wayback",
+        attribution_confidence="wayback_archive",
+    )
+    assert _pick_discovered_via(cand) == "wayback"
+
+
+def test_pick_discovered_via_third_party_platform_still_overrides():
+    """Issuu/Flipsnack/Canva etc. still map to hosting-platform — that
+    override behavior is unchanged."""
+    from lavandula.reports.async_crawler import _pick_discovered_via
+    cand = Candidate(
+        url="https://issuu.com/example/docs/2024",
+        anchor_text="2024 Report",
+        referring_page_url="https://example.org",
+        discovered_via="homepage-link",
+        hosting_platform="issuu",
+        attribution_confidence="platform_verified",
+    )
+    assert _pick_discovered_via(cand) == "hosting-platform"
+
+
+def test_pick_discovered_via_own_domain_passes_through():
+    """own-domain hosting falls through to the candidate's discovered_via."""
+    from lavandula.reports.async_crawler import _pick_discovered_via
+    cand = Candidate(
+        url="https://example.org/report.pdf",
+        anchor_text="Annual Report",
+        referring_page_url="https://example.org",
+        discovered_via="sitemap",
+        hosting_platform="own-domain",
+        attribution_confidence="own_domain",
+    )
+    assert _pick_discovered_via(cand) == "sitemap"
+
+
 # ---------- AC34: exit code propagation ----------
 
 def test_crawl_stats_exit_code_fields():
