@@ -292,14 +292,12 @@ def _check_filter_consistency(
     with engine.connect() as conn:
         row = conn.execute(text(
             f"SELECT filters_json FROM {_SCHEMA}.runs "
+            "WHERE filters_json IS NOT NULL "
             "ORDER BY started_at DESC LIMIT 1"
         )).fetchone()
     if row is None:
         return
     prev = json.loads(row[0])
-    if sorted(prev.get("states", [])) != sorted(states):
-        print("Filter mismatch: --states changed", file=sys.stderr)
-        sys.exit(2)
     if sorted(prev.get("ntee_majors", [])) != sorted(ntee_majors):
         print("Filter mismatch: --ntee-majors changed", file=sys.stderr)
         sys.exit(2)
