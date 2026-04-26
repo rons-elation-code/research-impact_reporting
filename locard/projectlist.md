@@ -151,7 +151,7 @@ projects:
   - id: "0004"
     title: "Site-Crawl Report Catalogue"
     summary: "Crawl known nonprofit websites directly for annual/impact reports. Uses 0001's curated nonprofit list as the seed, robots.txt + sitemap + homepage-link extraction with anchor-text + URL-path + hosting-platform filters to find candidate PDFs, HEAD/fetch with throttle, and Haiku-class LLM classification of first-page text to decide whether each PDF is actually a real report. Produces the design inspiration library + prospect signal Lavandula needs."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0004-site-crawl-report-catalogue.md
@@ -164,7 +164,7 @@ projects:
   - id: "0005"
     title: "DeepSeek-Backed Nonprofit Website Resolver"
     summary: "Replace Brave Search + heuristic resolver with a model-backed three-phase pipeline: DeepSeek/Qwen generates 2 candidate URLs, SSRF-hardened HTTP verifies them, model confirms identity from homepage content. Supports DeepSeek-V3 and Qwen via OpenAI-compatible client, selected by RESOLVER_LLM env var."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0005-deepseek-resolver.md
@@ -190,7 +190,7 @@ projects:
   - id: "0007"
     title: "S3-Backed PDF Archive"
     summary: "Replace local-disk PDF archive with direct-to-S3 streaming upload. Addresses two concerns: (1) disk exhaustion at scale (5K+ orgs × ~5MB × 2 PDFs = 50GB+), (2) data protection (EBS is single-point-of-failure). PDF bytes stream through memory for first-page text extraction, then PUT to S3 by SHA256 key. SQLite metadata unchanged — classifier hot path unaffected."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0007-s3-pdf-archive.md
@@ -203,7 +203,7 @@ projects:
   - id: "0008"
     title: "Agent Batch Runner"
     summary: "Orchestrate Claude Code WebSearch sub-agents for URL resolution at scale. Takes an EIN list → splits into N-org chunks → spawns K agents in parallel → waits → ingests results back into seeds.db. Resumable (agents append to results file as they go), skip-already-resolved by default."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0008-agent-batch-runner.md
@@ -333,7 +333,7 @@ projects:
   - id: "0018"
     title: "Gemma Pipeline Resolver & Classifier"
     summary: "Replace agent-loop URL resolver (0008) and DeepSeek three-phase resolver (0005) with a code-driven pipeline: Brave Search → filter → HTTP fetch → Gemma 4 E4B (self-hosted on cloud1) disambiguates. Same queue pattern for report classification. 20-100x cost reduction vs agent loop."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0018-gemma-pipeline-resolver.md
@@ -372,7 +372,7 @@ projects:
   - id: "0021"
     title: "Async I/O Crawler Pipeline"
     summary: "Replace synchronous requests + ThreadPoolExecutor with aiohttp + asyncio event loop. Per-host rate limiting via async semaphores instead of time.sleep(). Producer-consumer separation (discovery feeds download queue). Target: 100K+ orgs on a single machine."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0021-async-crawler-pipeline.md
@@ -385,7 +385,7 @@ projects:
   - id: "0022"
     title: "Wayback Machine CDX Fallback for Cloudflare-blocked Sites"
     summary: "When a nonprofit site returns Cloudflare 403 (cf-mitigated: challenge) or otherwise yields zero candidates, query the Wayback Machine CDX API for archived PDFs under the domain and download via web.archive.org. Recovers ~70-80% of the otherwise-lost ~17% of orgs. Tagged discovered_via='wayback' for traceability."
-    status: committed
+    status: integrated
     priority: high
     files:
       spec: locard/specs/0022-wayback-cdx-fallback.md
