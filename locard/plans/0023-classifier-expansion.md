@@ -15,6 +15,7 @@
 | `lavandula/reports/classify.py` | MODIFY | +80, -5 | 2 |
 | `lavandula/reports/db_writer.py` | MODIFY | +25, -5 | 3 |
 | `lavandula/reports/async_crawler.py` | MODIFY | +15, -5 | 4 |
+| `lavandula/reports/async_db_writer.py` | MODIFY | +5, -0 | 4 |
 | `lavandula/reports/crawler.py` | MODIFY | +15, -5 | 4 |
 | `lavandula/reports/tools/classify_null.py` | MODIFY | +30, -10 | 5 |
 | `lavandula/migrations/rds/007_classifier_expansion.sql` | NEW | ~60 | 6 |
@@ -222,10 +223,10 @@ material_type = CASE
     THEN EXCLUDED.material_type
   ELSE {_SCHEMA}.reports.material_type
 END,
--- (same pattern for material_group, event_type)
+-- (same CASE pattern for material_group, event_type, AND reasoning)
 ```
 
-The classification columns are gated by the same confidence comparison, ensuring they move as a unit (AC22).
+All **six** classification columns move as a unit under the same confidence gate: `classification`, `classification_confidence`, `material_type`, `material_group`, `event_type`, `reasoning`. The `reasoning` column already exists (Spec 0004) and must be included in the atomic update set per AC22.
 
 No new tests needed here — the existing upsert tests cover the pattern, and AC36 (integration test for mismatched pairing) tests the full write path.
 
@@ -274,7 +275,8 @@ Update `lavandula/reports/tools/classify_null.py`:
 4. Add `--backfill-material-type` mode:
    - Different SQL query: `material_type IS NULL AND first_page_text IS NOT NULL AND classification IS NOT NULL`
    - Same classify + write logic (writes all 6 columns)
-   - Mutually exclusive with the default null-classification mode
+   - Mutually exclusive with the default null-classification mode (argparse `add_mutually_exclusive_group`)
+   - Rate limiting: reuses the existing `--max-workers` ThreadPoolExecutor pattern (AC27). Default 4 workers, same as retry-null mode. Budget ledger integration preserved.
 
 The `_write_result` function becomes:
 
@@ -407,24 +409,32 @@ END $after$;
 COMMIT;
 ```
 
+**CHECK constraint generation workflow:**
+
+1. The builder runs `validate_taxonomy_check.py --generate` which reads `collateral_taxonomy.yaml` and outputs the sorted SQL literal lists for `reports_mt_chk`, `reports_mg_chk`, and `reports_et_chk`.
+2. The builder pastes the generated lists into `007_classifier_expansion.sql`.
+3. The builder runs `validate_taxonomy_check.py --validate` which re-reads both files and confirms bidirectional match (AC28).
+4. The drift tests (`test_drift.py`) also run this validation as part of the test suite, catching any future YAML edits that aren't reflected in the migration.
+
 **Validation script** (`validate_taxonomy_check.py`):
-- Reads `collateral_taxonomy.yaml`
-- Reads `007_classifier_expansion.sql`
-- Parses the CHECK constraint IN lists
-- Asserts: every YAML material_type ID is in SQL, and vice versa
-- Same for event_types and groups
+- `--generate` mode: reads YAML, prints sorted SQL IN-list literals to stdout
+- `--validate` mode: reads YAML + migration SQL, compares bidirectionally
 - Exit code 0 on match, 1 on drift with diff output
+- Supports reading from stdin for CI pipeline integration
 
-## Phase 7: Integration Test
+## Phase 7: Integration Tests
 
-**ACs**: AC31, AC36, AC38
+**ACs**: AC20, AC21, AC31, AC36, AC38
 
-One integration test file that exercises the full path:
+Integration test file exercising the full path through both crawler paths:
 
 - `test_classify_annual_report_e2e` — mock classifier returns `annual_report`, verify all 6 columns in DB (AC31)
 - `test_mismatched_group_rejected` — application validator catches `annual_report` + `auction` pairing (AC36)
 - `test_reports_public_includes_v2_collateral` — insert a `sponsor_prospectus` row, verify it appears in view (AC38)
 - `test_reports_public_includes_legacy_row` — insert a legacy row (material_type=NULL, classification='annual'), verify it appears in view (AC38)
+- `test_async_crawler_passes_v2_fields` — mock async crawler classify path, verify `UpsertReportRequest` includes material_type/material_group/event_type (AC20)
+- `test_sync_crawler_passes_v2_fields` — same for sync crawler path (AC21)
+- `test_v2_error_preserves_retry_path` — when v2 validation fails (unknown material_type), result has classification=None and error set, matching AC16.2 retry semantics (AC19)
 
 ## Dependency Order
 
@@ -448,19 +458,38 @@ Phases 1+3 can be built in parallel. Phase 2 follows Phase 1. Phases 4+5 follow 
 | Classifier v2 unit tests | ~11 | 2 |
 | Drift tests | ~4 | 2 |
 | classify_null v2 tests | ~4 | 5 |
-| Integration tests | ~4 | 7 |
-| **Total** | **~37** | |
+| Integration tests | ~7 | 7 |
+| **Total** | **~40** | |
 
 All tests use mocked classifier responses (no real API calls). The drift tests read the real YAML and migration SQL files.
 
 ## Rollout Order
 
-1. Merge code (Phases 1-5, 7)
-2. Apply Migration 007 to RDS
-3. Restart crawler — new PDFs get v2 classification
-4. Run `--backfill-material-type` to reclassify existing rows
-5. Run `--retry-null-classifications` to classify any remaining NULL rows with v2
+**Migration 007 MUST be applied before the new code runs against RDS.** The new code writes `material_type`/`material_group`/`event_type` columns that don't exist until the migration runs. The runtime guard (AC19) handles the case where the LLM returns an unknown type, but it cannot handle missing columns.
+
+1. **Apply Migration 007 to RDS** — adds columns, CHECK constraints, indexes, and view update. Safe to apply while the old code is still running (new columns are nullable, old code ignores them).
+2. **Merge and deploy code** (Phases 1-5, 7) — new code writes v2 columns. Old rows unaffected.
+3. **Restart crawler** — new PDFs get v2 classification from the start.
+4. **Run `--backfill-material-type`** — reclassify existing v1-classified rows with v2 schema.
+5. **Run `--retry-null-classifications`** — classify remaining NULL rows with v2 schema.
+
+## Implementation Notes
+
+**V2 error handling must preserve AC16.2 retry semantics.** When `_validate_tool_input_v2` raises `ClassifierError` (unknown material_type, unknown event_type, confidence out of range), `classify_first_page_v2` with `raise_on_error=False` must return a `ClassificationResult` with `classification=None` and `error` set — exactly as v1 does today. This ensures the existing retry-null pipeline picks up these rows on the next `--retry-null-classifications` run. The runtime guard (AC19) is implemented via this path, not by silently dropping the row.
 
 ## Consultation Log
 
-*Pending — will be populated after expert review.*
+### Round 1: Plan Review (2026-04-26)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+6 findings, all addressed in v2:
+
+1. **Phase 3 missing `reasoning` in atomic update** — Fixed: explicitly listed all six columns (classification, classification_confidence, material_type, material_group, event_type, reasoning) in the atomic update set.
+2. **`async_db_writer.py` missing from file inventory** — Added to inventory table (Phase 4).
+3. **Phase 5 missing explicit rate limiting for backfill** — Added: backfill reuses `--max-workers` ThreadPoolExecutor, default 4 workers, budget ledger preserved (AC27).
+4. **Rollout order: code before migration is unsafe** — Reversed: migration 007 applies FIRST (safe with old code running), then code deploys. Explicit note that migration must precede code deployment.
+5. **Phase 6 missing CHECK constraint generation workflow** — Added: `--generate` mode produces SQL literals from YAML, `--validate` mode confirms bidirectional match. Builder workflow: generate → paste → validate.
+6. **Phase 7 integration tests too narrow** — Added 3 more tests: async crawler v2 field passing (AC20), sync crawler parity (AC21), v2 error preserving retry path (AC19).
+
+**Gemini** — Skipped (quota exhausted in spec review rounds).
