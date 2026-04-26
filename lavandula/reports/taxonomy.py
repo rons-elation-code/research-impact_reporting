@@ -2,17 +2,50 @@
 
 The taxonomy YAML is the single source of truth for crawler keyword lists,
 signal weights, and tier assignments. Uses yaml.safe_load — never yaml.load.
+
+Classifier integration (Spec 0023): also provides the classifier prompt
+section builder, legacy mapping, and validator used by the v2 classifier.
 """
 from __future__ import annotations
 
+import logging
 import re
+import warnings
 from pathlib import Path
 from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+_log = logging.getLogger(__name__)
+
 _REGEX_META = set(".*+?[](|)\\^$")
+
+_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+_ALLOWED_GROUPS = frozenset({
+    "reports", "campaign", "invitations", "programs_journals", "auction",
+    "appeals", "sponsorship", "major_gifts", "planned_giving", "stewardship",
+    "periodic", "membership", "day_of_event", "peer_to_peer",
+    "program_services", "sector_specific", "other",
+})
+
+_MAX_DESCRIPTION_LEN = 200
+
+_MATERIAL_TYPE_TO_LEGACY = {
+    "annual_report": "annual",
+    "impact_report": "impact",
+    "year_in_review": "annual",
+    "financial_report": "annual",
+    "community_benefit_report": "annual",
+    "donor_impact_report": "impact",
+    "endowed_fund_report": "impact",
+    "not_relevant": "not_a_report",
+}
+
+
+class TaxonomyLoadError(RuntimeError):
+    """Raised when collateral_taxonomy.yaml fails validation."""
 
 
 class Thresholds(BaseModel):
@@ -196,14 +229,87 @@ class Taxonomy(BaseModel):
     def signal_weights(self) -> SignalWeights:
         return self.raw.signal_weights
 
+    @property
+    def material_type_ids(self) -> frozenset[str]:
+        return frozenset(mt.id for mt in self.raw.material_types)
+
+    @property
+    def event_type_ids(self) -> frozenset[str]:
+        return frozenset(et.id for et in self.raw.event_types)
+
+    @property
+    def groups(self) -> frozenset[str]:
+        return frozenset(mt.group for mt in self.raw.material_types)
+
+    @property
+    def material_types_by_id(self) -> dict[str, MaterialType]:
+        return {mt.id: mt for mt in self.raw.material_types}
+
+    def is_valid_material_type(self, mt: str) -> bool:
+        return mt in self.material_type_ids
+
+    def is_valid_event_type(self, et: str | None) -> bool:
+        if et is None:
+            return True
+        return et in self.event_type_ids
+
+    def derive_group(self, material_type_id: str) -> str:
+        by_id = self.material_types_by_id
+        if material_type_id not in by_id:
+            raise KeyError(f"unknown material_type: {material_type_id!r}")
+        return by_id[material_type_id].group
+
+    def material_type_to_legacy(self, material_type_id: str) -> str:
+        return _MATERIAL_TYPE_TO_LEGACY.get(material_type_id, "other")
+
+
+def _validate_classifier_constraints(raw: TaxonomyRaw) -> None:
+    """Extra validation for classifier use (AC8, AC9)."""
+    for mt in raw.material_types:
+        if not _ID_RE.match(mt.id):
+            raise TaxonomyLoadError(
+                f"material_type id {mt.id!r} does not match {_ID_RE.pattern}"
+            )
+        if mt.group not in _ALLOWED_GROUPS:
+            raise TaxonomyLoadError(
+                f"material_type {mt.id!r} has unknown group {mt.group!r}; "
+                f"allowed: {sorted(_ALLOWED_GROUPS)}"
+            )
+        desc = mt.description or ""
+        if "<untrusted_document>" in desc or "</untrusted_document>" in desc:
+            raise TaxonomyLoadError(
+                f"material_type {mt.id!r} description contains "
+                f"<untrusted_document> tag — forbidden for prompt safety"
+            )
+    for et in raw.event_types:
+        if not _ID_RE.match(et.id):
+            raise TaxonomyLoadError(
+                f"event_type id {et.id!r} does not match {_ID_RE.pattern}"
+            )
+    if len(raw.material_types) > 100:
+        warnings.warn(
+            f"taxonomy has {len(raw.material_types)} material_types "
+            f"(>100) — classifier prompt may be too large",
+            stacklevel=3,
+        )
+
 
 def load_taxonomy(path: Path) -> Taxonomy:
-    """Load, validate, and derive runtime view. Uses yaml.safe_load."""
-    with path.open() as f:
-        data = yaml.safe_load(f)
+    """Load, validate, and derive runtime view. Raises TaxonomyLoadError."""
+    try:
+        with path.open() as f:
+            data = yaml.safe_load(f)
+    except FileNotFoundError:
+        raise TaxonomyLoadError(
+            f"taxonomy YAML not found: {path}"
+        ) from None
     if data is None:
-        raise ValueError("taxonomy YAML is empty")
-    raw = TaxonomyRaw.model_validate(data)
+        raise TaxonomyLoadError("taxonomy YAML is empty")
+    try:
+        raw = TaxonomyRaw.model_validate(data)
+    except Exception as exc:
+        raise TaxonomyLoadError(f"taxonomy validation failed: {exc}") from exc
+    _validate_classifier_constraints(raw)
     return _build_runtime_view(raw)
 
 
@@ -259,3 +365,54 @@ def current() -> Taxonomy:
 def bind(t: Taxonomy) -> None:
     global _current
     _current = t
+
+
+def _default_taxonomy_path() -> Path:
+    return Path(__file__).parent.parent / "docs" / "collateral_taxonomy.yaml"
+
+
+def get_taxonomy() -> Taxonomy:
+    """Return cached taxonomy, loading on first call."""
+    if _current is None:
+        bind(load_taxonomy(_default_taxonomy_path()))
+    return _current
+
+
+def ensure_loaded() -> None:
+    """Eagerly load taxonomy; raises TaxonomyLoadError on failure."""
+    get_taxonomy()
+
+
+def build_taxonomy_prompt_section(taxonomy: Taxonomy) -> str:
+    """Build the material-type reference for the classifier prompt.
+
+    Deterministic ordering: sorted by (group, id). Descriptions truncated
+    to _MAX_DESCRIPTION_LEN chars.
+    """
+    sorted_mts = sorted(
+        taxonomy.raw.material_types,
+        key=lambda mt: (mt.group, mt.id),
+    )
+    lines: list[str] = []
+    for mt in sorted_mts:
+        desc = (mt.description or "").strip()[:_MAX_DESCRIPTION_LEN]
+        lines.append(f"- {mt.id} (group: {mt.group}): {desc}")
+    lines.append("")
+    lines.append(
+        "Event types (set event_type if the document is for a specific event):"
+    )
+    for et in sorted(taxonomy.raw.event_types, key=lambda e: e.id):
+        lines.append(f"- {et.id}")
+    section = "\n".join(lines)
+    if len(section) > 5000:
+        warnings.warn(
+            f"taxonomy prompt section is {len(section)} chars "
+            f"(>5000) — may be too large to inline",
+            stacklevel=2,
+        )
+    return section
+
+
+def material_type_to_legacy(material_type_id: str) -> str:
+    """Map expanded material_type to legacy 5-value classification."""
+    return _MATERIAL_TYPE_TO_LEGACY.get(material_type_id, "other")
