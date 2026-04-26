@@ -33,8 +33,13 @@ from lavandula.reports.classifier_clients import (
 )
 from lavandula.reports.classify import (
     ClassifierError,
-    classify_first_page,
+    classify_first_page_v2,
     estimate_cents,
+)
+from lavandula.reports.taxonomy import (
+    build_taxonomy_prompt_section,
+    ensure_loaded as _ensure_taxonomy,
+    get_taxonomy,
 )
 
 
@@ -149,8 +154,10 @@ def _classify_one(sha: str, text_input: str, *, engine: Engine,
             return sha, ("budget_error", exc)
 
     try:
-        result = classify_first_page(
-            text_input, client=client, raise_on_error=False
+        taxonomy = get_taxonomy()
+        result = classify_first_page_v2(
+            text_input, client=client, taxonomy=taxonomy,
+            raise_on_error=False,
         )
     except ClassifierError as exc:
         _release_reservation(engine, reservation_id)
@@ -194,8 +201,16 @@ def main() -> int:
     ap.add_argument("--sha-prefix", type=str, default=None,
                     help="Only classify rows whose sha256 starts with this "
                     "prefix (for testing).")
-    ap.add_argument("--re-classify", action="store_true",
-                    help="Re-classify rows that already have a classification.")
+    mode_group = ap.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--re-classify", action="store_true",
+        help="Re-classify rows that already have a classification.",
+    )
+    mode_group.add_argument(
+        "--backfill-material-type", action="store_true",
+        help="Reclassify v1-classified rows with v2 schema "
+             "(rows where material_type IS NULL AND classification IS NOT NULL).",
+    )
     ap.add_argument("--max-workers", type=int, default=4,
                     help="Parallel classifier threads (TICK-002). Default 4.")
     args = ap.parse_args()
@@ -203,17 +218,28 @@ def main() -> int:
     if args.max_workers < 1 or args.max_workers > 32:
         ap.error("--max-workers must be between 1 and 32")
 
+    _ensure_taxonomy()
+
     engine = make_app_engine()
     assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
 
-    null_filter = "" if args.re_classify else " AND classification IS NULL "
+    if args.backfill_material_type:
+        row_filter = (
+            " AND material_type IS NULL "
+            " AND classification IS NOT NULL "
+        )
+    elif args.re_classify:
+        row_filter = ""
+    else:
+        row_filter = " AND classification IS NULL "
+
     sql = (
         "SELECT content_sha256, first_page_text, "
         "       source_org_ein, source_url_redacted "
         "  FROM lava_impact.reports "
         " WHERE first_page_text IS NOT NULL "
         "   AND first_page_text <> '' "
-        f"{null_filter}"
+        f"{row_filter}"
     )
     params: dict = {}
     if args.sha_prefix:
@@ -227,7 +253,8 @@ def main() -> int:
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
     total = len(rows)
-    print(f"classifying {total} rows (max_workers={args.max_workers})")
+    mode = "backfill-material-type" if args.backfill_material_type else "classify-null"
+    print(f"[{mode}] classifying {total} rows (max_workers={args.max_workers})")
     if total == 0:
         return 0
 
@@ -279,6 +306,10 @@ def main() -> int:
                     "UPDATE lava_impact.reports SET "
                     "  classification = :class, "
                     "  classification_confidence = :conf, "
+                    "  material_type = :mt, "
+                    "  material_group = :mg, "
+                    "  event_type = :et, "
+                    "  reasoning = :reasoning, "
                     "  classifier_model = :model, "
                     "  classifier_version = :cver, "
                     "  classified_at = :ts "
@@ -287,8 +318,12 @@ def main() -> int:
                 {
                     "class": result.classification,
                     "conf": result.classification_confidence,
+                    "mt": result.material_type,
+                    "mg": result.material_group,
+                    "et": result.event_type,
+                    "reasoning": result.reasoning,
                     "model": _effective_classifier_model(sample_client, result),
-                    "cver": 1,
+                    "cver": 2,
                     "ts": iso_now(),
                     "sha": sha,
                 },
@@ -365,8 +400,9 @@ def main() -> int:
                                     str(result.error)[:200])
                 continue
 
-            classification_counts[result.classification] = (
-                classification_counts.get(result.classification, 0) + 1
+            label = result.material_type or result.classification or "?"
+            classification_counts[label] = (
+                classification_counts.get(label, 0) + 1
             )
             if (result.classification_confidence is not None
                     and result.classification_confidence < 0.8):
@@ -375,10 +411,10 @@ def main() -> int:
             _write_result(sha, result)
             ok += 1
             _log_classify_event(sha, ein, url_redacted, "ok",
-                                f"{result.classification}:"
+                                f"{label}:"
                                 f"{result.classification_confidence:.2f}")
             print(f"  [{i:>3}/{total}] sha={sha[:10]}  "
-                  f"{result.classification:<12} "
+                  f"{label:<30} "
                   f"conf={result.classification_confidence:.2f}")
         if halt_event.is_set():
             executor.shutdown(wait=False, cancel_futures=True)
