@@ -397,17 +397,17 @@ projects:
 ```
 
   - id: "0023"
-    title: "Classifier Expansion — Full Taxonomy Labels"
-    summary: "Expand the binary report classifier (annual/impact/hybrid/other/not_a_report) to output the full collateral taxonomy from collateral_taxonomy.yaml: material_type (~70 types across 15 groups), event_type (16 event categories), and group. New DB columns + CHECK constraint migration. Classifier prompt reads taxonomy YAML so PM-level taxonomy edits flow through without code changes. Backfill existing classified rows."
-    status: conceived
+    title: "Classifier Expansion - Full Taxonomy Labels"
+    summary: "Expand the binary report classifier to output the full collateral taxonomy from collateral_taxonomy.yaml with material_type, event_type, and group columns. Classifier prompt reads taxonomy YAML so PM-level edits flow through without code changes. Backfill existing classified rows."
+    status: specified
     priority: high
     files:
       spec: locard/specs/0023-classifier-expansion.md
-      plan: null
+      plan: locard/plans/0023-classifier-expansion.md
       review: null
     dependencies: ["0020", "0004"]
     tags: [classifier, taxonomy, data-quality, national-scale]
-    notes: "Motivated by 0020 taxonomy expansion — the crawler knows ~70 material types but the classifier only outputs 5 labels. First-page text from pypdf is sufficient for type classification; Docling full-text (0014) not required. Should ship before national-scale crawl so every PDF gets rich labels from day one."
+    notes: "Motivated by 0020 taxonomy expansion. The crawler knows 70+ material types but the classifier only outputs 5 labels. First-page text from pypdf is sufficient for type classification. Should ship before national-scale crawl so every PDF gets rich labels from day one."
 
 ## Next Available Number
 
