@@ -42,7 +42,9 @@ from . import db_writer
 from . import fetch_pdf
 from . import archive as _archive
 from . import budget
-from .taxonomy import ensure_loaded as _ensure_taxonomy
+from .classify import classify_first_page_v2, ClassifierError
+from .classifier_clients import select_classifier_client
+from .taxonomy import ensure_loaded as _ensure_taxonomy, get_taxonomy
 from .candidate_filter import Candidate
 from .discover import per_org_candidates
 from .http_client import ReportsHTTPClient, tls_self_test, TLSMisconfigured
@@ -270,6 +272,7 @@ def process_org(
     archive_dir: Path | None = None,
     run_id: str = "",
     client: ReportsHTTPClient | None = None,
+    classifier_client: object | None = None,
 ) -> OrgResult:
     """Process a single org end-to-end.
 
@@ -430,6 +433,20 @@ def process_org(
             pdf_creation_date=str(creation_date) if creation_date else None,
         )
 
+        cls_result = None
+        if first_page_text and classifier_client is not None:
+            try:
+                cls_result = classify_first_page_v2(
+                    first_page_text,
+                    client=classifier_client,
+                    taxonomy=get_taxonomy(),
+                    raise_on_error=False,
+                )
+                if cls_result.classification is None:
+                    cls_result = None
+            except Exception:  # noqa: BLE001
+                cls_result = None
+
         db_writer.upsert_report(
             engine,
             content_sha256=outcome.content_sha256,
@@ -450,13 +467,17 @@ def process_org(
             pdf_has_launch=flags["pdf_has_launch"],
             pdf_has_embedded=flags["pdf_has_embedded"],
             pdf_has_uri_actions=flags["pdf_has_uri_actions"],
-            classification=None,
-            classification_confidence=None,
-            classifier_model=config.CLASSIFIER_MODEL,
-            classifier_version=config.CLASSIFIER_VERSION,
+            classification=cls_result.classification if cls_result else None,
+            classification_confidence=cls_result.classification_confidence if cls_result else None,
+            classifier_model=cls_result.classifier_model if cls_result else config.CLASSIFIER_MODEL,
+            classifier_version=2 if cls_result else config.CLASSIFIER_VERSION,
             report_year=report_year,
             report_year_source=report_year_source,
             extractor_version=config.EXTRACTOR_VERSION,
+            material_type=cls_result.material_type if cls_result else None,
+            material_group=cls_result.material_group if cls_result else None,
+            event_type=cls_result.event_type if cls_result else None,
+            reasoning=cls_result.reasoning if cls_result else None,
         )
 
         _write_fetch(
@@ -711,6 +732,13 @@ def run(argv: list[str] | None = None) -> int:
                 )
                 return crawl_stats.exit_code
             else:
+                try:
+                    cls_client = select_classifier_client()
+                    logger.info("classifier client: %s", type(cls_client).__name__)
+                except Exception:  # noqa: BLE001
+                    cls_client = None
+                    logger.warning("no classifier client — inline classification disabled")
+
                 succeeded = 0
                 failed = 0
                 try:
@@ -726,6 +754,7 @@ def run(argv: list[str] | None = None) -> int:
                                 engine=engine,
                                 archive=archive,
                                 run_id=run_id,
+                                classifier_client=cls_client,
                             ): (ein, website)
                             for ein, website in pending
                         }

@@ -49,14 +49,7 @@ def test_all_groups_in_check_constraint():
 
 
 def test_all_material_types_have_legacy_mapping():
-    """Every material_type in the YAML must map to a valid legacy value.
-
-    The default mapping is 'other', which is always valid. This test
-    catches the case where a new type should map to 'annual' or 'impact'
-    but is missing from _MATERIAL_TYPE_TO_LEGACY (defaults to 'other'
-    silently). To pass, every report-group type must have an explicit
-    entry in the mapping.
-    """
+    """Every material_type in the YAML must map to a valid legacy value."""
     t = load_taxonomy(YAML_PATH)
     valid_legacy = {"annual", "impact", "hybrid", "other", "not_a_report"}
     for mt in t.raw.material_types:
@@ -65,6 +58,25 @@ def test_all_material_types_have_legacy_mapping():
             f"material_type {mt.id!r} maps to {legacy!r} — "
             f"not a valid legacy classification"
         )
+
+
+def test_report_group_types_have_explicit_legacy_mapping():
+    """Material types in the 'reports' group must have explicit entries
+    in _MATERIAL_TYPE_TO_LEGACY — defaulting to 'other' would be wrong
+    for types that semantically are annual/impact reports."""
+    t = load_taxonomy(YAML_PATH)
+    report_group_types = [
+        mt for mt in t.raw.material_types if mt.group == "reports"
+    ]
+    assert report_group_types, "no material_types in 'reports' group?"
+    missing = []
+    for mt in report_group_types:
+        if mt.id not in _MATERIAL_TYPE_TO_LEGACY:
+            missing.append(mt.id)
+    assert not missing, (
+        f"report-group material_type(s) missing explicit legacy mapping "
+        f"(would silently default to 'other'): {missing}"
+    )
 
 
 # --- AC33: adding a type to YAML without updating CHECK fails ---

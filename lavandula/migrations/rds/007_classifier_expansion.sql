@@ -19,6 +19,7 @@ END $before$;
 ALTER TABLE lava_impact.reports ADD COLUMN IF NOT EXISTS material_type TEXT;
 ALTER TABLE lava_impact.reports ADD COLUMN IF NOT EXISTS material_group TEXT;
 ALTER TABLE lava_impact.reports ADD COLUMN IF NOT EXISTS event_type TEXT;
+ALTER TABLE lava_impact.reports ADD COLUMN IF NOT EXISTS reasoning TEXT;
 
 -- CHECK constraints (derived from collateral_taxonomy.yaml)
 ALTER TABLE lava_impact.reports ADD CONSTRAINT reports_mt_chk
