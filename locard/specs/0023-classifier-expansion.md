@@ -46,13 +46,13 @@ The `load_taxonomy()` function validates the YAML at load time:
 - Each material_type must have `id` (string, `^[a-z][a-z0-9_]*$`), `group` (string), `description` (string, max 200 chars)
 - Each event_type must have `id` (string, same regex)
 - No duplicate IDs within material_types or event_types
-- Every material_type's `group` must appear in at least one other material_type with the same group (catches typos)
+- Every material_type's `group` must be in the allowed-group set (the same set used for the `reports_mg_chk` CHECK constraint). Singleton groups are allowed — the allowed-group registry is the typo-catcher, not peer-count.
 - Descriptions are stripped of leading/trailing whitespace and truncated to 200 chars before prompt assembly (defense against prompt-shaped content)
 - On validation failure: raise `TaxonomyLoadError` with a specific message. The crawler fails fast at startup rather than silently misclassifying.
 
 ### Taxonomy as Classifier Input
 
-The validated taxonomy is transformed into a structured prompt section listing each material type with its ID, group, and description.
+The validated taxonomy is transformed into a structured prompt section listing each material type with its ID, group, and description. The prompt is built with **deterministic ordering**: material types sorted by `(group, id)`, event types sorted by `id`. This ensures YAML reordering does not change prompt content or model behavior. A guardrail warns at startup if the taxonomy exceeds 100 material types or the prompt section exceeds 5,000 characters (indicates the taxonomy may be too large to inline).
 
 ```python
 def build_taxonomy_prompt_section(taxonomy: dict) -> str:
@@ -224,6 +224,8 @@ CREATE OR REPLACE VIEW reports_public AS
 
 **`report_year` for non-report collateral:** `report_year` and `report_year_source` remain nullable. For non-report material types (event invitations, sponsorship prospectuses, etc.), `report_year` will typically be NULL because the year-extraction heuristics in the crawler target report-style naming patterns. Downstream consumers of `reports_public` MUST tolerate NULL `report_year` — this is already the case (many PDFs have NULL year today), but the proportion of NULLs will increase as non-report collateral enters the view. No schema change is needed; this is a documentation clarification.
 
+**Consumer impact note:** After this spec ships, `reports_public` is no longer "reports only" — it becomes a curated collateral view. Consumers that need only annual/impact reports must add `WHERE material_group = 'reports'` (v2 rows) or `WHERE classification IN ('annual','impact','hybrid')` (legacy rows). The view name is NOT changed (that belongs to the future DB rename spec).
+
 ### Classifier Prompt Structure
 
 The system prompt is expanded to reference the full taxonomy:
@@ -266,7 +268,14 @@ A CLI command `--backfill-material-type` processes existing classified rows:
 5. Rate-limited to respect classifier API quotas (configurable, default: same rate as crawler classifier).
 6. Resumable: skips rows where `material_type IS NOT NULL`.
 
-**Distinction from `classify_null`:** The existing `--retry-null-classifications` (AC16.2) targets rows where `classification IS NULL` — i.e., rows where the classifier failed or was never called. Backfill targets rows where `classification IS NOT NULL` but `material_type IS NULL` — i.e., rows classified under v1 that need the expanded labels. After backfill completes, `classify_null` also uses the v2 schema, writing all six columns (`material_type`, `material_group`, `event_type`, `classification`, `classification_confidence`, `reasoning`).
+**Normative population boundaries (backfill vs. retry-null):**
+
+| Command | Row selection | Purpose |
+|---------|--------------|---------|
+| `--backfill-material-type` | `material_type IS NULL AND first_page_text IS NOT NULL AND classification IS NOT NULL` | Reclassify v1-success rows with v2 schema |
+| `--retry-null-classifications` | `classification IS NULL AND first_page_text IS NOT NULL` | Retry prior-failure rows (API error, timeout, etc.) |
+
+Both commands write all six classification columns using the v2 schema. To fully migrate historical data, operators must run both. The two populations are mutually exclusive by construction (`classification IS NOT NULL` vs. `classification IS NULL`).
 
 ### Integration with Async Crawler
 
@@ -288,6 +297,14 @@ The existing `upsert_report` ON CONFLICT logic uses "higher confidence wins" for
 - If the incoming row has higher `classification_confidence` than the existing row, ALL classification columns are updated together (`material_type`, `material_group`, `event_type`, `classification`, `classification_confidence`, `reasoning`). They move as a unit — never mix v2 columns from one call with legacy columns from another.
 - If the existing row has higher confidence, none of the classification columns are updated.
 - `material_group` is always derived, never compared independently.
+
+### Confidence Provenance
+
+`classification_confidence` is heuristic and model-self-reported. It is not calibrated and may not be comparable across v1 and v2 classifier prompts. After backfill, all rows will have v2-era confidence values. Migration 007 does NOT add a classifier version column — the presence of `material_type IS NOT NULL` implies v2. If future analysis needs to distinguish v1 vs v2 confidence, filter on `material_type IS [NOT] NULL`.
+
+### Reasoning Column
+
+The `reasoning` column already exists on the `reports` table (TEXT, nullable, added by Spec 0004). The v2 tool schema continues to require it (max 300 chars in prompt guidance). The validator truncates reasoning to 500 chars (same as v1). No migration needed for this column. Backfill persists the v2 reasoning, overwriting any v1 reasoning.
 
 ### Cost Estimate
 
@@ -339,7 +356,7 @@ If step 3 is skipped, the runtime guard (see Integration section) catches the mi
 
 ### Taxonomy Loading & Validation
 - **AC7**: `load_taxonomy()` loads YAML once at startup, caches in module-level variable. No hot-reload.
-- **AC8**: `load_taxonomy()` validates: required keys, ID regex `^[a-z][a-z0-9_]*$`, no duplicate IDs, group existence, description max 200 chars.
+- **AC8**: `load_taxonomy()` validates: required keys, ID regex `^[a-z][a-z0-9_]*$`, no duplicate IDs, group validated against the CHECK constraint's allowed-group list (not peer-count), description max 200 chars.
 - **AC9**: `load_taxonomy()` rejects descriptions containing `<untrusted_document>` or `</untrusted_document>`.
 - **AC10**: `load_taxonomy()` raises `TaxonomyLoadError` on validation failure (fail-fast at startup).
 - **AC11**: Missing taxonomy file raises `TaxonomyLoadError` with clear message including expected path.
@@ -349,10 +366,10 @@ If step 3 is skipped, the runtime guard (see Integration section) catches the mi
 - **AC13**: `build_messages_v2()` includes the full taxonomy reference generated from the loaded taxonomy, with descriptions truncated to 200 chars.
 - **AC14**: `_validate_tool_input_v2()` rejects `material_type` values not in the loaded taxonomy.
 - **AC15**: `_validate_tool_input_v2()` rejects `event_type` values not in the loaded taxonomy (null is accepted).
-- **AC16**: `material_group` is derived from `material_type` via taxonomy lookup, never from the LLM response.
+- **AC16**: `material_group` is derived from `material_type` via taxonomy lookup, never from the LLM response. The application-level validator (`_validate_tool_input_v2`) enforces the `(material_type, material_group)` pairing — the DB CHECK constraint validates membership only, so the application is the enforcement point for pairing correctness.
 - **AC17**: Legacy `classification` is derived via `material_type_to_legacy()` mapping.
 - **AC18**: Existing `<untrusted_document>` tag wrapping and instruction boundary defense are preserved.
-- **AC19**: Runtime guard: if LLM returns a `material_type` not in the loaded taxonomy, treat as classifier error (classification=NULL, AC16.2 retry path).
+- **AC19**: Runtime guard: if LLM returns a `material_type` OR `event_type` not in the loaded taxonomy, treat the entire classification as an error (write no classification fields, set classification=NULL). The AC16.2 retry path handles these. This covers both YAML↔CHECK drift scenarios (new type in YAML but not in migration).
 
 ### Integration
 - **AC20**: Async crawler populates `material_type`, `material_group`, `event_type` on every new classification.
@@ -375,6 +392,10 @@ If step 3 is skipped, the runtime guard (see Integration section) catches the mi
 - **AC33**: Drift test: adding a material_type to the taxonomy YAML without updating the CHECK constraint validation list causes a test failure.
 - **AC34**: Test that event-shaped material types (e.g., `event_invitation`) can have `event_type=null` (not required).
 - **AC35**: Test that `load_taxonomy()` rejects malformed YAML (missing keys, duplicate IDs, bad ID format, description too long).
+- **AC36**: Integration test: application validator rejects mismatched `(material_type, material_group)` pair (e.g., `annual_report` with `material_group='auction'`).
+- **AC37**: Test that unknown `event_type` from LLM triggers the runtime guard (entire classification treated as error).
+- **AC38**: Test that `reports_public` view includes v2 non-report collateral (e.g., `material_type='sponsor_prospectus'`) AND still includes legacy-only rows (`material_type IS NULL, classification='annual'`).
+- **AC39**: Prompt ordering is deterministic: `build_taxonomy_prompt_section()` sorts by `(group, id)` and produces identical output regardless of YAML item order.
 
 ### Traps to Avoid
 
@@ -406,4 +427,21 @@ If step 3 is skipped, the runtime guard (see Integration section) catches the mi
 9. **`report_year` nullability** — Added documentation: non-report collateral will have higher NULL rate for report_year. Downstream consumers must already tolerate NULLs.
 10. **Taxonomy reload semantics** — Added: loaded once at startup, no hot-reload. Consistent with 0020 behavior.
 
-**Gemini** — Quota exhausted (429), review not completed. Will retry in red-team round.
+**Gemini** — Quota exhausted (429), review not completed.
+
+### Round 2: Red-Team Security Review (2026-04-26)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+8 findings (2 HIGH, 4 MEDIUM, 2 LOW), all addressed in v3:
+
+1. **HIGH: `material_group` pairing not enforced at DB level** — Added: application-level validator is the enforcement point (AC16 updated). DB CHECK validates membership only. Added AC36 (integration test for mismatch rejection).
+2. **HIGH: `event_type` runtime guard missing** — Extended AC19: runtime guard now covers BOTH `material_type` AND `event_type`. If either is unknown, entire classification is treated as error. Added AC37.
+3. **MEDIUM: backfill population criteria inconsistent** — Added normative table defining exact ownership boundary between `--backfill-material-type` and `--retry-null-classifications`. Populations are mutually exclusive by construction.
+4. **MEDIUM: prompt ordering not deterministic** — Added: `build_taxonomy_prompt_section()` sorts by `(group, id)`. Guardrail warns if taxonomy exceeds 100 types or prompt section exceeds 5K chars. Added AC39.
+5. **MEDIUM: singleton group validation too strict** — Changed: groups validated against allowed-group registry (same as CHECK constraint), not peer-count. Singleton groups are allowed.
+6. **MEDIUM: confidence provenance underdefined** — Added Confidence Provenance section: confidence is heuristic, not calibrated across prompt versions. `material_type IS NOT NULL` implies v2.
+7. **LOW: reasoning column not specified end-to-end** — Added Reasoning Column section: column already exists (Spec 0004), no migration needed, validator truncates to 500 chars, backfill overwrites v1 reasoning.
+8. **LOW: consumer impact of view broadening** — Added consumer impact note: consumers needing reports-only must filter by `material_group='reports'` or legacy classification. View name unchanged (deferred to DB rename spec).
+
+**Gemini** — Quota exhausted (429), review not completed.
