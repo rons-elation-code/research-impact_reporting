@@ -11,12 +11,6 @@ log = logging.getLogger(__name__)
 
 from lavandula.nonprofits.eval.schema import EvalRow, load_dataset, write_template
 from lavandula.nonprofits.tools.resolve_websites import pick_best
-from lavandula.nonprofits.resolver_clients import (
-    OrgIdentity,
-    ResolverResult,
-    make_resolver_http_client,
-    select_resolver_client,
-)
 
 
 @dataclass
@@ -77,59 +71,15 @@ def _decide_unimplemented(row: EvalRow, *, label: str) -> tuple[str | None, floa
     raise NotImplementedError(f"strategy {label!r} is not yet implemented")
 
 
-def _row_to_org_identity(row: EvalRow) -> OrgIdentity:
-    return OrgIdentity(
-        ein=row.ein,
-        name=row.name,
-        address=row.raw.get("address") or None,
-        city=row.city or "",
-        state=row.state or "",
-        zipcode=row.raw.get("zipcode") or None,
-        ntee_code=row.raw.get("ntee_code") or None,
-    )
-
-
-def _resolver_result_to_decision(
-    result: ResolverResult,
-) -> tuple[str | None, float | None, str, str]:
-    url = result.url
-    confidence = result.confidence if result.confidence > 0 else None
-    if result.status == "resolved":
-        outcome = "accept"
-    elif result.status == "ambiguous":
-        outcome = "ambiguous"
-    else:
-        outcome = "reject"
-    return url, confidence, outcome, result.reason
-
-
-def _decide_llm(
-    row: EvalRow,
-    *,
-    llm_client=None,
-    llm_http_client=None,
-) -> tuple[str | None, float | None, str, str]:
-    client = llm_client if llm_client is not None else select_resolver_client()
-    http_client = llm_http_client if llm_http_client is not None else make_resolver_http_client()
-    result = client.resolve(_row_to_org_identity(row), http_client)
-    return _resolver_result_to_decision(result)
-
-
 def evaluate_row(
     row: EvalRow,
     *,
     strategy: str,
-    llm_client=None,
-    llm_http_client=None,
 ) -> EvalDecision:
     if strategy == "current":
         predicted_url, confidence, predicted_outcome, reason = _decide_current(row)
     elif strategy == "heuristic":
         predicted_url, confidence, predicted_outcome, reason = _decide_heuristic(row)
-    elif strategy == "llm":
-        predicted_url, confidence, predicted_outcome, reason = _decide_llm(
-            row, llm_client=llm_client, llm_http_client=llm_http_client
-        )
     elif strategy == "packet-cheap":
         predicted_url, confidence, predicted_outcome, reason = _decide_unimplemented(
             row, label="packet-cheap"
@@ -199,7 +149,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-jsonl", type=Path, help="Write per-row decisions here.")
     parser.add_argument(
         "--strategy",
-        choices=("current", "heuristic", "llm", "packet-cheap", "two-cheap-consensus", "frontier-arbitrated"),
+        choices=("current", "heuristic", "packet-cheap", "two-cheap-consensus", "frontier-arbitrated"),
         default="heuristic",
     )
     parser.add_argument(
@@ -223,18 +173,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--input-csv and --output-jsonl are required unless --write-template is used")
 
     rows = load_dataset(args.input_csv)
-    llm_client = None
-    llm_http_client = None
-    if args.strategy == "llm":
-        llm_client = select_resolver_client()
-        llm_http_client = make_resolver_http_client()
     decisions = [
-        evaluate_row(
-            row,
-            strategy=args.strategy,
-            llm_client=llm_client,
-            llm_http_client=llm_http_client,
-        )
+        evaluate_row(row, strategy=args.strategy)
         for row in rows
     ]
 

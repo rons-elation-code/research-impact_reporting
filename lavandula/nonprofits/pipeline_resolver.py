@@ -32,10 +32,12 @@ from .brave_search import (
     search_and_filter,
 )
 from .gemma_client import (
-    RESOLVER_METHOD,
-    GemmaClient,
-    GemmaParseError,
+    LLMClient,
+    LLMParseError,
 )
+
+GemmaClient = LLMClient
+GemmaParseError = LLMParseError
 from .url_normalize import normalize_url
 
 log = logging.getLogger(__name__)
@@ -64,8 +66,9 @@ class PipelineQueue:
     def get(self, timeout: float = 60.0) -> dict | None:
         return self._q.get(timeout=timeout)
 
-    def done(self) -> None:
-        self._q.put(_SENTINEL)
+    def done(self, n: int = 1) -> None:
+        for _ in range(n):
+            self._q.put(_SENTINEL)
 
     @property
     def qsize(self) -> int:
@@ -184,6 +187,7 @@ def _write_unresolved(
     ein: str,
     reason: str,
     candidates_json: str | None = None,
+    method: str = "",
 ) -> None:
     """Write an unresolved result directly to the DB."""
     try:
@@ -198,7 +202,7 @@ def _write_unresolved(
                     "WHERE ein=:ein"
                 ),
                 {
-                    "method": RESOLVER_METHOD,
+                    "method": method,
                     "reason": reason,
                     "cand": candidates_json,
                     "ein": ein,
@@ -216,6 +220,7 @@ def _write_result(
     status: str,
     confidence: float,
     reason: str,
+    method: str = "",
     candidates_json: str | None = None,
 ) -> None:
     """Write a resolver result to the DB (AC8)."""
@@ -233,7 +238,7 @@ def _write_result(
                 "url": url,
                 "status": status,
                 "conf": confidence,
-                "method": RESOLVER_METHOD,
+                "method": method,
                 "reason": reason,
                 "cand": candidates_json,
                 "ein": ein,
@@ -254,6 +259,8 @@ def producer(
     search_parallelism: int = 4,
     fetch_parallelism: int = 8,
     shutdown: ShutdownFlag,
+    method: str = "",
+    n_consumers: int = 1,
 ) -> ProducerStats:
     """Run Stages 1-4 for each org, filling the queue with candidate packets."""
     stats = ProducerStats()
@@ -283,12 +290,12 @@ def producer(
                 stats.brave_errors += 1
                 reason_match = re.search(r"(\d{3})", str(exc))
                 status_code = reason_match.group(1) if reason_match else "unknown"
-                _write_unresolved(engine, ein, f"brave_error:{status_code}")
+                _write_unresolved(engine, ein, f"brave_error:{status_code}", method=method)
                 continue
 
             if not raw_results:
                 stats.skipped_no_results += 1
-                _write_unresolved(engine, ein, "no_search_results")
+                _write_unresolved(engine, ein, "no_search_results", method=method)
                 continue
 
             # Stage 2: Filter blocklist
@@ -307,7 +314,7 @@ def producer(
 
             if not results:
                 stats.skipped_all_blocked += 1
-                _write_unresolved(engine, ein, "all_blocked")
+                _write_unresolved(engine, ein, "all_blocked", method=method)
                 continue
 
             # Stage 3: Fetch candidates in parallel
@@ -330,6 +337,7 @@ def producer(
                 _write_unresolved(
                     engine, ein, "no_live_candidates",
                     json.dumps(candidates),
+                    method=method,
                 )
                 continue
 
@@ -348,7 +356,7 @@ def producer(
             stats.enqueued += 1
 
     finally:
-        pq.done()
+        pq.done(n_consumers)
 
     return stats
 
@@ -359,12 +367,17 @@ def producer(
 def consumer(
     *,
     pq: PipelineQueue,
-    gemma: GemmaClient,
+    gemma: LLMClient,
     engine: Engine,
     shutdown: ShutdownFlag,
+    counter: list[int] | None = None,
+    counter_lock: threading.Lock | None = None,
 ) -> ConsumerStats:
-    """Pull candidate packets from the queue, disambiguate via Gemma, write results."""
+    """Pull candidate packets from the queue, disambiguate via LLM, write results."""
     stats = ConsumerStats()
+    method = gemma.method
+    _counter = counter if counter is not None else [0]
+    _lock = counter_lock if counter_lock is not None else threading.Lock()
 
     while True:
         try:
@@ -428,6 +441,7 @@ def consumer(
                     engine, ein,
                     url=None, status="unresolved",
                     confidence=0.0, reason="inference_unavailable",
+                    method=method,
                     candidates_json=candidates_json,
                 )
             except Exception:
@@ -442,6 +456,7 @@ def consumer(
                     engine, ein,
                     url=None, status="unresolved",
                     confidence=0.0, reason="llm_parse_error",
+                    method=method,
                     candidates_json=candidates_json,
                 )
             except Exception:
@@ -451,6 +466,8 @@ def consumer(
 
         # Stage 6: Apply thresholds and write
         url = result.get("url")
+        if isinstance(url, str) and url.lower() in ("null", "none", ""):
+            url = None
         confidence = float(result.get("confidence", 0))
         reasoning = str(result.get("reasoning", ""))[:300]
 
@@ -482,11 +499,20 @@ def consumer(
                 engine, ein,
                 url=url, status=status,
                 confidence=confidence, reason=reasoning,
+                method=method,
                 candidates_json=candidates_json,
             )
         except Exception:
             stats.errors += 1
             log.exception("DB write error for ein=%s", ein)
+
+        with _lock:
+            _counter[0] += 1
+            n = _counter[0]
+        log.info(
+            "[%d] ein=%s status=%s conf=%.2f url=%s",
+            n, ein, status, confidence, url or "(none)",
+        )
 
     return stats
 

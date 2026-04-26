@@ -388,76 +388,6 @@ def resolve_batch(
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
-def _resolve_llm_batch(
-    engine: Engine,
-    *,
-    max_orgs: int,
-    dry_run: bool,
-) -> None:
-    """Resolve orgs using the LLM-backed resolver (Spec 0005)."""
-    from lavandula.nonprofits.resolver_clients import (
-        OrgIdentity,
-        make_resolver_http_client,
-        select_resolver_client,
-    )
-
-    client = select_resolver_client()
-    http_client = make_resolver_http_client()
-
-    sql = (
-        "SELECT ein, name, address, city, state, zipcode, ntee_code "
-        f"FROM {_SCHEMA}.nonprofits_seed WHERE website_url IS NULL"
-    )
-    params: dict = {}
-    if max_orgs > 0:
-        sql += " LIMIT :lim"
-        params["lim"] = max_orgs
-    with engine.connect() as conn:
-        rows = conn.execute(text(sql), params).fetchall()
-
-    for ein, name, address, city, state, zipcode, ntee_code in rows:
-        org = OrgIdentity(
-            ein=ein,
-            name=name or "",
-            address=address or None,
-            city=city or "",
-            state=state or "",
-            zipcode=zipcode or None,
-            ntee_code=ntee_code or None,
-        )
-        result = client.resolve(org, http_client)
-        log.info(
-            "org ein=%s name=%s status=%s url=%s",
-            ein,
-            (name or "")[:40],
-            result.status,
-            result.url,
-        )
-        if dry_run:
-            print(f"DRY-RUN ein={ein} status={result.status} url={result.url}")
-        else:
-            with engine.begin() as wconn:
-                wconn.execute(
-                    text(
-                        f"UPDATE {_SCHEMA}.nonprofits_seed SET "
-                        "  website_url=:url, resolver_status=:status, "
-                        "  resolver_confidence=:conf, resolver_method=:method, "
-                        "  resolver_reason=:reason, "
-                        "  website_candidates_json=:cand "
-                        "WHERE ein=:ein"
-                    ),
-                    {
-                        "url": result.url,
-                        "status": result.status,
-                        "conf": result.confidence,
-                        "method": result.method,
-                        "reason": result.reason,
-                        "cand": json.dumps(result.candidates),
-                        "ein": ein,
-                    },
-                )
-
-
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="resolve_websites",
@@ -482,19 +412,6 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print chosen URLs without writing to DB",
     )
-    p.add_argument(
-        "--resolver",
-        choices=("heuristic", "llm"),
-        default="heuristic",
-        help="Resolution strategy: 'heuristic' (default) or 'llm' (DeepSeek/Qwen)",
-    )
-    p.add_argument(
-        "--max-orgs",
-        type=int,
-        default=50,
-        metavar="N",
-        help="Max orgs to process per run when --resolver llm (default: 50)",
-    )
     return p
 
 
@@ -513,27 +430,20 @@ def main(argv: list[str] | None = None) -> None:
     engine = make_app_engine()
     assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
     try:
-        if args.resolver == "llm":
-            _resolve_llm_batch(
-                engine,
-                max_orgs=args.max_orgs,
-                dry_run=args.dry_run,
-            )
-        else:
-            try:
-                key = get_brave_api_key()
-            except SecretUnavailable as exc:
-                log.error("brave API key unavailable: %s", exc)
-                sys.exit(1)
-            min_sleep = 1.0 / args.qps
-            resolve_batch(
-                engine,
-                key=key,
-                limit=args.limit,
-                min_sleep=min_sleep,
-                dry_run=args.dry_run,
-                log=log,
-            )
+        try:
+            key = get_brave_api_key()
+        except SecretUnavailable as exc:
+            log.error("brave API key unavailable: %s", exc)
+            sys.exit(1)
+        min_sleep = 1.0 / args.qps
+        resolve_batch(
+            engine,
+            key=key,
+            limit=args.limit,
+            min_sleep=min_sleep,
+            dry_run=args.dry_run,
+            log=log,
+        )
     finally:
         engine.dispose()
 

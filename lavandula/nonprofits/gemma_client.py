@@ -1,8 +1,10 @@
-"""OpenAI-compatible client for Gemma 4 E4B (Spec 0018).
+"""OpenAI-compatible LLM client for pipeline resolver + classifier.
+
+Works with any OpenAI-compatible endpoint: local Ollama, DeepSeek API,
+or any other provider. Pass `api_key` for authenticated endpoints.
 
 Two functions: disambiguate (URL resolution) and classify (report
-classification). Uses the Ollama OpenAI-compatible endpoint directly
-via requests. Handles prompt construction, tool schemas, response
+classification). Handles prompt construction, tool schemas, response
 parsing, and prompt injection mitigations.
 """
 from __future__ import annotations
@@ -16,7 +18,12 @@ import requests
 
 log = logging.getLogger(__name__)
 
-RESOLVER_METHOD = "gemma4-e4b-v1"
+RESOLVER_METHOD = "gemma4-e4b-v1"  # default; overridden by resolver_method()
+
+
+def resolver_method(model: str) -> str:
+    """Derive a method stamp from the model tag."""
+    return model.replace(":", "-").replace("/", "-") + "-v1"
 
 RESOLUTION_TOOL = {
     "type": "function",
@@ -111,19 +118,40 @@ _DELIMITER_OPEN = "<untrusted_web_content_"
 _DELIMITER_CLOSE = "</untrusted_web_content_"
 
 
-class GemmaParseError(RuntimeError):
-    """Raised when Gemma returns a response that cannot be parsed."""
+class LLMParseError(RuntimeError):
+    """Raised when the LLM returns a response that cannot be parsed."""
 
 
-class GemmaClient:
-    """OpenAI-compatible client for Gemma 4 E4B via Ollama."""
+GemmaParseError = LLMParseError
 
-    def __init__(self, *, base_url: str, model: str) -> None:
+
+class LLMClient:
+    """OpenAI-compatible client for any provider (Ollama, DeepSeek, etc.)."""
+
+    def __init__(
+        self, *, base_url: str, model: str, api_key: str | None = None
+    ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
+        self._api_key = api_key
+        self._method = resolver_method(model)
+
+    @property
+    def method(self) -> str:
+        return self._method
 
     def health_check(self) -> bool:
-        """Check if the Ollama endpoint is reachable."""
+        """Check if the endpoint is reachable."""
+        if self._api_key:
+            try:
+                resp = requests.get(
+                    f"{self._base_url}/models",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    timeout=10,
+                )
+                return resp.status_code == 200
+            except Exception:
+                return False
         api_base = re.sub(r"/v1/?$", "", self._base_url)
         try:
             resp = requests.get(f"{api_base}/api/tags", timeout=5)
@@ -135,7 +163,7 @@ class GemmaClient:
         """Single LLM call for URL disambiguation.
 
         Returns dict with keys: url, confidence, reasoning.
-        Raises GemmaParseError if response is malformed.
+        Raises LLMParseError if response is malformed.
         """
         user_content = self._build_disambiguation_user(org, candidates)
         messages = [
@@ -150,7 +178,7 @@ class GemmaClient:
         """Single LLM call for report classification.
 
         Returns dict with keys: classification, confidence, reasoning.
-        Raises GemmaParseError if response is malformed.
+        Raises LLMParseError if response is malformed.
         """
         user_content = (
             "Classify the nonprofit PDF below into one of the five categories "
@@ -217,6 +245,15 @@ class GemmaClient:
         return "\n\n".join(parts)
 
     def _build_request_body(self, messages: list[dict], tool: dict) -> dict:
+        if self._api_key:
+            return {
+                "model": self._model,
+                "messages": messages,
+                "tools": [tool],
+                "tool_choice": "auto",
+                "max_tokens": 2000,
+                "temperature": 0,
+            }
         return {
             "model": self._model,
             "messages": messages,
@@ -232,10 +269,14 @@ class GemmaClient:
 
     def _call(self, body: dict) -> dict:
         url = f"{self._base_url}/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
         try:
             resp = requests.post(
                 url,
                 json=body,
+                headers=headers,
                 timeout=120,
             )
             resp.raise_for_status()
@@ -243,15 +284,15 @@ class GemmaClient:
         except requests.ConnectionError:
             raise
         except requests.RequestException as exc:
-            raise GemmaParseError(
-                f"Gemma API error: {type(exc).__name__}"
+            raise LLMParseError(
+                f"LLM API error: {type(exc).__name__}"
             ) from exc
 
     def _parse_tool_response(self, data: dict, expected_name: str) -> dict:
-        """Parse a tool-use response from the Ollama OpenAI-compatible API."""
+        """Parse a tool-use response from an OpenAI-compatible API."""
         choices = data.get("choices") or []
         if not choices:
-            raise GemmaParseError("No choices in response")
+            raise LLMParseError("No choices in response")
 
         message = choices[0].get("message") or {}
 
@@ -265,12 +306,12 @@ class GemmaClient:
                         try:
                             return json.loads(args)
                         except json.JSONDecodeError as exc:
-                            raise GemmaParseError(
+                            raise LLMParseError(
                                 f"Invalid JSON in tool arguments: {exc}"
                             ) from exc
                     if isinstance(args, dict):
                         return args
-            raise GemmaParseError(
+            raise LLMParseError(
                 f"No {expected_name} tool call in response"
             )
 
@@ -291,9 +332,12 @@ class GemmaClient:
         except json.JSONDecodeError:
             pass
 
-        raise GemmaParseError(
+        raise LLMParseError(
             f"Could not parse response as {expected_name} tool call"
         )
+
+
+GemmaClient = LLMClient
 
 
 __all__ = [
@@ -301,6 +345,9 @@ __all__ = [
     "CLASSIFIER_TOOL_V1",
     "GemmaClient",
     "GemmaParseError",
+    "LLMClient",
+    "LLMParseError",
     "RESOLUTION_TOOL",
     "RESOLVER_METHOD",
+    "resolver_method",
 ]

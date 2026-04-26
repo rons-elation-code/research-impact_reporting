@@ -14,7 +14,10 @@ import requests as http_requests
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from .gemma_client import RESOLVER_METHOD, GemmaClient, GemmaParseError
+from .gemma_client import LLMClient, LLMParseError
+
+GemmaClient = LLMClient
+GemmaParseError = LLMParseError
 from .pipeline_resolver import PipelineQueue, ShutdownFlag
 
 log = logging.getLogger(__name__)
@@ -45,8 +48,9 @@ def classify_producer(
     pq: PipelineQueue,
     limit: int | None = None,
     shutdown: ShutdownFlag,
+    method: str = "",
 ) -> ClassifyProducerStats:
-    """Keyset pagination over reports with NULL classification, enqueue for Gemma."""
+    """Keyset pagination over reports with NULL classification, enqueue for LLM."""
     stats = ClassifyProducerStats()
     last_cursor = ""
     remaining = limit
@@ -92,7 +96,7 @@ def classify_producer(
                                     "classifier_model=:model "
                                     "WHERE content_sha256=:csha"
                                 ),
-                                {"model": RESOLVER_METHOD, "csha": content_sha256},
+                                {"model": method, "csha": content_sha256},
                             )
                     except Exception:
                         log.exception("DB write error for content_sha256=%s", content_sha256)
@@ -120,12 +124,13 @@ def classify_producer(
 def classify_consumer(
     *,
     pq: PipelineQueue,
-    gemma: GemmaClient,
+    gemma: LLMClient,
     engine: Engine,
     shutdown: ShutdownFlag,
 ) -> ClassifyConsumerStats:
-    """Pull report packets from the queue, classify via Gemma, write results."""
+    """Pull report packets from the queue, classify via LLM, write results."""
     stats = ClassifyConsumerStats()
+    method = gemma.method
 
     while True:
         try:
@@ -177,7 +182,7 @@ def classify_consumer(
                             "classifier_model=:model "
                             "WHERE content_sha256=:csha"
                         ),
-                        {"model": RESOLVER_METHOD, "csha": content_sha256},
+                        {"model": method, "csha": content_sha256},
                     )
             except Exception:
                 log.exception("DB write error for content_sha256=%s", content_sha256)
@@ -199,7 +204,7 @@ def classify_consumer(
                     {
                         "cls": classification,
                         "conf": confidence,
-                        "model": RESOLVER_METHOD,
+                        "model": method,
                         "csha": content_sha256,
                     },
                 )
