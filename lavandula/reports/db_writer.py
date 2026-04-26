@@ -157,7 +157,9 @@ INSERT INTO {_SCHEMA}.reports (
   pdf_has_uri_actions, classification, classification_confidence,
   classifier_model, classifier_version, classified_at,
   report_year, report_year_source, extractor_version,
-  original_source_url_redacted
+  original_source_url_redacted,
+  material_type, material_group, event_type,
+  reasoning
 ) VALUES (
   :sha, :url, :ref, :chain, :ein, :disc, :platform,
   :attr, :archived, :ct,
@@ -167,7 +169,9 @@ INSERT INTO {_SCHEMA}.reports (
   :uri, :class, :conf,
   :model, :cver, :cat,
   :year, :ysrc, :ext,
-  :orig_url
+  :orig_url,
+  :mt, :mg, :et,
+  :reasoning
 )
 ON CONFLICT (content_sha256) DO UPDATE SET
   source_url_redacted = CASE
@@ -282,6 +286,46 @@ ON CONFLICT (content_sha256) DO UPDATE SET
       THEN EXCLUDED.classified_at
     ELSE {_SCHEMA}.reports.classified_at
   END,
+  material_type = CASE
+    WHEN EXCLUDED.classification IS NULL
+      THEN {_SCHEMA}.reports.material_type
+    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN EXCLUDED.material_type
+    WHEN COALESCE(EXCLUDED.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+      THEN EXCLUDED.material_type
+    ELSE {_SCHEMA}.reports.material_type
+  END,
+  material_group = CASE
+    WHEN EXCLUDED.classification IS NULL
+      THEN {_SCHEMA}.reports.material_group
+    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN EXCLUDED.material_group
+    WHEN COALESCE(EXCLUDED.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+      THEN EXCLUDED.material_group
+    ELSE {_SCHEMA}.reports.material_group
+  END,
+  event_type = CASE
+    WHEN EXCLUDED.classification IS NULL
+      THEN {_SCHEMA}.reports.event_type
+    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN EXCLUDED.event_type
+    WHEN COALESCE(EXCLUDED.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+      THEN EXCLUDED.event_type
+    ELSE {_SCHEMA}.reports.event_type
+  END,
+  reasoning = CASE
+    WHEN EXCLUDED.classification IS NULL
+      THEN {_SCHEMA}.reports.reasoning
+    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN EXCLUDED.reasoning
+    WHEN COALESCE(EXCLUDED.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+      THEN EXCLUDED.reasoning
+    ELSE {_SCHEMA}.reports.reasoning
+  END,
   report_year        = COALESCE({_SCHEMA}.reports.report_year,
                                 EXCLUDED.report_year),
   report_year_source = COALESCE({_SCHEMA}.reports.report_year_source,
@@ -325,6 +369,10 @@ def upsert_report(
     report_year_source: str | None,
     extractor_version: int,
     original_source_url_redacted: str | None = None,
+    material_type: str | None = None,
+    material_group: str | None = None,
+    event_type: str | None = None,
+    reasoning: str | None = None,
 ) -> None:
     """Atomic upsert into `lava_impact.reports` with attribution merge.
 
@@ -375,6 +423,10 @@ def upsert_report(
                 "ysrc": report_year_source,
                 "ext": extractor_version,
                 "orig_url": original_source_url_redacted,
+                "mt": material_type,
+                "mg": material_group,
+                "et": event_type,
+                "reasoning": reasoning,
             },
         )
 
