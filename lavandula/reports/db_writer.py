@@ -19,12 +19,24 @@ from __future__ import annotations
 
 import datetime
 import json
+import subprocess
 from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 _SCHEMA = "lava_impact"
+
+
+def git_short_sha() -> str | None:
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        )
+        return r.stdout.strip() or None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _now_iso() -> str:
@@ -79,6 +91,11 @@ def upsert_crawled_org(
     status: str = "ok",
     notes: str | None = None,
     max_transient_attempts: int | None = None,
+    run_id: str | None = None,
+    discovery_ms: int | None = None,
+    download_ms: int | None = None,
+    classify_ms: int | None = None,
+    total_ms: int | None = None,
 ) -> None:
     """Track that this EIN has been processed.
 
@@ -106,9 +123,11 @@ def upsert_crawled_org(
                 f"INSERT INTO {_SCHEMA}.crawled_orgs "
                 "(ein, first_crawled_at, last_crawled_at, "
                 " candidate_count, fetched_count, confirmed_report_count, "
-                " status, attempts, notes) "
+                " status, attempts, notes, "
+                " run_id, discovery_ms, download_ms, classify_ms, total_ms) "
                 "VALUES (:ein, :first, :last, :cand, :fetched, :confirmed, "
-                "        :status, 1, :notes) "
+                "        :status, 1, :notes, "
+                "        :run_id, :discovery_ms, :download_ms, :classify_ms, :total_ms) "
                 "ON CONFLICT (ein) DO UPDATE SET "
                 "  last_crawled_at = EXCLUDED.last_crawled_at, "
                 "  candidate_count = EXCLUDED.candidate_count, "
@@ -130,7 +149,17 @@ def upsert_crawled_org(
                 "         THEN 'permanent_skip' "
                 "    ELSE EXCLUDED.status "
                 "  END, "
-                "  notes = EXCLUDED.notes"
+                "  notes = EXCLUDED.notes, "
+                "  run_id = COALESCE(EXCLUDED.run_id, "
+                f"    {_SCHEMA}.crawled_orgs.run_id), "
+                "  discovery_ms = COALESCE(EXCLUDED.discovery_ms, "
+                f"    {_SCHEMA}.crawled_orgs.discovery_ms), "
+                "  download_ms = COALESCE(EXCLUDED.download_ms, "
+                f"    {_SCHEMA}.crawled_orgs.download_ms), "
+                "  classify_ms = COALESCE(EXCLUDED.classify_ms, "
+                f"    {_SCHEMA}.crawled_orgs.classify_ms), "
+                "  total_ms = COALESCE(EXCLUDED.total_ms, "
+                f"    {_SCHEMA}.crawled_orgs.total_ms)"
             ),
             {
                 "ein": ein,
@@ -142,6 +171,11 @@ def upsert_crawled_org(
                 "status": status,
                 "notes": notes,
                 "max_attempts": max_transient_attempts,
+                "run_id": run_id,
+                "discovery_ms": discovery_ms,
+                "download_ms": download_ms,
+                "classify_ms": classify_ms,
+                "total_ms": total_ms,
             },
         )
 
@@ -159,7 +193,8 @@ INSERT INTO {_SCHEMA}.reports (
   report_year, report_year_source, extractor_version,
   original_source_url_redacted,
   material_type, material_group, event_type,
-  reasoning
+  reasoning,
+  run_id
 ) VALUES (
   :sha, :url, :ref, :chain, :ein, :disc, :platform,
   :attr, :archived, :ct,
@@ -171,7 +206,8 @@ INSERT INTO {_SCHEMA}.reports (
   :year, :ysrc, :ext,
   :orig_url,
   :mt, :mg, :et,
-  :reasoning
+  :reasoning,
+  :run_id
 )
 ON CONFLICT (content_sha256) DO UPDATE SET
   source_url_redacted = CASE
@@ -335,7 +371,8 @@ ON CONFLICT (content_sha256) DO UPDATE SET
   original_source_url_redacted = COALESCE(
     EXCLUDED.original_source_url_redacted,
     {_SCHEMA}.reports.original_source_url_redacted
-  )
+  ),
+  run_id = COALESCE(EXCLUDED.run_id, {_SCHEMA}.reports.run_id)
 """)
 
 
@@ -373,6 +410,7 @@ def upsert_report(
     material_group: str | None = None,
     event_type: str | None = None,
     reasoning: str | None = None,
+    run_id: str | None = None,
 ) -> None:
     """Atomic upsert into `lava_impact.reports` with attribution merge.
 
@@ -427,6 +465,7 @@ def upsert_report(
                 "mg": material_group,
                 "et": event_type,
                 "reasoning": reasoning,
+                "run_id": run_id,
             },
         )
 
@@ -456,9 +495,58 @@ def record_deletion(
         )
 
 
+def create_run(
+    engine: Engine,
+    *,
+    run_id: str,
+    mode: str,
+    code_version: str | None = None,
+    config_json: str | None = None,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"INSERT INTO {_SCHEMA}.runs "
+                "(run_id, mode, code_version, started_at, config_json) "
+                "VALUES (:run_id, :mode, :code_version, :started_at, :config_json)"
+            ),
+            {
+                "run_id": run_id,
+                "mode": mode,
+                "code_version": code_version,
+                "started_at": _now_iso(),
+                "config_json": config_json,
+            },
+        )
+
+
+def finish_run(
+    engine: Engine,
+    *,
+    run_id: str,
+    stats_json: str | None = None,
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"UPDATE {_SCHEMA}.runs "
+                "SET finished_at = :finished_at, stats = :stats "
+                "WHERE run_id = :run_id"
+            ),
+            {
+                "run_id": run_id,
+                "finished_at": _now_iso(),
+                "stats": stats_json,
+            },
+        )
+
+
 __all__ = [
+    "git_short_sha",
     "record_fetch",
     "upsert_crawled_org",
     "upsert_report",
     "record_deletion",
+    "create_run",
+    "finish_run",
 ]

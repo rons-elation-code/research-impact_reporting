@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import subprocess
 import sys
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy import text
@@ -28,7 +30,8 @@ from lavandula.common.db import (
 )
 from lavandula.reports import budget, config, db_writer
 from lavandula.reports.classifier_clients import (
-    CodexSubscriptionClient,
+    DeepSeekAPIClient,
+    SubscriptionCLIClient,
     select_classifier_client,
 )
 from lavandula.reports.classify import (
@@ -106,8 +109,8 @@ def kill_active_subprocesses() -> int:
 
 
 def _effective_classifier_model(client, result) -> str:
-    if isinstance(client, CodexSubscriptionClient):
-        return f"codex-cli/{client._codex_model or 'default'}"
+    if isinstance(client, (SubscriptionCLIClient, DeepSeekAPIClient)):
+        return f"{client._backend}/{client._cli_model or 'default'}"
     return result.classifier_model
 
 
@@ -124,7 +127,7 @@ def _get_thread_classifier():
     c = getattr(_classifier_local, "client", None)
     if c is None:
         c = _classifier_factory()
-        if isinstance(c, CodexSubscriptionClient):
+        if isinstance(c, SubscriptionCLIClient):
             c._runner = _tracking_subprocess_run
         _classifier_local.client = c
     return c
@@ -253,10 +256,30 @@ def main() -> int:
     with engine.connect() as conn:
         rows = conn.execute(text(sql), params).mappings().all()
     total = len(rows)
+    run_mode = "backfill_material_type" if args.backfill_material_type else "classify_null"
     mode = "backfill-material-type" if args.backfill_material_type else "classify-null"
     print(f"[{mode}] classifying {total} rows (max_workers={args.max_workers})")
     if total == 0:
         return 0
+
+    run_id = uuid.uuid4().hex
+    code_version = db_writer.git_short_sha()
+    try:
+        db_writer.create_run(
+            engine,
+            run_id=run_id,
+            mode=run_mode,
+            code_version=code_version,
+            config_json=json.dumps({
+                "max_workers": args.max_workers,
+                "row_count": total,
+                "re_classify": args.re_classify,
+                "backfill_material_type": args.backfill_material_type,
+            }),
+        )
+        print(f"run_id: {run_id} (code: {code_version})")
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: failed to create runs row: {exc}", file=sys.stderr)
 
     global _classifier_factory
     _classifier_factory = select_classifier_client
@@ -271,15 +294,19 @@ def main() -> int:
     low_confidence = 0
     classification_counts: dict[str, int] = {}
 
-    budget_enabled = True
-    try:
-        reclaimed = budget.reconcile_stale_reservations(engine)
-        if reclaimed:
-            print(f"reconciled {reclaimed} stale classifier preflight reservation(s)")
-    except Exception as exc:  # noqa: BLE001
-        budget_enabled = False
-        print(f"note: budget ledger unavailable ({exc}); skipping accounting",
-              file=sys.stderr)
+    _BUDGET_EXEMPT_BACKENDS = {"deepseek"}
+    budget_enabled = sample_client._backend not in _BUDGET_EXEMPT_BACKENDS
+    if not budget_enabled:
+        print(f"budget: exempt (backend={sample_client._backend})")
+    else:
+        try:
+            reclaimed = budget.reconcile_stale_reservations(engine)
+            if reclaimed:
+                print(f"reconciled {reclaimed} stale classifier preflight reservation(s)")
+        except Exception as exc:  # noqa: BLE001
+            budget_enabled = False
+            print(f"note: budget ledger unavailable ({exc}); skipping accounting",
+                  file=sys.stderr)
 
     halt_event = threading.Event()
     halt_message = {"text": ""}
@@ -312,7 +339,8 @@ def main() -> int:
                     "  reasoning = :reasoning, "
                     "  classifier_model = :model, "
                     "  classifier_version = :cver, "
-                    "  classified_at = :ts "
+                    "  classified_at = :ts, "
+                    "  run_id = COALESCE(:run_id, run_id) "
                     "WHERE content_sha256 = :sha"
                 ),
                 {
@@ -326,6 +354,7 @@ def main() -> int:
                     "cver": 2,
                     "ts": iso_now(),
                     "sha": sha,
+                    "run_id": run_id,
                 },
             )
 
@@ -455,6 +484,21 @@ def main() -> int:
     print("\n=== by classification ===")
     for cls in sorted(classification_counts.keys()):
         print(f"  {cls:<14} {classification_counts[cls]}")
+
+    try:
+        db_writer.finish_run(
+            engine,
+            run_id=run_id,
+            stats_json=json.dumps({
+                "classified_ok": ok,
+                "errors": errs,
+                "schema_errors": unknown_enum,
+                "low_confidence": low_confidence,
+                "by_classification": classification_counts,
+            }),
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: failed to finish runs row: {exc}", file=sys.stderr)
 
     engine.dispose()
     if halt_event.is_set():

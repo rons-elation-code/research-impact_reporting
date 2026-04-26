@@ -16,10 +16,13 @@ import argparse
 import dataclasses
 import datetime
 import fcntl
+import json
 import logging
 import os
 import re
+import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Iterable
@@ -340,6 +343,8 @@ def process_org(
                 _time.sleep(config.RETRY_BACKOFF_SEC[backoff_idx])
         return (r.body or b""), r.status
 
+    org_t0 = time.monotonic()
+    discovery_t0 = time.monotonic()
     candidates = per_org_candidates(
         seed_url=website,
         seed_etld1=seed_etld1,
@@ -347,8 +352,10 @@ def process_org(
         robots_text=robots_text,
         ein=ein,
     )
+    discovery_ms = int((time.monotonic() - discovery_t0) * 1000)
     result.candidate_count = len(candidates)
 
+    download_t0 = time.monotonic()
     for cand in candidates:
         outcome = fetch_pdf.download(
             cand.url, client, seed_etld1=seed_etld1, validate_structure=True
@@ -478,6 +485,7 @@ def process_org(
             material_group=cls_result.material_group if cls_result else None,
             event_type=cls_result.event_type if cls_result else None,
             reasoning=cls_result.reasoning if cls_result else None,
+            run_id=run_id,
         )
 
         _write_fetch(
@@ -500,12 +508,18 @@ def process_org(
             ),
         )
 
+    download_ms = int((time.monotonic() - download_t0) * 1000)
+    total_ms = int((time.monotonic() - org_t0) * 1000)
     db_writer.upsert_crawled_org(
         engine,
         ein=ein,
         candidate_count=result.candidate_count,
         fetched_count=result.fetched_count,
         confirmed_report_count=result.confirmed_report_count,
+        run_id=run_id,
+        discovery_ms=discovery_ms,
+        download_ms=download_ms,
+        total_ms=total_ms,
     )
     return result
 
@@ -739,6 +753,21 @@ def run(argv: list[str] | None = None) -> int:
                     cls_client = None
                     logger.warning("no classifier client — inline classification disabled")
 
+                code_version = db_writer.git_short_sha()
+                try:
+                    db_writer.create_run(
+                        engine,
+                        run_id=run_id,
+                        mode="sync_crawl",
+                        code_version=code_version,
+                        config_json=json.dumps({
+                            "max_workers": args.max_workers,
+                            "seed_count": len(pending),
+                        }),
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("failed to create runs row for run_id=%s", run_id)
+
                 succeeded = 0
                 failed = 0
                 try:
@@ -771,6 +800,19 @@ def run(argv: list[str] | None = None) -> int:
 
                 logger.info("=== CRAWLER DONE === run_id=%s orgs=%d succeeded=%d failed=%d",
                             run_id, len(pending), succeeded, failed)
+
+                try:
+                    db_writer.finish_run(
+                        engine,
+                        run_id=run_id,
+                        stats_json=json.dumps({
+                            "orgs_succeeded": succeeded,
+                            "orgs_failed": failed,
+                            "orgs_total": len(pending),
+                        }),
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning("failed to finish runs row for run_id=%s", run_id)
         finally:
             engine.dispose()
 

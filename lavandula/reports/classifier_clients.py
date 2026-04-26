@@ -1,30 +1,20 @@
-"""Pluggable classifier backends (TICK-003 on Spec 0004).
+"""Pluggable classifier backends via subscription CLIs.
 
-Exposes `select_classifier_client()` which reads the
-`CLASSIFIER_CLIENT` env var and returns either:
+Exposes `select_classifier_client()` which reads env vars and returns
+a duck-typed client matching the Anthropic SDK's `messages.create()`
+interface.
 
-- `anthropic.Anthropic()` (default; unset env var) — direct API
-  billing against `ANTHROPIC_API_KEY`. Budget ledger is
-  authoritative.
-
-- `CodexSubscriptionClient()` (env var `codex`) — shells out to
-  the `codex` CLI, which consumes the operator's ChatGPT Business
-  subscription quota. Budget ledger still records reservations
-  for accounting continuity but the cap branch is moot (quota is
-  managed by OpenAI; CLI banner surfaces remaining headroom).
-
-The Codex shim fakes the Anthropic SDK's response shape by
-exposing:
+All backends shell out to subscription CLIs (codex, claude, gemini)
+— never API keys. The client fakes the Anthropic SDK response shape:
 
 - `.content`: list with one synthesized `tool_use` block whose
-  `.input` matches the `record_classification` tool schema from
-  `classify.py`.
-- `.usage.input_tokens` / `.usage.output_tokens`: crude heuristic
-  estimates (len_in_bytes / 4) sufficient for the budget-ledger
-  settle call; NOT suitable for billing.
+  `.input` matches the `record_classification` tool schema.
+- `.usage.input_tokens` / `.usage.output_tokens`: crude estimates
+  sufficient for the budget-ledger settle call.
 
-Nothing in `classify.py`, `budget.py`, or the classifier prompt
-is altered by this module.
+Backend selection:
+- `CLASSIFIER_CLIENT` env var: "gemini" (default) | "claude" | "codex"
+- `CLASSIFIER_CLI_MODEL` env var: override the CLI's default model
 """
 from __future__ import annotations
 
@@ -37,27 +27,19 @@ from typing import Any
 from .logging_utils import sanitize
 
 
-class CodexShimError(RuntimeError):
-    """Raised when the `codex` subprocess fails, times out, or
-    returns output that can't be parsed into the tool schema.
+class ClassifierCLIError(RuntimeError):
+    """Raised when a subscription CLI subprocess fails, times out,
+    or returns output that can't be parsed into the tool schema."""
 
-    Callers using `classify_first_page(raise_on_error=False)`
-    convert this into `classification=None` with the existing
-    AC16.2 fallback path. Per-call retry is NOT attempted here —
-    the `--retry-null-classifications` batch flow is the right
-    layer for that.
-    """
+
+# Keep old name as alias — existing code imports this
+CodexShimError = ClassifierCLIError
 
 
 # --- response shape duck-types ------------------------------------------
 
 
 class _ToolUseBlock:
-    """Fake Anthropic SDK content block of type='tool_use'.
-
-    `classify.py::_parse_tool_use` reads `.type` and `.input`.
-    """
-
     __slots__ = ("type", "name", "input")
 
     def __init__(self, name: str, inp: dict[str, Any]) -> None:
@@ -75,8 +57,6 @@ class _Usage:
 
 
 class _Response:
-    """Duck-type of Anthropic SDK's messages.create response."""
-
     __slots__ = ("content", "usage", "stop_reason")
 
     def __init__(self, tool_use: _ToolUseBlock, usage: _Usage) -> None:
@@ -85,38 +65,10 @@ class _Response:
         self.stop_reason = "tool_use"
 
 
-# --- Codex shim ---------------------------------------------------------
-
-
-# Allow dependency injection of the subprocess runner so tests can stub
-# it without actually invoking `codex`.
-_Runner = Any  # callable matching subprocess.run signature, roughly
-
-
-def _minimal_env() -> dict[str, str]:
-    """Return a minimal env dict for the `codex` subprocess.
-
-    Forwarded vars: HOME and PATH only. This intentionally does NOT
-    forward ANTHROPIC_API_KEY, OPENAI_API_KEY, AWS_*, or other
-    secrets — they are not needed by `codex` for authentication
-    (it uses its own OAuth token in ~/.codex/) and leaking them
-    into the subprocess image would be an unnecessary exposure.
-    """
-    env = {}
-    for var in ("HOME", "PATH"):
-        val = os.environ.get(var)
-        if val is not None:
-            env[var] = val
-    return env
+# --- helpers ------------------------------------------------------------
 
 
 def _strip_code_fences(text: str) -> str:
-    """Strip leading/trailing ``` or ```json fences if the model
-    wrapped its JSON in a code block despite the prompt.
-
-    Defensive — Codex has a markdown reflex and occasionally adds
-    fences even when told not to.
-    """
     text = text.strip()
     fence_pattern = re.compile(r"^```(?:json|JSON)?\s*\n(.+)\n```\s*$", re.DOTALL)
     m = fence_pattern.match(text)
@@ -126,19 +78,53 @@ def _strip_code_fences(text: str) -> str:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Crude token estimate: roughly 4 chars per token for English text.
-
-    Used only for budget-ledger settlement values. Not billing-grade.
-    """
     if not text:
         return 0
     return max(1, len(text) // 4)
 
 
-class _Messages:
-    """Fake of `anthropic.Anthropic().messages` with .create()."""
+def _minimal_env() -> dict[str, str]:
+    env = {}
+    for var in ("HOME", "PATH"):
+        val = os.environ.get(var)
+        if val is not None:
+            env[var] = val
+    return env
 
-    def __init__(self, parent: "CodexSubscriptionClient") -> None:
+
+# --- CLI backend configs ------------------------------------------------
+
+
+_CLI_CONFIGS: dict[str, dict[str, Any]] = {
+    "codex": {
+        "cli": "codex",
+        "prompt_flag": None,  # uses exec - (stdin)
+        "model_flag": lambda m: ["-c", f"model={m}"],
+        "json_flag": [],
+        "parse_response": lambda raw: raw,  # raw stdout IS the response
+    },
+    "claude": {
+        "cli": "claude",
+        "prompt_flag": "-p",
+        "model_flag": lambda m: ["--model", m],
+        "json_flag": ["--output-format", "json"],
+        "parse_response": lambda raw: json.loads(raw).get("result", raw),
+    },
+    "gemini": {
+        "cli": "gemini",
+        "prompt_flag": "-p",
+        "model_flag": lambda m: ["-m", m],
+        "json_flag": ["-o", "json"],
+        "parse_response": lambda raw: json.loads(raw).get("response", raw),
+    },
+}
+
+
+# --- Generic subscription CLI client -----------------------------------
+
+
+class _Messages:
+    def __init__(self, parent: "SubscriptionCLIClient") -> None:
         self._parent = parent
 
     def create(
@@ -153,12 +139,8 @@ class _Messages:
         tool_choice: dict[str, Any] | None = None,
         **_ignored: Any,
     ) -> _Response:
-        """Re-shape Anthropic-style kwargs into a Codex prompt, run
-        the subprocess, parse the JSON reply, return a fake
-        Anthropic Response object.
-        """
         if not tools:
-            raise CodexShimError("tools list is empty")
+            raise ClassifierCLIError("tools list is empty")
         tool = tools[0]
         schema = tool.get("input_schema") or {}
         tool_name = tool.get("name") or "record_classification"
@@ -167,10 +149,9 @@ class _Messages:
         prompt = self._parent._build_prompt(
             system=system, user=user_content, schema=schema
         )
-        raw_output = self._parent._invoke_codex(prompt)
+        raw_output = self._parent._invoke_cli(prompt)
         payload = self._parent._parse_json(raw_output)
 
-        # Token estimate (crude): prompt in, raw reply out.
         usage = _Usage(
             input_tokens=_estimate_tokens(prompt),
             output_tokens=_estimate_tokens(raw_output),
@@ -179,48 +160,39 @@ class _Messages:
         return _Response(block, usage)
 
 
-class CodexSubscriptionClient:
-    """Duck-type of `anthropic.Anthropic()` for classifier use.
+class SubscriptionCLIClient:
+    """Generic subscription CLI classifier client.
 
-    Parameters
-    ----------
-    timeout_sec:
-        Max subprocess runtime before TimeoutExpired. Default 60s.
-        The classifier prompt is small (first-page text capped at
-        4096 chars) so 60s is generous.
-    cli:
-        Command name for the Codex CLI. Default 'codex'.
-        Override for testing.
-    runner:
-        Optional callable with the `subprocess.run` signature. If
-        provided, used instead of `subprocess.run` — enables
-        deterministic unit tests without shelling out.
+    Works with codex, claude, and gemini CLIs via a config-driven
+    approach. All use subscription-based access — no API keys.
     """
 
     def __init__(
         self,
         *,
+        backend: str = "gemini",
         timeout_sec: float = 60.0,
-        cli: str = "codex",
-        runner: _Runner | None = None,
-        codex_model: str | None = None,
+        cli_model: str | None = None,
+        runner: Any | None = None,
     ) -> None:
+        if backend not in _CLI_CONFIGS:
+            raise ValueError(
+                f"unknown backend {backend!r}; "
+                f"expected one of {sorted(_CLI_CONFIGS)}"
+            )
+        self._backend = backend
+        self._config = _CLI_CONFIGS[backend]
         self._timeout = timeout_sec
-        self._cli = cli
+        self._cli = self._config["cli"]
         self._runner = runner or subprocess.run
-        # Pull codex model from env var or explicit arg; None means
-        # "use codex CLI's configured default" (currently gpt-5.4).
-        self._codex_model = (
-            codex_model
-            or os.environ.get("CLASSIFIER_CODEX_MODEL")
+        self._cli_model = (
+            cli_model
+            or os.environ.get("CLASSIFIER_CLI_MODEL")
             or None
         )
         self.messages = _Messages(self)
 
-    # --- prompt shaping --------------------------------------------------
-
     def _build_prompt(self, *, system: str, user: str, schema: dict[str, Any]) -> str:
-        """Fuse system + user into a single prompt asking for strict JSON."""
         schema_str = json.dumps(schema, indent=2)
         return (
             f"{system}\n\n"
@@ -231,27 +203,28 @@ class CodexSubscriptionClient:
             f"Schema:\n{schema_str}\n"
         )
 
-    # --- subprocess -----------------------------------------------------
-
-    def _invoke_codex(self, prompt: str) -> str:
-        """Shell out to `codex exec` with prompt on stdin, return stdout.
-
-        Uses `codex exec -` so the prompt is piped via stdin (avoids
-        argv size limits on long prompts). This is the non-interactive
-        subcommand per `codex --help`.
-
-        If `codex_model` is set (via constructor arg or
-        CLASSIFIER_CODEX_MODEL env var), forwards it as
-        `-c model=<name>` per the codex CLI's config-override flag.
-        """
+    def _invoke_cli(self, prompt: str) -> str:
         cmd = [self._cli]
-        if self._codex_model:
-            cmd += ["-c", f"model={self._codex_model}"]
-        cmd += ["exec", "-"]
+
+        if self._cli_model:
+            model_flag_fn = self._config["model_flag"]
+            cmd += model_flag_fn(self._cli_model)
+
+        prompt_flag = self._config["prompt_flag"]
+        if prompt_flag is None:
+            # codex-style: exec - (stdin pipe)
+            cmd += ["exec", "-"]
+            use_stdin = True
+        else:
+            cmd += [prompt_flag, prompt]
+            use_stdin = False
+
+        cmd += self._config["json_flag"]
+
         try:
             result = self._runner(
                 cmd,
-                input=prompt,
+                input=prompt if use_stdin else None,
                 capture_output=True,
                 timeout=self._timeout,
                 text=True,
@@ -259,46 +232,167 @@ class CodexSubscriptionClient:
                 env=_minimal_env(),
             )
         except subprocess.TimeoutExpired as exc:
-            raise CodexShimError(
-                f"codex CLI timed out after {self._timeout}s"
+            raise ClassifierCLIError(
+                f"{self._cli} CLI timed out after {self._timeout}s"
             ) from exc
         except FileNotFoundError as exc:
-            raise CodexShimError(
-                f"codex CLI not found on PATH: {sanitize(str(exc))}"
+            raise ClassifierCLIError(
+                f"{self._cli} CLI not found on PATH: {sanitize(str(exc))}"
             ) from exc
 
         returncode = getattr(result, "returncode", 0)
         stdout = getattr(result, "stdout", "") or ""
         stderr = getattr(result, "stderr", "") or ""
         if returncode != 0:
-            raise CodexShimError(
-                f"codex CLI returned {returncode}: "
+            raise ClassifierCLIError(
+                f"{self._cli} CLI returned {returncode}: "
                 f"stderr={sanitize(stderr)[:200]}"
             )
         if not stdout.strip():
-            raise CodexShimError("codex CLI returned empty stdout")
-        return stdout
+            raise ClassifierCLIError(f"{self._cli} CLI returned empty stdout")
 
-    # --- parsing --------------------------------------------------------
+        parse_fn = self._config["parse_response"]
+        return parse_fn(stdout)
 
     def _parse_json(self, raw: str) -> dict[str, Any]:
-        """Parse Codex stdout as JSON; tolerate code fences."""
         cleaned = _strip_code_fences(raw)
         try:
             data = json.loads(cleaned)
         except json.JSONDecodeError as exc:
-            raise CodexShimError(
-                f"codex reply was not valid JSON: "
+            raise ClassifierCLIError(
+                f"{self._cli} reply was not valid JSON: "
                 f"head={cleaned[:100]!r}"
             ) from exc
         if not isinstance(data, dict):
-            raise CodexShimError(
-                f"codex reply JSON was not an object: type={type(data).__name__}"
+            raise ClassifierCLIError(
+                f"{self._cli} reply JSON was not an object: "
+                f"type={type(data).__name__}"
             )
         return data
 
 
+# Backwards compat alias
+CodexSubscriptionClient = SubscriptionCLIClient
+
+
+# --- DeepSeek API client ------------------------------------------------
+
+
+_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
+_DEEPSEEK_DEFAULT_MODEL = "deepseek-v4-flash"
+
+
+class _DeepSeekMessages:
+    def __init__(self, parent: "DeepSeekAPIClient") -> None:
+        self._parent = parent
+
+    def create(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        tool_choice: dict[str, Any] | None = None,
+        **_ignored: Any,
+    ) -> _Response:
+        if not tools:
+            raise ClassifierCLIError("tools list is empty")
+        tool = tools[0]
+        schema = tool.get("input_schema") or {}
+        tool_name = tool.get("name") or "record_classification"
+
+        user_content = messages[-1]["content"] if messages else ""
+        schema_str = json.dumps(schema, indent=2)
+        prompt = (
+            f"{system}\n\n"
+            f"{user_content}\n\n"
+            "Respond with ONLY a valid JSON object matching this schema.\n"
+            "Do not include prose, markdown, code fences, or any\n"
+            "explanation — emit just the JSON object.\n\n"
+            f"Schema:\n{schema_str}\n"
+        )
+
+        raw_output = self._parent._call_api(prompt, max_tokens=max_tokens)
+        cleaned = _strip_code_fences(raw_output)
+        try:
+            payload = json.loads(cleaned)
+        except json.JSONDecodeError as exc:
+            raise ClassifierCLIError(
+                f"deepseek reply was not valid JSON: head={cleaned[:100]!r}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise ClassifierCLIError(
+                f"deepseek reply was not a JSON object: type={type(payload).__name__}"
+            )
+
+        usage = _Usage(
+            input_tokens=_estimate_tokens(prompt),
+            output_tokens=_estimate_tokens(raw_output),
+        )
+        block = _ToolUseBlock(name=tool_name, inp=payload)
+        return _Response(block, usage)
+
+
+class DeepSeekAPIClient:
+    """DeepSeek API classifier client (OpenAI-compatible endpoint).
+
+    Key is fetched from SSM at `deepseek-api-key` via the standard
+    lavandula secrets module. Model defaults to deepseek-v4-flash.
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str | None = None,
+        timeout_sec: float = 30.0,
+    ) -> None:
+        from lavandula.common.secrets import get_secret
+        self._api_key = get_secret("lavandula/deepseek/api_key")
+        self._model = (
+            model
+            or os.environ.get("CLASSIFIER_CLI_MODEL")
+            or _DEEPSEEK_DEFAULT_MODEL
+        )
+        self._timeout = timeout_sec
+        self._backend = "deepseek"
+        self._cli_model = self._model
+        self.messages = _DeepSeekMessages(self)
+
+    def _call_api(self, prompt: str, *, max_tokens: int = 1024) -> str:
+        import requests
+        resp = requests.post(
+            f"{_DEEPSEEK_BASE_URL}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self._model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+                "temperature": 0.0,
+            },
+            timeout=self._timeout,
+        )
+        if resp.status_code != 200:
+            raise ClassifierCLIError(
+                f"deepseek API returned {resp.status_code}: "
+                f"{sanitize(resp.text[:200])}"
+            )
+        data = resp.json()
+        choices = data.get("choices", [])
+        if not choices:
+            raise ClassifierCLIError("deepseek API returned no choices")
+        return choices[0].get("message", {}).get("content", "")
+
+
 # --- factory ------------------------------------------------------------
+
+
+_ALL_BACKENDS = sorted(list(_CLI_CONFIGS) + ["deepseek"])
 
 
 def select_classifier_client(
@@ -307,30 +401,26 @@ def select_classifier_client(
 ) -> Any:
     """Return the classifier client selected by `CLASSIFIER_CLIENT` env var.
 
-    - Unset / empty / "codex": `CodexSubscriptionClient()` (default).
-    - "anthropic": `anthropic.Anthropic()`.
-    - Anything else: ValueError.
-
-    Parameters
-    ----------
-    env:
-        Optional override for testing. Defaults to `os.environ`.
+    Subscription CLIs: "gemini" (default) | "claude" | "codex"
+    API clients:       "deepseek" (key from SSM)
     """
     env = env if env is not None else dict(os.environ)
-    backend = (env.get("CLASSIFIER_CLIENT") or "codex").strip().lower()
-    if backend == "codex":
-        return CodexSubscriptionClient()
-    if backend == "anthropic":
-        import anthropic
-        return anthropic.Anthropic()
+    backend = (env.get("CLASSIFIER_CLIENT") or "gemini").strip().lower()
+    if backend == "deepseek":
+        return DeepSeekAPIClient()
+    if backend in _CLI_CONFIGS:
+        return SubscriptionCLIClient(backend=backend)
     raise ValueError(
         f"unknown CLASSIFIER_CLIENT={backend!r}; "
-        "expected 'codex' | 'anthropic'"
+        f"expected one of {_ALL_BACKENDS}"
     )
 
 
 __all__ = [
+    "ClassifierCLIError",
     "CodexShimError",
     "CodexSubscriptionClient",
+    "DeepSeekAPIClient",
+    "SubscriptionCLIClient",
     "select_classifier_client",
 ]

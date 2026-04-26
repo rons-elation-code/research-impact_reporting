@@ -67,6 +67,7 @@ class UpsertReportRequest:
     material_group: str | None = None
     event_type: str | None = None
     reasoning: str | None = None
+    run_id: str | None = None
 
 
 @dataclass
@@ -78,6 +79,11 @@ class UpsertCrawledOrgRequest:
     confirmed_report_count: int = 0
     status: str = "ok"  # "ok" | "transient" | "permanent_skip"
     notes: str | None = None
+    run_id: str | None = None
+    discovery_ms: int | None = None
+    download_ms: int | None = None
+    classify_ms: int | None = None
+    total_ms: int | None = None
 
 
 WriteRequest = RecordFetchRequest | UpsertReportRequest | UpsertCrawledOrgRequest
@@ -279,6 +285,7 @@ class DBWriterActor:
                 material_group=req.material_group,
                 event_type=req.event_type,
                 reasoning=req.reasoning,
+                run_id=req.run_id,
             )
         elif isinstance(req, UpsertCrawledOrgRequest):
             db_writer.upsert_crawled_org(
@@ -289,6 +296,11 @@ class DBWriterActor:
                 confirmed_report_count=req.confirmed_report_count,
                 status=req.status,
                 notes=req.notes,
+                run_id=req.run_id,
+                discovery_ms=req.discovery_ms,
+                download_ms=req.download_ms,
+                classify_ms=req.classify_ms,
+                total_ms=req.total_ms,
             )
 
     async def flush_and_stop(self) -> None:

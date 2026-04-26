@@ -7,6 +7,7 @@ SIGINT/SIGTERM/halt-file.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import resource
@@ -24,6 +25,7 @@ import aiohttp
 
 from . import config
 from . import archive as _archive
+from . import db_writer
 from .classify import classify_first_page_v2, ClassifierError
 from .classifier_clients import select_classifier_client
 from .taxonomy import ensure_loaded as _ensure_taxonomy, get_taxonomy, build_taxonomy_prompt_section
@@ -162,6 +164,7 @@ async def _org_worker(
                     fetched_count=0,
                     confirmed_report_count=0,
                     status=status,
+                    run_id=run_id,
                 ))
             except Exception:  # noqa: BLE001
                 _log.warning(
@@ -229,6 +232,8 @@ async def _process_org_async(
                 await asyncio.sleep(config.RETRY_BACKOFF_SEC[backoff_idx])
         return (r.body or b""), r.status
 
+    org_t0 = time.monotonic()
+    discovery_t0 = time.monotonic()
     discovery = await discover_org(
         seed_url=website,
         seed_etld1=seed_etld1,
@@ -238,6 +243,7 @@ async def _process_org_async(
         fetcher=_fetcher_with_retry,
         stats=stats,
     )
+    discovery_ms = int((time.monotonic() - discovery_t0) * 1000)
     candidates = discovery.candidates
     stats.candidates_discovered += len(candidates)
 
@@ -249,6 +255,7 @@ async def _process_org_async(
                 db_actor=db_actor,
                 stats=stats,
                 discovery=discovery,
+                run_id=run_id,
             )
         else:
             _log.warning("transient discovery failure ein=%s (homepage unreachable, 0 candidates)", ein)
@@ -260,6 +267,7 @@ async def _process_org_async(
                     fetched_count=0,
                     confirmed_report_count=0,
                     status="transient",
+                    run_id=run_id,
                 ))
             except Exception:  # noqa: BLE001
                 _log.warning("failed to record transient attempt for ein=%s", ein)
@@ -269,6 +277,7 @@ async def _process_org_async(
     org_fetched = [0]
     org_active_content_rejections = [0]
 
+    download_t0 = time.monotonic()
     for cand in candidates:
         if shutdown_event.is_set():
             break
@@ -276,6 +285,8 @@ async def _process_org_async(
         await download_queue.put((ein, cand, org_tracker, seed_etld1, org_fetched, org_active_content_rejections))
 
     await org_tracker.wait_all_done()
+    download_ms = int((time.monotonic() - download_t0) * 1000)
+    total_ms = int((time.monotonic() - org_t0) * 1000)
 
     # Wayback post-download outcome tracking (AC18/AC19)
     is_wayback_recovery = (
@@ -306,6 +317,7 @@ async def _process_org_async(
                 confirmed_report_count=0,
                 status=status,
                 notes=sanitize(notes),
+                run_id=run_id,
             ))
         except Exception:  # noqa: BLE001
             _log.warning("failed to record wayback %s for ein=%s", notes, ein)
@@ -331,6 +343,10 @@ async def _process_org_async(
         candidate_count=len(candidates),
         fetched_count=org_fetched[0],
         confirmed_report_count=0,
+        run_id=run_id,
+        discovery_ms=discovery_ms,
+        download_ms=download_ms,
+        total_ms=total_ms,
     ))
     try:
         await completion_future
@@ -541,6 +557,7 @@ async def _process_download(
         material_group=cls_result.material_group if cls_result else None,
         event_type=cls_result.event_type if cls_result else None,
         reasoning=cls_result.reasoning if cls_result else None,
+        run_id=run_id,
     ))
 
     # AC19.1: include wayback_digest in fetch_log notes
@@ -579,6 +596,7 @@ async def _record_no_candidates(
     db_actor: DBWriterActor,
     stats: CrawlStats,
     discovery: DiscoveryResult,
+    run_id: str = "",
 ) -> None:
     """AC14 state machine for orgs whose discovery produced no candidates."""
     notes = "robots_or_unknown"
@@ -605,6 +623,7 @@ async def _record_no_candidates(
             confirmed_report_count=0,
             status="transient",
             notes=sanitize(notes),
+            run_id=run_id,
         ))
     except Exception:  # noqa: BLE001
         _log.warning("failed to record wayback no-candidates for ein=%s", ein)
@@ -709,6 +728,22 @@ async def run_async(
         halt_dir = config.HALT
 
     _validate_halt_dir(halt_dir)
+
+    code_version = db_writer.git_short_sha()
+    try:
+        db_writer.create_run(
+            engine,
+            run_id=run_id,
+            mode="async_crawl",
+            code_version=code_version,
+            config_json=json.dumps({
+                "max_concurrent_orgs": max_concurrent_orgs,
+                "max_download_workers": max_download_workers,
+                "seed_count": len(seeds),
+            }),
+        )
+    except Exception:  # noqa: BLE001
+        _log.warning("failed to create runs row for run_id=%s", run_id)
 
     stats = CrawlStats(
         orgs_total=len(seeds),
@@ -826,6 +861,23 @@ async def run_async(
     if stats.exit_code != 0:
         _log.warning("exit_code=1 due to %d unresolved flush failures",
                       db_actor.flush_failures)
+
+    try:
+        db_writer.finish_run(
+            engine,
+            run_id=run_id,
+            stats_json=json.dumps({
+                "orgs_completed": stats.orgs_completed,
+                "orgs_transient_failed": stats.orgs_transient_failed,
+                "orgs_permanent_failed": stats.orgs_permanent_failed,
+                "pdfs_downloaded": stats.pdfs_downloaded,
+                "bytes_downloaded": stats.bytes_downloaded,
+                "wall_seconds": int(elapsed),
+                "flush_failures": stats.flush_failures,
+            }),
+        )
+    except Exception:  # noqa: BLE001
+        _log.warning("failed to finish runs row for run_id=%s", run_id)
 
     return stats
 

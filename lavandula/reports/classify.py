@@ -333,7 +333,7 @@ def build_anthropic_kwargs_v2(
     system, user = build_messages_v2(first_page_text, taxonomy_prompt_section)
     return {
         "model": model or config.CLASSIFIER_MODEL,
-        "max_tokens": 300,
+        "max_tokens": 512,
         "temperature": config.CLASSIFIER_TEMPERATURE,
         "system": system,
         "messages": [{"role": "user", "content": user}],
