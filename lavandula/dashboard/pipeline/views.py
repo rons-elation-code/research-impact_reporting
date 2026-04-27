@@ -142,9 +142,9 @@ class SeederView(LoginRequiredMixin, TemplateView):
         ctx["running_job"] = Job.objects.filter(phase="seed", status="running").first()
         ctx["recent_jobs"] = Job.objects.filter(phase="seed").order_by("-created_at")[:20]
         ctx["seed_stats"] = (
-            NonprofitSeed.objects.values("state_code")
+            NonprofitSeed.objects.values("state")
             .annotate(count=Count("ein"))
-            .order_by("state_code")
+            .order_by("state")
         )
         return ctx
 

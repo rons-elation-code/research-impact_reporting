@@ -98,7 +98,7 @@
       <div class="flex flex-wrap gap-2">
         {% for s in seed_stats %}
         <div class="px-3 py-1.5 bg-gray-100 rounded text-sm">
-          <span class="font-medium">{{ s.state_code }}</span>
+          <span class="font-medium">{{ s.state }}</span>
           <span class="text-gray-500 ml-1">{{ s.count|default:"0" }}</span>
         </div>
         {% endfor %}
