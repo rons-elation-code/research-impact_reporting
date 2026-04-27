@@ -184,6 +184,8 @@ class CrawlJobCreateView(LoginRequiredMixin, View):
             return redirect("crawler")
 
         config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        if "async_mode" in config:
+            config["async"] = config.pop("async_mode")
         try:
             job = create_crawl_job(config, _get_hostname())
             _log_audit(request, "job_create", "crawl", {"job_id": job.pk})

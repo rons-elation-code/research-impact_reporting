@@ -11,12 +11,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from lavandula.common.secrets import get_secret  # noqa: E402
 
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    get_secret.__wrapped__("django-secret-key")
-    if hasattr(get_secret, "__wrapped__")
-    else get_secret("django-secret-key"),
-)
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or get_secret("django-secret-key")
 
 DEBUG = False
 
