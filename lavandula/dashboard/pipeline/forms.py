@@ -5,6 +5,25 @@ from .orchestrator import US_STATES
 STATE_CHOICES = [(s, s) for s in US_STATES]
 PHASE_CHOICES = [("seed", "Seed"), ("resolve", "Resolve")]
 
+_SELECT = "w-full border border-gray-300 rounded px-3 py-2"
+
+LLM_PRESETS = {
+    "deepseek-v4-flash": {
+        "llm_url": "https://api.deepseek.com/v1",
+        "llm_model": "deepseek-v4-flash",
+        "llm_api_key_ssm": "lavandula/deepseek/api_key",
+    },
+    "local-ollama": {
+        "llm_url": "http://localhost:11434/v1",
+        "llm_model": "gemma4:e4b",
+    },
+}
+
+LLM_PRESET_CHOICES = [
+    ("deepseek-v4-flash", "DeepSeek v4-flash (API)"),
+    ("local-ollama", "Local Ollama (gemma4)"),
+]
+
 
 class RunStateForm(forms.Form):
     state_codes = forms.MultipleChoiceField(
@@ -55,21 +74,23 @@ class RunCrawlForm(forms.Form):
 
 class ResolverForm(forms.Form):
     state = forms.ChoiceField(
-        choices=[("", "All states")] + STATE_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}),
+        choices=[("", "— Select state —")] + STATE_CHOICES,
+        widget=forms.Select(attrs={"class": _SELECT}),
     )
-    llm_model = forms.CharField(required=False, widget=forms.TextInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
-    ))
+    llm_preset = forms.ChoiceField(
+        choices=LLM_PRESET_CHOICES,
+        initial="deepseek-v4-flash",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="LLM",
+    )
     brave_qps = forms.FloatField(required=False, min_value=0.1, max_value=50.0, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2", "step": "0.1"}
+        attrs={"class": _SELECT, "step": "0.1"}
     ))
     consumer_threads = forms.IntegerField(required=False, min_value=1, max_value=16, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))
     fresh_only = forms.BooleanField(required=False)
 
@@ -90,9 +111,12 @@ class CrawlerForm(forms.Form):
 
 
 class ClassifierForm(forms.Form):
-    llm_model = forms.CharField(required=False, widget=forms.TextInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
-    ))
+    llm_preset = forms.ChoiceField(
+        choices=LLM_PRESET_CHOICES,
+        initial="deepseek-v4-flash",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="LLM",
+    )
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))

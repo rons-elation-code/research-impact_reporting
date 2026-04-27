@@ -44,6 +44,15 @@ def _get_hostname():
     return socket.gethostname()
 
 
+def _expand_llm_preset(config: dict) -> dict:
+    """Replace llm_preset key with llm_url, llm_model, llm_api_key_ssm."""
+    from .forms import LLM_PRESETS
+    preset_key = config.pop("llm_preset", None)
+    if preset_key and preset_key in LLM_PRESETS:
+        config.update(LLM_PRESETS[preset_key])
+    return config
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -206,6 +215,7 @@ class ResolveJobCreateView(LoginRequiredMixin, View):
             return redirect("resolver")
 
         config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        config = _expand_llm_preset(config)
         try:
             job = create_resolve_job(config, _get_hostname())
             _log_audit(request, "job_create", "resolve", {"job_id": job.pk})
@@ -225,6 +235,7 @@ class ClassifyJobCreateView(LoginRequiredMixin, View):
             return redirect("classifier")
 
         config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        config = _expand_llm_preset(config)
         try:
             job = create_classify_job(config, _get_hostname())
             _log_audit(request, "job_create", "classify", {"job_id": job.pk})
