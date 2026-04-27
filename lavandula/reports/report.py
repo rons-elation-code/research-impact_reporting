@@ -1,6 +1,6 @@
 """Coverage report generator (Phase 6 deliverable).
 
-Reads `lava_impact.reports_public` + `fetch_log` aggregates and emits
+Reads `lava_impact.corpus_public` + `fetch_log` aggregates and emits
 a Markdown summary for operator review.
 """
 from __future__ import annotations
@@ -35,23 +35,23 @@ def generate(engine: Engine, out: Path) -> Path:
 
     with engine.connect() as conn:
         total_public = int(conn.execute(
-            text(f"SELECT COUNT(*) FROM {_SCHEMA}.reports_public")
+            text(f"SELECT COUNT(*) FROM {_SCHEMA}.corpus_public")
         ).scalar() or 0)
         by_class = [
             tuple(r) for r in conn.execute(text(
-                f"SELECT classification, COUNT(*) FROM {_SCHEMA}.reports_public "
+                f"SELECT classification, COUNT(*) FROM {_SCHEMA}.corpus_public "
                 "GROUP BY classification ORDER BY 2 DESC"
             ))
         ]
         by_platform = [
             tuple(r) for r in conn.execute(text(
-                f"SELECT hosting_platform, COUNT(*) FROM {_SCHEMA}.reports_public "
+                f"SELECT hosting_platform, COUNT(*) FROM {_SCHEMA}.corpus_public "
                 "GROUP BY hosting_platform ORDER BY 2 DESC"
             ))
         ]
         by_year = [
             tuple(r) for r in conn.execute(text(
-                f"SELECT report_year, COUNT(*) FROM {_SCHEMA}.reports_public "
+                f"SELECT report_year, COUNT(*) FROM {_SCHEMA}.corpus_public "
                 "GROUP BY report_year ORDER BY 1 DESC"
             ))
         ]
@@ -72,7 +72,7 @@ Generated: `{now}`
 ## Totals
 
 - Orgs processed: **{crawled}**
-- Reports in `reports_public` (attribution + confidence + active-content clean): **{total_public}**
+- Reports in `corpus_public` (attribution + confidence + active-content clean): **{total_public}**
 
 ## By classification
 
@@ -91,7 +91,7 @@ Generated: `{now}`
 {_table(fetch_outcomes)}
 
 ---
-_`reports_public` excludes `platform_unverified`, low-confidence,
+_`corpus_public` excludes `platform_unverified`, low-confidence,
 and active-content rows per AC12.3 / AC16.2 / AC23.1._
 """
     out.write_text(body)

@@ -88,7 +88,7 @@ def test_ac3_canonical_metadata_keys(moto_s3):
     head = moto_s3.head_object(Bucket=BUCKET, Key=f"pdfs/{SHA}.pdf")
     md = head["Metadata"]
     # Round-4: adds attribution-confidence and discovered-via so
-    # reconciled rows can land in the reports_public view.
+    # reconciled rows can land in the corpus_public view.
     assert set(md) == {
         "source-url", "ein", "crawl-run-id", "fetched-at",
         "attribution-confidence", "discovered-via",

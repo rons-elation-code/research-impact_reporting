@@ -5,7 +5,7 @@ Design:
   - Text wrapped in `<untrusted_document>` tags; system prompt says
     content inside the tags is DATA, not instructions (AC16.1).
   - Only rows with `classification_confidence >= 0.8` appear in the
-    `reports_public` view — borderline rows land in the base table for
+    `corpus_public` view — borderline rows land in the base table for
     manual review, which bounds prompt-injection damage (AC16.1).
   - Classifier outages / non-JSON / rate-limit-beyond-retry produce a
     `classification=NULL` row; nightly retry via the

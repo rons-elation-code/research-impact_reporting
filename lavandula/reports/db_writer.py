@@ -12,8 +12,8 @@ read-then-write is expressed here as an atomic
 `002_attribution_helper.sql`.
 
 This module plus `catalogue.py` and `schema.py` are the only files
-permitted to reference the `lava_impact.reports` table directly; every
-other module reads through the `lava_impact.reports_public` view.
+permitted to reference the `lava_impact.corpus` table directly; every
+other module reads through the `lava_impact.corpus_public` view.
 """
 from __future__ import annotations
 
@@ -181,7 +181,7 @@ def upsert_crawled_org(
 
 
 _UPSERT_REPORT_SQL = text(f"""
-INSERT INTO {_SCHEMA}.reports (
+INSERT INTO {_SCHEMA}.corpus (
   content_sha256, source_url_redacted, referring_page_url_redacted,
   redirect_chain_json, source_org_ein, discovered_via, hosting_platform,
   attribution_confidence, archived_at, content_type,
@@ -212,167 +212,167 @@ INSERT INTO {_SCHEMA}.reports (
 ON CONFLICT (content_sha256) DO UPDATE SET
   source_url_redacted = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.source_url_redacted
-    ELSE {_SCHEMA}.reports.source_url_redacted
+    ELSE {_SCHEMA}.corpus.source_url_redacted
   END,
   referring_page_url_redacted = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.referring_page_url_redacted
-    ELSE {_SCHEMA}.reports.referring_page_url_redacted
+    ELSE {_SCHEMA}.corpus.referring_page_url_redacted
   END,
   redirect_chain_json = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.redirect_chain_json
-    ELSE {_SCHEMA}.reports.redirect_chain_json
+    ELSE {_SCHEMA}.corpus.redirect_chain_json
   END,
   source_org_ein = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.source_org_ein
-    ELSE {_SCHEMA}.reports.source_org_ein
+    ELSE {_SCHEMA}.corpus.source_org_ein
   END,
   discovered_via = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.discovered_via
-    ELSE {_SCHEMA}.reports.discovered_via
+    ELSE {_SCHEMA}.corpus.discovered_via
   END,
   hosting_platform = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.hosting_platform
-    ELSE {_SCHEMA}.reports.hosting_platform
+    ELSE {_SCHEMA}.corpus.hosting_platform
   END,
   attribution_confidence = CASE
     WHEN {_SCHEMA}.attribution_rank(EXCLUDED.attribution_confidence)
-       > {_SCHEMA}.attribution_rank({_SCHEMA}.reports.attribution_confidence)
+       > {_SCHEMA}.attribution_rank({_SCHEMA}.corpus.attribution_confidence)
     THEN EXCLUDED.attribution_confidence
-    ELSE {_SCHEMA}.reports.attribution_confidence
+    ELSE {_SCHEMA}.corpus.attribution_confidence
   END,
-  file_size_bytes = GREATEST({_SCHEMA}.reports.file_size_bytes,
+  file_size_bytes = GREATEST({_SCHEMA}.corpus.file_size_bytes,
                              EXCLUDED.file_size_bytes),
-  page_count          = COALESCE({_SCHEMA}.reports.page_count,
+  page_count          = COALESCE({_SCHEMA}.corpus.page_count,
                                  EXCLUDED.page_count),
-  first_page_text     = COALESCE({_SCHEMA}.reports.first_page_text,
+  first_page_text     = COALESCE({_SCHEMA}.corpus.first_page_text,
                                  EXCLUDED.first_page_text),
-  pdf_creator         = COALESCE({_SCHEMA}.reports.pdf_creator,
+  pdf_creator         = COALESCE({_SCHEMA}.corpus.pdf_creator,
                                  EXCLUDED.pdf_creator),
-  pdf_producer        = COALESCE({_SCHEMA}.reports.pdf_producer,
+  pdf_producer        = COALESCE({_SCHEMA}.corpus.pdf_producer,
                                  EXCLUDED.pdf_producer),
-  pdf_creation_date   = COALESCE({_SCHEMA}.reports.pdf_creation_date,
+  pdf_creation_date   = COALESCE({_SCHEMA}.corpus.pdf_creation_date,
                                  EXCLUDED.pdf_creation_date),
   pdf_has_javascript  = GREATEST(EXCLUDED.pdf_has_javascript,
-                                 {_SCHEMA}.reports.pdf_has_javascript),
+                                 {_SCHEMA}.corpus.pdf_has_javascript),
   pdf_has_launch      = GREATEST(EXCLUDED.pdf_has_launch,
-                                 {_SCHEMA}.reports.pdf_has_launch),
+                                 {_SCHEMA}.corpus.pdf_has_launch),
   pdf_has_embedded    = GREATEST(EXCLUDED.pdf_has_embedded,
-                                 {_SCHEMA}.reports.pdf_has_embedded),
+                                 {_SCHEMA}.corpus.pdf_has_embedded),
   pdf_has_uri_actions = GREATEST(EXCLUDED.pdf_has_uri_actions,
-                                 {_SCHEMA}.reports.pdf_has_uri_actions),
+                                 {_SCHEMA}.corpus.pdf_has_uri_actions),
   classification = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.classification
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.classification
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.classification
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.classification
-    ELSE {_SCHEMA}.reports.classification
+    ELSE {_SCHEMA}.corpus.classification
   END,
   classification_confidence = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.classification_confidence
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.classification_confidence
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.classification_confidence
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.classification_confidence
-    ELSE {_SCHEMA}.reports.classification_confidence
+    ELSE {_SCHEMA}.corpus.classification_confidence
   END,
   classifier_model = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.classifier_model
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.classifier_model
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.classifier_model
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.classifier_model
-    ELSE {_SCHEMA}.reports.classifier_model
+    ELSE {_SCHEMA}.corpus.classifier_model
   END,
   classifier_version = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.classifier_version
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.classifier_version
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.classifier_version
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.classifier_version
-    ELSE {_SCHEMA}.reports.classifier_version
+    ELSE {_SCHEMA}.corpus.classifier_version
   END,
   classified_at = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.classified_at
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.classified_at
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.classified_at
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.classified_at
-    ELSE {_SCHEMA}.reports.classified_at
+    ELSE {_SCHEMA}.corpus.classified_at
   END,
   material_type = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.material_type
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.material_type
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.material_type
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.material_type
-    ELSE {_SCHEMA}.reports.material_type
+    ELSE {_SCHEMA}.corpus.material_type
   END,
   material_group = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.material_group
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.material_group
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.material_group
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.material_group
-    ELSE {_SCHEMA}.reports.material_group
+    ELSE {_SCHEMA}.corpus.material_group
   END,
   event_type = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.event_type
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.event_type
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.event_type
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.event_type
-    ELSE {_SCHEMA}.reports.event_type
+    ELSE {_SCHEMA}.corpus.event_type
   END,
   reasoning = CASE
     WHEN EXCLUDED.classification IS NULL
-      THEN {_SCHEMA}.reports.reasoning
-    WHEN {_SCHEMA}.reports.classification IS NULL
+      THEN {_SCHEMA}.corpus.reasoning
+    WHEN {_SCHEMA}.corpus.classification IS NULL
       THEN EXCLUDED.reasoning
     WHEN COALESCE(EXCLUDED.classification_confidence, -1)
-       > COALESCE({_SCHEMA}.reports.classification_confidence, -1)
+       > COALESCE({_SCHEMA}.corpus.classification_confidence, -1)
       THEN EXCLUDED.reasoning
-    ELSE {_SCHEMA}.reports.reasoning
+    ELSE {_SCHEMA}.corpus.reasoning
   END,
-  report_year        = COALESCE({_SCHEMA}.reports.report_year,
+  report_year        = COALESCE({_SCHEMA}.corpus.report_year,
                                 EXCLUDED.report_year),
-  report_year_source = COALESCE({_SCHEMA}.reports.report_year_source,
+  report_year_source = COALESCE({_SCHEMA}.corpus.report_year_source,
                                 EXCLUDED.report_year_source),
-  extractor_version  = GREATEST({_SCHEMA}.reports.extractor_version,
+  extractor_version  = GREATEST({_SCHEMA}.corpus.extractor_version,
                                 EXCLUDED.extractor_version),
   original_source_url_redacted = COALESCE(
     EXCLUDED.original_source_url_redacted,
-    {_SCHEMA}.reports.original_source_url_redacted
+    {_SCHEMA}.corpus.original_source_url_redacted
   ),
-  run_id = COALESCE(EXCLUDED.run_id, {_SCHEMA}.reports.run_id)
+  run_id = COALESCE(EXCLUDED.run_id, {_SCHEMA}.corpus.run_id)
 """)
 
 
@@ -412,7 +412,7 @@ def upsert_report(
     reasoning: str | None = None,
     run_id: str | None = None,
 ) -> None:
-    """Atomic upsert into `lava_impact.reports` with attribution merge.
+    """Atomic upsert into `lava_impact.corpus` with attribution merge.
 
     The ON CONFLICT UPDATE clause uses `attribution_rank()` to prefer
     stronger attribution tiers on conflicting sha256, and

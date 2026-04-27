@@ -2,5 +2,5 @@
 
 Per-org crawl of nonprofit websites for annual/impact PDF reports, archived
 to content-addressable storage, classified by Anthropic Haiku, queryable
-via the reports_public SQLite view.
+via the corpus_public view.
 """
