@@ -112,7 +112,7 @@ def test_ac16_1_confidence_clamped_to_unit_interval():
 )
 def test_ac16_1_prompt_injection_low_confidence_is_excluded(injection):
     """If a stubbed classifier returns low confidence on an injection,
-    the row should not appear in reports_public."""
+    the row should not appear in corpus_public."""
     from lavandula.reports.classify import classify_first_page
     # Simulate a robust classifier that returns LOW confidence on adversarial.
     stub = _make_stub(

@@ -38,7 +38,7 @@ def insert_raw_report_for_test(
     file_size_bytes: int = 1024,
     schema: str | None = "lava_impact",
 ) -> None:
-    """Test-only helper: insert a pre-shaped row into `reports`.
+    """Test-only helper: insert a pre-shaped row into `corpus`.
 
     Production writes go through `db_writer.upsert_report`; this helper
     exists solely to let tests drive the public view and catalogue
@@ -54,7 +54,7 @@ def insert_raw_report_for_test(
             .replace(microsecond=0)
             .isoformat()
         )
-    table = f"{schema}.reports" if schema else "reports"
+    table = f"{schema}.corpus" if schema else "corpus"
     stmt = text(
         f"INSERT INTO {table} ("
         "  content_sha256, source_url_redacted, source_org_ein, "

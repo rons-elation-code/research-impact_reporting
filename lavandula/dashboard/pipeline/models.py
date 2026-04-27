@@ -39,7 +39,7 @@ class Report(models.Model):
 
     class Meta:
         managed = False
-        db_table = "reports"
+        db_table = "corpus"
 
 
 class CrawledOrg(models.Model):

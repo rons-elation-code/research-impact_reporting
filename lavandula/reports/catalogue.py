@@ -1,9 +1,9 @@
 """Query helpers + deletion / retention (AC22, AC22.1, AC23, AC24).
 
-Per AC23, consumers query the `lava_impact.reports_public` view. The
-base `reports` table is accessed only here + `db_writer.py`. Deletion
+Per AC23, consumers query the `lava_impact.corpus_public` view. The
+base `corpus` table is accessed only here + `db_writer.py`. Deletion
 is a hard delete (AC22) — the PDF is unlinked, the row is removed
-from `reports`, and the event is logged in `deletion_log`.
+from `corpus`, and the event is logged in `deletion_log`.
 """
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ _SCHEMA = "lava_impact"
 
 
 def get_public_row(engine: Engine, *, content_sha256: str) -> Any | None:
-    """Fetch a single row from `reports_public` by sha."""
+    """Fetch a single row from `corpus_public` by sha."""
     with engine.connect() as conn:
         return conn.execute(
-            text(f"SELECT * FROM {_SCHEMA}.reports_public "
+            text(f"SELECT * FROM {_SCHEMA}.corpus_public "
                  "WHERE content_sha256 = :sha"),
             {"sha": content_sha256},
         ).mappings().first()
@@ -36,7 +36,7 @@ def latest_report_per_org(engine: Engine, *, ein: str) -> Any | None:
     with engine.connect() as conn:
         return conn.execute(
             text(
-                f"SELECT * FROM {_SCHEMA}.reports "
+                f"SELECT * FROM {_SCHEMA}.corpus "
                 " WHERE source_org_ein = :ein "
                 " ORDER BY (CASE WHEN report_year IS NULL THEN 1 ELSE 0 END) ASC, "
                 "          report_year DESC, "
@@ -70,7 +70,7 @@ def delete(
     pdf_unlinked = _unlink_archive(archive_dir, content_sha256)
     with engine.begin() as conn:
         conn.execute(
-            text(f"DELETE FROM {_SCHEMA}.reports "
+            text(f"DELETE FROM {_SCHEMA}.corpus "
                  "WHERE content_sha256 = :sha"),
             {"sha": content_sha256},
         )
@@ -113,7 +113,7 @@ def sweep_stale(
     cutoff_iso = cutoff.isoformat()
     with engine.connect() as conn:
         stale = conn.execute(
-            text(f"SELECT content_sha256 FROM {_SCHEMA}.reports "
+            text(f"SELECT content_sha256 FROM {_SCHEMA}.corpus "
                  "WHERE archived_at < :cutoff"),
             {"cutoff": cutoff_iso},
         ).fetchall()

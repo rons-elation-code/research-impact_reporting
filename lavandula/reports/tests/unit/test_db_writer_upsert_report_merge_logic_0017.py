@@ -78,7 +78,7 @@ def test_upsert_stronger_attribution_wins(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT attribution_confidence, source_url_redacted "
-            "FROM lava_impact.reports WHERE content_sha256 = :s"
+            "FROM lava_impact.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "own_domain"
     assert row[1] == "https://strong.example.org/a.pdf"
@@ -104,7 +104,7 @@ def test_upsert_weaker_attribution_loses(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT attribution_confidence, source_url_redacted "
-            "FROM lava_impact.reports WHERE content_sha256 = :s"
+            "FROM lava_impact.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "own_domain"
     assert row[1] == "https://strong.example.org/a.pdf"
@@ -124,7 +124,7 @@ def test_active_content_flags_never_downgrade(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT pdf_has_javascript, pdf_has_launch "
-            "FROM lava_impact.reports WHERE content_sha256 = :s"
+            "FROM lava_impact.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == 1
     assert row[1] == 1
@@ -150,7 +150,7 @@ def test_classification_prefers_higher_confidence(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT classification, classification_confidence "
-            "FROM lava_impact.reports WHERE content_sha256 = :s"
+            "FROM lava_impact.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "annual"
     assert float(row[1]) == pytest.approx(0.95)
