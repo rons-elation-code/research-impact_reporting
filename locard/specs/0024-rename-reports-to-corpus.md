@@ -49,22 +49,22 @@ PGAdmin-compatible.
 ### In Scope — RDS Migration (new migration 008)
 
 A single **one-shot** SQL migration file. This is NOT idempotent — `RENAME`
-statements will error if run twice. The operator runs it once in a `psql`
-session. If it fails partway through, the transaction rolls back (all statements
+statements will error if run twice. The operator runs it once via PGAdmin query
+tool. If it fails partway through, the transaction rolls back (all statements
 are inside `BEGIN`/`COMMIT`).
 
 #### Preflight Checks
 
-Before running migration 008, the operator runs these queries to confirm the
-schema matches expectations:
+Before running migration 008, the operator runs these queries in PGAdmin to
+confirm the schema matches expectations:
 
 ```sql
--- Verify table exists
+-- 1. Verify table exists
 SELECT tablename FROM pg_tables
 WHERE schemaname = 'lava_impact' AND tablename = 'reports';
 -- Expected: 1 row
 
--- Verify all 20 constraints exist
+-- 2. Verify all 20 constraints exist
 SELECT conname FROM pg_constraint
 WHERE conrelid = 'lava_impact.reports'::regclass
 ORDER BY conname;
@@ -78,7 +78,7 @@ ORDER BY conname;
 --   reports_uri_chk, reports_year_src_chk
 -- If any constraint is MISSING → do not proceed; investigate.
 
--- Verify all 8 indexes exist
+-- 3. Verify all 8 indexes exist
 SELECT indexname FROM pg_indexes
 WHERE schemaname = 'lava_impact' AND tablename = 'reports'
   AND indexname LIKE 'idx_reports_%'
@@ -89,11 +89,12 @@ ORDER BY indexname;
 --   idx_reports_material_group, idx_reports_material_type,
 --   idx_reports_platform, idx_reports_year
 
--- Verify view exists and has no dependent views
+-- 4. Verify view exists
 SELECT viewname FROM pg_views
 WHERE schemaname = 'lava_impact' AND viewname = 'reports_public';
 -- Expected: 1 row
 
+-- 5. Verify no dependent views on reports_public
 SELECT dependent.relname
 FROM pg_depend d
 JOIN pg_rewrite r ON d.objid = r.oid
@@ -101,10 +102,44 @@ JOIN pg_class dependent ON r.ev_class = dependent.oid
 JOIN pg_class source ON d.refobjid = source.oid
 WHERE source.relname = 'reports_public'
   AND dependent.relname != 'reports_public';
--- Expected: 0 rows (no dependent views)
-```
+-- Expected: 0 rows
 
--- Verify no active connections to the database (quiescence)
+-- 6. Verify no sequences owned by the table
+SELECT c.relname AS sequence_name
+FROM pg_class c
+JOIN pg_depend d ON d.objid = c.oid
+JOIN pg_class t ON t.oid = d.refobjid
+WHERE c.relkind = 'S'
+  AND t.relname = 'reports'
+  AND t.relnamespace = 'lava_impact'::regnamespace;
+-- Expected: 0 rows (reports uses TEXT PK, no serial columns)
+-- If any rows → add ALTER SEQUENCE ... RENAME TO ... in migration.
+
+-- 7. Verify no foreign keys referencing reports from other tables
+SELECT conname, conrelid::regclass AS referencing_table
+FROM pg_constraint
+WHERE confrelid = 'lava_impact.reports'::regclass
+  AND contype = 'f';
+-- Expected: 0 rows
+
+-- 8. Verify no triggers on the table
+SELECT tgname FROM pg_trigger
+WHERE tgrelid = 'lava_impact.reports'::regclass
+  AND NOT tgisinternal;
+-- Expected: 0 rows
+
+-- 9. Verify no functions reference the table name in their body
+SELECT proname FROM pg_proc
+WHERE (prosrc ILIKE '%lava_impact.reports%' OR prosrc ILIKE '%FROM reports%')
+  AND pronamespace = 'lava_impact'::regnamespace;
+-- Expected: 0 rows (or only attribution_rank, which doesn't reference table)
+
+-- 10. Verify no materialized views
+SELECT matviewname FROM pg_matviews
+WHERE schemaname = 'lava_impact';
+-- Expected: 0 rows
+
+-- 11. Verify no active connections (quiescence)
 SELECT pid, usename, application_name, state, query
 FROM pg_stat_activity
 WHERE datname = current_database()
@@ -113,19 +148,14 @@ WHERE datname = current_database()
 -- Expected: 0 rows (no active queries besides your session)
 -- If rows appear → stop those processes before proceeding.
 
--- Record view owner and grants for preservation
-SELECT viewowner FROM pg_views
-WHERE schemaname = 'lava_impact' AND viewname = 'reports_public';
--- Record this value; apply same owner to corpus_public after migration.
-
-SELECT grantee, privilege_type
-FROM information_schema.role_table_grants
-WHERE table_schema = 'lava_impact' AND table_name = 'reports_public';
--- Record these grants; re-apply to corpus_public after migration.
-
--- Record pre-migration corpus_public row count for post-check
+-- 12. Record pre-migration row count for post-check
 SELECT COUNT(*) FROM lava_impact.reports_public;
 -- Save this number for post-migration verification.
+
+-- 13. Capture current view definition for post-migration comparison
+SELECT pg_get_viewdef('lava_impact.reports_public'::regclass, true);
+-- Save this output. After migration, corpus_public definition must match
+-- with only the table name changed (reports → corpus).
 ```
 
 If any preflight check fails, do NOT proceed. Investigate the discrepancy first.
@@ -134,8 +164,11 @@ If any preflight check fails, do NOT proceed. Investigate the discrepancy first.
 
 ```sql
 -- 008_rename_reports_to_corpus.sql
--- ONE-SHOT migration. Run once. Rolls back on any error.
+-- ONE-SHOT migration. Run once in PGAdmin. Rolls back on any error.
+-- DO NOT RUN without completing preflight checks above.
 BEGIN;
+
+SET LOCAL lock_timeout = '5s';
 
 -- 1. Rename table
 ALTER TABLE lava_impact.reports RENAME TO corpus;
@@ -172,41 +205,33 @@ ALTER INDEX lava_impact.idx_reports_material_type RENAME TO idx_corpus_material_
 ALTER INDEX lava_impact.idx_reports_material_group RENAME TO idx_corpus_material_group;
 ALTER INDEX lava_impact.idx_reports_event_type RENAME TO idx_corpus_event_type;
 
--- 4. Drop old view, create new view with identical filtering semantics
-DROP VIEW IF EXISTS lava_impact.reports_public;
-
-CREATE VIEW lava_impact.corpus_public AS
-  SELECT * FROM lava_impact.corpus
-  WHERE attribution_confidence IN ('direct_link','scraped_page','sitemap')
-    AND (classification_confidence IS NULL OR classification_confidence >= 0.8)
-    AND pdf_has_javascript  = 0
-    AND pdf_has_launch      = 0
-    AND pdf_has_embedded    = 0
-    AND pdf_has_uri_actions = 0;
-
--- 5. Preserve view ownership (substitute actual owner from preflight)
--- ALTER VIEW lava_impact.corpus_public OWNER TO <recorded_owner>;
-
--- 6. Re-apply any grants recorded in preflight
--- GRANT SELECT ON lava_impact.corpus_public TO <recorded_grantee>;
+-- 4. Rename view (preserves owner, grants, and filtering semantics automatically)
+ALTER VIEW lava_impact.reports_public RENAME TO corpus_public;
 
 COMMIT;
 ```
 
-**View filtering semantics**: The `corpus_public` view WHERE clause MUST be
-identical to the current `reports_public` view (from migration 007). This is the
-security/quality boundary — it excludes low-confidence classifications,
-unverified attributions, and PDFs with active content. The builder must verify
-the WHERE clause matches by reading the current view definition before writing
-migration 008.
+**Why `ALTER VIEW ... RENAME TO`**: PostgreSQL stores view definitions by OID,
+not table name. After `ALTER TABLE reports RENAME TO corpus`, the view's internal
+reference is automatically updated. `ALTER VIEW ... RENAME TO` is atomic,
+preserves the owner, preserves all grants, and eliminates any risk of
+WHERE-clause drift from manual transcription. This is strictly better than
+DROP + CREATE.
 
 #### Rollback SQL
 
-If rollback is needed (e.g., code not yet deployed, want to revert DB):
+If rollback is needed (e.g., code not yet deployed, want to revert DB).
+**DO NOT RUN unless code has been rolled back to pre-spec-0024 state.**
 
 ```sql
 BEGIN;
 
+SET LOCAL lock_timeout = '5s';
+
+-- Reverse view rename (must happen before table rename)
+ALTER VIEW lava_impact.corpus_public RENAME TO reports_public;
+
+-- Reverse table rename
 ALTER TABLE lava_impact.corpus RENAME TO reports;
 
 -- Reverse constraint renames
@@ -241,17 +266,6 @@ ALTER INDEX lava_impact.idx_corpus_material_type RENAME TO idx_reports_material_
 ALTER INDEX lava_impact.idx_corpus_material_group RENAME TO idx_reports_material_group;
 ALTER INDEX lava_impact.idx_corpus_event_type RENAME TO idx_reports_event_type;
 
--- Reverse view rename
-DROP VIEW IF EXISTS lava_impact.corpus_public;
-CREATE VIEW lava_impact.reports_public AS
-  SELECT * FROM lava_impact.reports
-  WHERE attribution_confidence IN ('direct_link','scraped_page','sitemap')
-    AND (classification_confidence IS NULL OR classification_confidence >= 0.8)
-    AND pdf_has_javascript  = 0
-    AND pdf_has_launch      = 0
-    AND pdf_has_embedded    = 0
-    AND pdf_has_uri_actions = 0;
-
 COMMIT;
 ```
 
@@ -278,17 +292,9 @@ Files with SQL string references that must change `reports` → `corpus` and
 
 The Django migration is **metadata-only** — it tells Django the table is now
 called `corpus`. It does NOT generate any SQL to rename the table (the RDS
-migration handles that separately). The Django `AlterModelTable` operation
-produces `ALTER TABLE "reports" RENAME TO "corpus"` by default, but since we run
-the RDS migration first, the table will already be renamed. To handle this:
-
-- Option A: Use `migrations.SeparateDatabaseAndState` to make the Django
-  migration state-only (no SQL emitted). This is the preferred approach.
-- Option B: Run Django migrate before the RDS migration and let Django do the
-  table rename (but then constraints/indexes/views are still not renamed).
-
-**Recommended: Option A.** The RDS migration is the source of truth for all DB
-changes. Django migration is state-only.
+migration handles that separately). Use `migrations.SeparateDatabaseAndState`
+so Django's `migrate` command only updates its internal state without emitting
+any SQL (avoiding a double-rename error on the already-renamed table).
 
 ### In Scope — Tests
 
@@ -315,6 +321,9 @@ but won't break if missed.
   table. A fresh RDS setup would need to run 001–007 then 008. This is acceptable
   since there is only one RDS instance and no plan to recreate it from scratch.
   If a fresh bootstrap is ever needed, run all migrations in order.
+- **`corpus_public` column list** — the view currently uses `SELECT *`. A
+  follow-up spec could tighten this to explicit columns, but that's a separate
+  concern from the rename.
 
 ## Technical Implementation
 
@@ -322,11 +331,13 @@ but won't break if missed.
 
 All steps are performed by the single operator in one session:
 
+0. **Take RDS snapshot** — via AWS console. Record snapshot identifier. This is
+   the ultimate safety net independent of transactional rollback.
 1. **Verify no jobs running** — check dashboard, confirm all phases idle
 2. **Stop dashboard and all pipeline processes** on all hosts
-3. **Run preflight checks** — execute the preflight SQL queries above
-4. **Run migration 008** — `psql -f 008_rename_reports_to_corpus.sql` against RDS
-5. **Run post-migration verification** — execute the post-flight queries below
+3. **Run preflight checks** — execute the preflight SQL queries in PGAdmin
+4. **Run migration 008** — paste the migration SQL into PGAdmin query tool
+5. **Run post-migration verification** — execute the post-flight queries in PGAdmin
 6. **Deploy code** — `git pull` on all hosts
 7. **Run Django migrate** — `python manage.py migrate` (applies state-only migration)
 8. **Start dashboard**
@@ -339,6 +350,8 @@ fail. The operator controls both, so this is simply: run SQL first, deploy code
 second, do both before starting any processes.
 
 ### Post-Migration Verification
+
+Run these queries in PGAdmin after migration 008 completes:
 
 ```sql
 -- Table renamed
@@ -377,9 +390,13 @@ WHERE schemaname = 'lava_impact' AND tablename = 'corpus'
   AND indexname LIKE 'idx_reports_%';
 -- Expected: 0 rows
 
--- View works and returns same count as pre-migration
+-- View renamed and returns same count as pre-migration
 SELECT COUNT(*) FROM lava_impact.corpus_public;
 -- Expected: matches saved pre-migration count
+
+-- View definition matches (table name substituted)
+SELECT pg_get_viewdef('lava_impact.corpus_public'::regclass, true);
+-- Expected: identical to pre-migration definition with reports → corpus
 
 -- Old view gone
 SELECT viewname FROM pg_views
@@ -409,24 +426,28 @@ qualifiers, not Python variable names or comment references to the module.
 After all code changes, run:
 
 ```bash
-# Should return ZERO hits (excluding historical migrations and Python module paths)
-grep -rn '\.reports[^_/]' lavandula/ --include="*.py" \
-  | grep -v 'lavandula/reports/' \
-  | grep -v '__pycache__'
-
-# Also check for bare SQL table refs
-grep -rn 'FROM reports\b\|INTO reports\b\|UPDATE reports\b\|JOIN reports\b' \
-  lavandula/ --include="*.py" | grep -v __pycache__
+# Check for stale SQL table references IN the reports module (the main target)
+grep -rn 'INTO reports\b\|FROM reports\b\|UPDATE reports\b\|JOIN reports\b\|\.reports\b' \
+  lavandula/reports/ --include="*.py" \
+  | grep -v '__pycache__' \
+  | grep -v 'from lavandula\.reports' \
+  | grep -v 'import.*reports'
 # Expected: 0 hits
 
-# Check for stale view refs
+# Check for stale view refs everywhere
 grep -rn 'reports_public' lavandula/ --include="*.py" | grep -v __pycache__
+# Expected: 0 hits
+
+# Check for stale SQL refs outside the reports module
+grep -rn 'INTO reports\b\|FROM reports\b\|UPDATE reports\b\|JOIN reports\b' \
+  lavandula/ --include="*.py" \
+  | grep -v 'lavandula/reports/' \
+  | grep -v __pycache__
 # Expected: 0 hits
 ```
 
-**Exclusions**: Historical migrations (`lavandula/migrations/rds/001-007`), Python
-module paths (`from lavandula.reports`), and URL paths (`/dashboard/reports/`) are
-explicitly excluded from this check.
+**Exclusions**: Historical migrations (`lavandula/migrations/rds/001-007`) and
+Python import paths (`from lavandula.reports`) are explicitly excluded.
 
 ## Traps to Avoid
 
@@ -438,25 +459,24 @@ explicitly excluded from this check.
    `lavandula.reports.db_writer` must NOT change.
 5. **Constraint count** — verify all 20 constraints exist before renaming.
    If a constraint is missing, the transaction will roll back. Investigate first.
-6. **View WHERE clause** — `corpus_public` must have identical filtering to
-   `reports_public`. This is the security boundary. Verify by reading the current
-   view definition via `SELECT definition FROM pg_views WHERE schemaname='lava_impact' AND viewname='reports_public'`.
-7. **Don't deploy code before DB migration** — new code + old schema = immediate
+6. **Don't deploy code before DB migration** — new code + old schema = immediate
    SQL errors. Run migration 008 first.
-8. **Django migration is state-only** — use `SeparateDatabaseAndState` so Django
+7. **Django migration is state-only** — use `SeparateDatabaseAndState` so Django
    doesn't try to rename an already-renamed table.
 
 ## Acceptance Criteria
 
-- [ ] Preflight checks pass (20 constraints, 8 indexes, 1 view, 0 dependents)
+- [ ] RDS snapshot taken before migration
+- [ ] Preflight checks pass (20 constraints, 8 indexes, 0 sequences, 0 FKs,
+      0 triggers, 0 dependent views, 0 active connections)
 - [ ] Migration 008 runs cleanly on RDS within a single transaction
 - [ ] `SELECT tablename FROM pg_tables WHERE schemaname='lava_impact'` shows `corpus`, no `reports`
 - [ ] `SELECT viewname FROM pg_views WHERE schemaname='lava_impact'` shows `corpus_public`, no `reports_public`
 - [ ] `SELECT COUNT(*) FROM lava_impact.corpus_public` matches pre-migration count
+- [ ] `pg_get_viewdef('lava_impact.corpus_public')` matches pre-migration definition (table name substituted)
 - [ ] All Python SQL references updated (grep checks above return zero hits)
 - [ ] Django model `db_table = "corpus"` with state-only migration
 - [ ] Dashboard Reports tab loads and shows correct row counts
 - [ ] `pipeline_classify --limit 1` completes with exit code 0 and writes to `corpus`
-- [ ] `python -m lavandula.reports.db_writer` (if testable) writes to `corpus`
 - [ ] All existing unit tests pass
 - [ ] No references to `reports_public` remain in Python code (outside historical migrations)
