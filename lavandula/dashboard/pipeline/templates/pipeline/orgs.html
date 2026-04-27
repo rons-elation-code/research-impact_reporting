@@ -1,0 +1,72 @@
+{% extends "pipeline/base.html" %}
+{% block title %}Orgs — Lavandula Pipeline{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Org Browser</h1>
+
+<!-- Filters -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+  <form method="get" class="flex flex-wrap gap-4 items-end">
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">State</label>
+      <input type="text" name="state" value="{{ filter_state }}" placeholder="e.g. NY" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-20">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Resolver Status</label>
+      <input type="text" name="resolver_status" value="{{ filter_status }}" placeholder="e.g. resolved" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-32">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Resolver Method</label>
+      <input type="text" name="resolver_method" value="{{ filter_method }}" placeholder="e.g. brave" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-32">
+    </div>
+    <button type="submit" class="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700">Filter</button>
+    <a href="{% url 'org_list' %}" class="text-sm text-gray-500 hover:underline">Clear</a>
+  </form>
+</div>
+
+<!-- Table -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+  {% if orgs %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-gray-500 border-b bg-gray-50">
+        <th class="px-4 py-3">EIN</th><th class="py-3">Name</th><th class="py-3">City</th><th class="py-3">State</th><th class="py-3">URL</th><th class="py-3">Status</th><th class="py-3">Confidence</th><th class="py-3">Method</th>
+      </tr></thead>
+      <tbody>
+        {% for org in orgs %}
+        <tr class="border-b hover:bg-gray-50">
+          <td class="px-4 py-2"><a href="{% url 'org_detail' org.ein %}" class="text-blue-600 hover:underline">{{ org.ein }}</a></td>
+          <td class="py-2 max-w-xs truncate">{{ org.name|default:"-" }}</td>
+          <td class="py-2">{{ org.city|default:"-" }}</td>
+          <td class="py-2">{{ org.state|default:"-" }}</td>
+          <td class="py-2 max-w-xs truncate text-xs">{{ org.website_url|default:"-" }}</td>
+          <td class="py-2">
+            {% if org.resolver_status == "resolved" %}<span class="text-green-600">{{ org.resolver_status }}</span>
+            {% else %}{{ org.resolver_status|default:"-" }}{% endif %}
+          </td>
+          <td class="py-2">{% if org.resolver_confidence %}{{ org.resolver_confidence|floatformat:2 }}{% else %}-{% endif %}</td>
+          <td class="py-2">{{ org.resolver_method|default:"-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if is_paginated %}
+  <div class="px-4 py-3 border-t flex items-center justify-between text-sm text-gray-500">
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} orgs)</span>
+    <div class="flex gap-2">
+      {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Previous</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="p-6 text-gray-500 text-sm">No orgs found.</p>
+  {% endif %}
+</div>
+{% endblock %}
