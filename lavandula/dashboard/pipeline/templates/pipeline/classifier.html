@@ -1,0 +1,94 @@
+{% extends "pipeline/base.html" %}
+{% load pipeline_tags %}
+{% block title %}Classifier — Lavandula Pipeline{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Classifier Controls</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Status + Forms -->
+  <div class="space-y-4">
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Status</h2>
+      {% if running_job %}
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+        <span class="font-medium">Job #{{ running_job.pk }} running</span>
+      </div>
+      {% elif process and process.status == "running" %}
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
+        <span class="font-medium">Ad-hoc process running</span>
+      </div>
+      {% else %}
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+        <span class="text-gray-600">Stopped</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Queue Classify Job -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Queue Classify Job</h2>
+      <form method="post" action="{% url 'classify_job_create' %}">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-gray-600 mb-1">{{ field.label }}</label>
+          {{ field }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700">Queue Classify Job</button>
+      </form>
+    </div>
+
+    <!-- Ad-hoc Form -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Ad-hoc Run</h2>
+      <form method="post" action="{% url 'process_start' 'classify' %}">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-gray-600 mb-1">{{ field.label }}</label>
+          {{ field }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700">Start</button>
+      </form>
+      {% if process and process.status == "running" %}
+      <form method="post" action="{% url 'process_stop' 'classify' %}" class="mt-2">
+        {% csrf_token %}
+        <button type="submit" class="w-full bg-red-600 text-white py-2 rounded text-sm hover:bg-red-700">Stop</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="lg:col-span-2 bg-white rounded-lg shadow p-5">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Classifications</h2>
+    {% if recent_results %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Filename</th><th class="pb-2">Org</th><th class="pb-2">Classification</th><th class="pb-2">Confidence</th><th class="pb-2">Archived</th>
+        </tr></thead>
+        <tbody>
+          {% for r in recent_results %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2"><a href="{% url 'report_detail' r.content_sha256 %}" class="text-blue-600 hover:underline text-xs">{{ r.source_url_redacted|url_basename|truncatechars:40 }}</a></td>
+            <td class="py-2">{{ r.source_org_ein }}</td>
+            <td class="py-2">{{ r.classification }}</td>
+            <td class="py-2">{% if r.classification_confidence %}{{ r.classification_confidence|floatformat:2 }}{% else %}-{% endif %}</td>
+            <td class="py-2 text-gray-500 text-xs">{{ r.archived_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No recent classifications.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

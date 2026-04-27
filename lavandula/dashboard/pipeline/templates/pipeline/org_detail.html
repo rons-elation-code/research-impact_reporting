@@ -1,0 +1,40 @@
+{% extends "pipeline/base.html" %}
+{% block title %}{{ org.ein }} — Lavandula Pipeline{% endblock %}
+{% block content %}
+<div class="flex items-center gap-4 mb-6">
+  <a href="{% url 'org_list' %}" class="text-blue-600 hover:underline text-sm">← Orgs</a>
+  <h1 class="text-2xl font-bold text-gray-900">{{ org.ein }}</h1>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Organization Details</h2>
+    <dl class="space-y-2 text-sm">
+      <div class="flex"><dt class="w-40 text-gray-500">EIN</dt><dd>{{ org.ein }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Name</dt><dd>{{ org.name|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">City</dt><dd>{{ org.city|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">State</dt><dd>{{ org.state|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Website URL</dt><dd class="break-all">{{ org.website_url|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Resolver Status</dt><dd>
+        {% if org.resolver_status == "resolved" %}<span class="text-green-600">{{ org.resolver_status }}</span>
+        {% else %}{{ org.resolver_status|default:"-" }}{% endif %}
+      </dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Confidence</dt><dd>{% if org.resolver_confidence %}{{ org.resolver_confidence|floatformat:3 }}{% else %}-{% endif %}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Method</dt><dd>{{ org.resolver_method|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-40 text-gray-500">Updated</dt><dd>{{ org.resolver_updated_at|default:"-" }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="space-y-6">
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Resolver Reason</h2>
+      <pre class="text-xs bg-gray-50 p-3 rounded whitespace-pre-wrap">{{ org.resolver_reason|default:"No resolver reason available." }}</pre>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Website Candidates</h2>
+      <pre class="text-xs bg-gray-50 p-3 rounded whitespace-pre-wrap overflow-auto max-h-96">{{ org.website_candidates_json|default:"No candidates data." }}</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
