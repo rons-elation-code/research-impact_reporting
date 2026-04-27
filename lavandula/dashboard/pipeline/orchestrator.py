@@ -218,17 +218,21 @@ def create_state_jobs(
 
 
 def create_resolve_job(config_overrides: dict, host: str) -> Job:
-    """Create a resolve job."""
+    """Create a resolve job. Allows queuing multiple states; blocks duplicates per state."""
+    state = config_overrides.get("state")
     with transaction.atomic():
-        existing = (
-            Job.objects.select_for_update()
-            .filter(phase="resolve", status__in=["pending", "running"])
-            .first()
+        qs = Job.objects.select_for_update().filter(
+            phase="resolve", status__in=["pending", "running"],
         )
+        if state:
+            qs = qs.filter(state_code=state)
+        existing = qs.first()
         if existing:
-            raise DuplicateJobError(f"Active resolve job already exists: Job #{existing.pk}")
+            label = existing.state_code or "global"
+            raise DuplicateJobError(
+                f"Active resolve job already exists for {label}: Job #{existing.pk}"
+            )
 
-        state = config_overrides.get("state")
         try:
             return Job.objects.create(
                 state_code=state or None,
