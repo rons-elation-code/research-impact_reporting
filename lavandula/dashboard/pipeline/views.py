@@ -470,9 +470,9 @@ class ReportListView(LoginRequiredMixin, ListView):
             except ValueError:
                 pass
         if date_from:
-            qs = qs.filter(archived_at__gte=date_from)
+            qs = qs.filter(archived_at__date__gte=date_from)
         if date_to:
-            qs = qs.filter(archived_at__lte=date_to)
+            qs = qs.filter(archived_at__date__lte=date_to)
         return qs
 
     def get_context_data(self, **kwargs):
