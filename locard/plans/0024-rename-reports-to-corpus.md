@@ -17,11 +17,32 @@ This is a mechanical rename. The work divides into two tracks:
 **Builder delivers** (steps 1–11): All code changes, SQL files committed to
 repo, grep verification, test suite run.
 
-**Operator handles** (after builder's PR merges): RDS snapshot → stop processes →
-run preflight SQL in PGAdmin → run migration SQL → run postflight SQL → deploy
-code → `manage.py migrate` → start dashboard → manual verification. The strict
-ordering is: **DB migration first, code deploy second** — new code references
-`corpus`; deploying against old `reports` schema will cause immediate SQL errors.
+**Operator handles** (after builder's PR merges):
+
+1. RDS snapshot (record identifier). **Wait until snapshot status = `available`**
+   before proceeding — snapshot creation is async.
+2. Stop all processes on all hosts
+3. Run `008_preflight.sql` in PGAdmin — verify all checks pass.
+   Re-run the connection check (#11) immediately before step 4 to close the
+   TOCTOU window. Consider checking ALL connections (not just non-idle) to
+   confirm no pool connections remain.
+4. Run `008_rename_reports_to_corpus.sql` in PGAdmin
+5. Run `008_postcheck.sql` in PGAdmin — verify all checks pass
+6. `git pull` on all hosts
+7. `python manage.py migrate` on the dashboard host
+8. Start dashboard
+9. Run `pipeline_classify --limit 1` — verify exit code 0 and writes to `corpus`
+10. Verify dashboard Reports tab shows correct counts
+
+The strict ordering is: **DB migration first, code deploy second** — new code
+references `corpus`; deploying against old `reports` schema will cause immediate
+SQL errors.
+
+**Failure handling**: If step 6 or 7 fails after the DB has been renamed (step 4),
+the system is down until resolved. The operator must: (a) fix the deploy/migrate
+issue, OR (b) revert code to pre-0024 state on all hosts, THEN run
+`008_rollback.sql` to restore the old schema. Do NOT run rollback SQL while new
+code is deployed — that creates the inverse mismatch.
 
 ### Guardrail: Historical Migrations
 
@@ -39,8 +60,9 @@ Create four files in `lavandula/migrations/rds/`:
 "Preflight Checks" section. These are run by the operator in PGAdmin before the
 migration. Include expected results as comments.
 
-**`008_rename_reports_to_corpus.sql`** — Copy the exact migration SQL from the
-spec's "Migration SQL" section. Do not modify.
+**`008_rename_reports_to_corpus.sql`** — Copy verbatim from the spec's "Migration
+SQL" section, including `BEGIN`, `SET LOCAL lock_timeout = '5s'`, and `COMMIT`.
+Do not modify.
 
 **`008_postcheck.sql`** — Copy the post-migration verification queries from the
 spec's "Post-Migration Verification" section. Include expected results as
@@ -254,13 +276,16 @@ check for SQL strings; tests catch Python-level breakage.
 
 ## Testing Strategy
 
-- **Grep verification** (Step 10): The **primary** correctness signal. Confirms
-  no stale `reports` SQL references remain in any Python file.
+- **Grep verification** (Step 10): Primary correctness signal for **code
+  changes**. Confirms no stale `reports` SQL references remain in Python files.
 - **Unit tests** (Step 11): Confirms Python-level consistency (Django model,
   test helper table names). Does NOT exercise Postgres-specific SQL strings.
-- **Manual (operator)**: After deployment, `pipeline_classify --limit 1` is the
-  true end-to-end verification that SQL strings are correct against the renamed
-  RDS table. Dashboard Reports tab confirms the view works.
+- **Operator DB-side postcheck** (`008_postcheck.sql`): The authoritative
+  schema-completeness check. The `SELECT relname ... LIKE '%reports%'` query
+  catches any lingering DB objects the grep can't see.
+- **Operator end-to-end** (`pipeline_classify --limit 1`): The true verification
+  that SQL strings work against the renamed RDS table. This is a **required**
+  acceptance gate, not optional. Dashboard Reports tab confirms the view works.
 
 ## Files Changed
 
