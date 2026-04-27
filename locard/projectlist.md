@@ -346,7 +346,7 @@ projects:
   - id: "0019"
     title: "Pipeline Dashboard & Control Center (Django)"
     summary: "Django web app serving as operations cockpit: real-time pipeline progress (seed, resolver, crawler, classifier), process controls (start/stop/configure with model selection), and foundation for future report interviewer. Replaces read-only 0006 concept. Supersedes 0006."
-    status: specified
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0019-pipeline-dashboard.md
@@ -354,7 +354,7 @@ projects:
       review: null
     dependencies: ["0013", "0017"]
     tags: [dashboard, django, operations, interviewer-foundation]
-    notes: "Supersedes 0006 (read-only FastAPI dashboard, never specced). Scope: Phase 1 = pipeline dashboard + controls, Phase 2 = report data extraction viewer, Phase 3 = interviewer MVP. Spec approved 2026-04-26 after 4 review rounds (spec review, red team, revised spec review, second red team)."
+    notes: "Supersedes 0006 (read-only FastAPI dashboard, never specced). Scope: Phase 1 = pipeline dashboard + controls, Phase 2 = report data extraction viewer, Phase 3 = interviewer MVP. Spec approved 2026-04-26 after 4 review rounds. Plan approved 2026-04-27 after 2 review rounds (plan review + red team, 16 findings resolved)."
 
   - id: "0020"
     title: "Data-driven crawler taxonomy & precision improvements"
