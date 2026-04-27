@@ -1,0 +1,71 @@
+{% load pipeline_tags %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+  <!-- Job Queue -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Job Queue</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Running</span><span class="font-bold text-blue-600">{{ jobs_running }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Pending</span><span class="font-bold text-yellow-600">{{ jobs_pending }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Completed</span><span class="font-bold text-green-600">{{ jobs_completed }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Failed</span><span class="font-bold text-red-600">{{ jobs_failed }}</span></div>
+    </div>
+    <a href="{% url 'job_list' %}" class="block mt-3 text-sm text-blue-600 hover:underline">View all jobs →</a>
+  </div>
+
+  <!-- Seed Pool -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Seed Pool</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Total Orgs</span><span class="font-bold">{{ seed_total }}</span></div>
+      {% for status, count in seed_by_status %}
+      <div class="flex justify-between"><span class="text-gray-600">{{ status|default:"unresolved" }}</span><span class="font-medium">{{ count }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Resolver -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Resolver</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Resolved</span><span class="font-bold text-green-600">{{ resolver_resolved }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Unresolved</span><span class="font-bold text-gray-600">{{ resolver_unresolved }}</span></div>
+      {% for method, count in resolver_by_method %}
+      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ method }}</span><span class="font-medium text-sm">{{ count }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Crawler -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Crawler</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Orgs Crawled</span><span class="font-bold">{{ crawler_orgs }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Total Reports</span><span class="font-bold">{{ crawler_reports }}</span></div>
+    </div>
+  </div>
+
+  <!-- Classifier -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Classifier</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Classified</span><span class="font-bold text-green-600">{{ classifier_done }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">Unclassified</span><span class="font-bold text-gray-600">{{ classifier_pending }}</span></div>
+      {% for cls, count in classifier_by_type %}
+      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ cls }}</span><span class="font-medium text-sm">{{ count }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Reports -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Reports</h2>
+    <div class="space-y-2">
+      <div class="flex justify-between"><span class="text-gray-600">Total Reports</span><span class="font-bold">{{ reports_total }}</span></div>
+      {% for year, count in reports_by_year %}
+      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ year|default:"Unknown" }}</span><span class="font-medium text-sm">{{ count }}</span></div>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
