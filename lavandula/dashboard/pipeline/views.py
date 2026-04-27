@@ -132,6 +132,23 @@ def _dashboard_stats():
 # Jobs
 # ---------------------------------------------------------------------------
 
+class SeederView(LoginRequiredMixin, TemplateView):
+    template_name = "pipeline/seeder.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from .forms import RunStateForm
+        ctx["form"] = RunStateForm()
+        ctx["running_job"] = Job.objects.filter(phase="seed", status="running").first()
+        ctx["recent_jobs"] = Job.objects.filter(phase="seed").order_by("-created_at")[:20]
+        ctx["seed_stats"] = (
+            NonprofitSeed.objects.values("state_code")
+            .annotate(count=Count("ein"))
+            .order_by("state_code")
+        )
+        return ctx
+
+
 class JobListView(LoginRequiredMixin, TemplateView):
     template_name = "pipeline/jobs.html"
 
@@ -142,8 +159,6 @@ class JobListView(LoginRequiredMixin, TemplateView):
         ctx["history_jobs"] = Job.objects.filter(
             status__in=["completed", "failed", "cancelled"]
         ).order_by("-finished_at")[:50]
-        from .forms import RunStateForm
-        ctx["form"] = RunStateForm()
         return ctx
 
 
@@ -165,7 +180,7 @@ class JobCreateView(LoginRequiredMixin, View):
         form = RunStateForm(request.POST)
         if not form.is_valid():
             messages.error(request, f"Invalid form: {form.errors.as_text()}")
-            return redirect("job_list")
+            return redirect("seeder")
 
         state_codes = form.cleaned_data["state_codes"]
         phases = form.cleaned_data["phases"]
@@ -183,7 +198,7 @@ class JobCreateView(LoginRequiredMixin, View):
         except InvalidParameterError as e:
             messages.error(request, str(e))
 
-        return redirect("job_list")
+        return redirect("seeder")
 
 
 class CrawlJobCreateView(LoginRequiredMixin, View):

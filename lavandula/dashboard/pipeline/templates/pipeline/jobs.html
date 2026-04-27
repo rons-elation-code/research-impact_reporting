@@ -2,169 +2,100 @@
 {% load pipeline_tags %}
 {% block title %}Jobs — Lavandula Pipeline{% endblock %}
 {% block content %}
-<div class="flex justify-between items-center mb-6">
-  <h1 class="text-2xl font-bold text-gray-900">Job Queue</h1>
-</div>
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Job Queue</h1>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-  <!-- Run State Form -->
-  <div class="lg:col-span-1 bg-white rounded-lg shadow p-5">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Run State</h2>
-    <form method="post" action="{% url 'job_create' %}">
-      {% csrf_token %}
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">States</label>
-        {{ form.state_codes }}
-        <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+<div class="space-y-6">
+  <!-- Active Jobs -->
+  <div class="bg-white rounded-lg shadow p-5" hx-get="{% url 'job_list' %}?partial=active" hx-trigger="every 5s" hx-select="#active-jobs-inner" hx-target="#active-jobs-inner" hx-swap="outerHTML">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Active Jobs</h2>
+    <div id="active-jobs-inner">
+      {% if active_jobs %}
+      <div class="space-y-3">
+        {% for job in active_jobs %}
+        <div class="border rounded p-3">
+          <div class="flex justify-between items-center mb-2">
+            <a href="{% url 'job_detail' job.pk %}" class="font-medium text-blue-600 hover:underline">
+              Job #{{ job.pk }}: {{ job.get_phase_display }} ({{ job.state_code|default:"global" }})
+            </a>
+            <span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">Running</span>
+          </div>
+          <div class="text-sm text-gray-500">Host: {{ job.host }} | PID: {{ job.pid|default:"-" }} | Started: {{ job.started_at|elapsed_since }}</div>
+          {% if job.progress_total %}
+          <div class="mt-2 w-full bg-gray-200 rounded h-2">
+            <div class="bg-blue-600 h-2 rounded" style="width: {{ job.progress_current|percentage:job.progress_total }}"></div>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">{{ job.progress_current }} / {{ job.progress_total }}</div>
+          {% else %}
+          <div class="text-xs text-gray-500 mt-2">{{ job.progress_current }} processed</div>
+          {% endif %}
+        </div>
+        {% endfor %}
       </div>
-      <div class="mb-4">
-        <label class="block text-sm font-medium text-gray-700 mb-1">Phases</label>
-        <div class="space-y-1">{{ form.phases }}</div>
-      </div>
-      <div class="mb-4 space-y-3">
-        <div>
-          <label class="block text-xs font-medium text-gray-600">NTEE Majors</label>
-          {{ form.ntee_majors }}
-          <p class="text-xs text-gray-400 mt-1">{{ form.ntee_majors.help_text }}</p>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Revenue Min</label>
-            {{ form.revenue_min }}
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Revenue Max</label>
-            {{ form.revenue_max }}
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-600">Target</label>
-          {{ form.target }}
-        </div>
-      </div>
-      <details class="mb-4">
-        <summary class="text-sm text-blue-600 cursor-pointer">Resolve overrides</summary>
-        <div class="mt-3 space-y-3">
-          <div>
-            <label class="block text-xs font-medium text-gray-600">{{ form.llm_preset.label }}</label>
-            {{ form.llm_preset }}
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Brave QPS</label>
-            {{ form.brave_qps }}
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Consumer Threads</label>
-            {{ form.consumer_threads }}
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Search Parallelism</label>
-            {{ form.search_parallelism }}
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-gray-600">Limit</label>
-            {{ form.limit }}
-          </div>
-        </div>
-      </details>
-      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Queue Jobs</button>
-    </form>
+      {% else %}
+      <p class="text-gray-500 text-sm">No active jobs.</p>
+      {% endif %}
+    </div>
   </div>
 
-  <!-- Job Lists -->
-  <div class="lg:col-span-2 space-y-6">
-    <!-- Active Jobs -->
-    <div class="bg-white rounded-lg shadow p-5" hx-get="{% url 'job_list' %}?partial=active" hx-trigger="every 5s" hx-select="#active-jobs-inner" hx-target="#active-jobs-inner" hx-swap="outerHTML">
-      <h2 class="text-lg font-semibold text-gray-900 mb-3">Active Jobs</h2>
-      <div id="active-jobs-inner">
-        {% if active_jobs %}
-        <div class="space-y-3">
-          {% for job in active_jobs %}
-          <div class="border rounded p-3">
-            <div class="flex justify-between items-center mb-2">
-              <a href="{% url 'job_detail' job.pk %}" class="font-medium text-blue-600 hover:underline">
-                Job #{{ job.pk }}: {{ job.get_phase_display }} ({{ job.state_code|default:"global" }})
-              </a>
-              <span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">Running</span>
-            </div>
-            <div class="text-sm text-gray-500">Host: {{ job.host }} | PID: {{ job.pid|default:"-" }} | Started: {{ job.started_at|elapsed_since }}</div>
-            {% if job.progress_total %}
-            <div class="mt-2 w-full bg-gray-200 rounded h-2">
-              <div class="bg-blue-600 h-2 rounded" style="width: {{ job.progress_current|percentage:job.progress_total }}"></div>
-            </div>
-            <div class="text-xs text-gray-500 mt-1">{{ job.progress_current }} / {{ job.progress_total }}</div>
-            {% else %}
-            <div class="text-xs text-gray-500 mt-2">{{ job.progress_current }} processed</div>
-            {% endif %}
-          </div>
+  <!-- Pending Jobs -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Pending Jobs</h2>
+    {% if pending_jobs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">ID</th><th class="pb-2">Phase</th><th class="pb-2">State</th><th class="pb-2">Host</th><th class="pb-2">Depends On</th><th class="pb-2">Created</th>
+        </tr></thead>
+        <tbody>
+          {% for job in pending_jobs %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
+            <td class="py-2"><span class="px-2 py-0.5 text-xs rounded bg-gray-100">{{ job.get_phase_display }}</span></td>
+            <td class="py-2">{{ job.state_code|default:"global" }}</td>
+            <td class="py-2">{{ job.host }}</td>
+            <td class="py-2">{% if job.depends_on %}<a href="{% url 'job_detail' job.depends_on.pk %}" class="text-blue-600">#{{ job.depends_on.pk }}</a>{% else %}-{% endif %}</td>
+            <td class="py-2 text-gray-500">{{ job.created_at|timesince }} ago</td>
+          </tr>
           {% endfor %}
-        </div>
-        {% else %}
-        <p class="text-gray-500 text-sm">No active jobs.</p>
-        {% endif %}
-      </div>
+        </tbody>
+      </table>
     </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No pending jobs.</p>
+    {% endif %}
+  </div>
 
-    <!-- Pending Jobs -->
-    <div class="bg-white rounded-lg shadow p-5">
-      <h2 class="text-lg font-semibold text-gray-900 mb-3">Pending Jobs</h2>
-      {% if pending_jobs %}
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead><tr class="text-left text-gray-500 border-b">
-            <th class="pb-2">ID</th><th class="pb-2">Phase</th><th class="pb-2">State</th><th class="pb-2">Host</th><th class="pb-2">Depends On</th><th class="pb-2">Created</th>
-          </tr></thead>
-          <tbody>
-            {% for job in pending_jobs %}
-            <tr class="border-b hover:bg-gray-50">
-              <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
-              <td class="py-2"><span class="px-2 py-0.5 text-xs rounded bg-gray-100">{{ job.get_phase_display }}</span></td>
-              <td class="py-2">{{ job.state_code|default:"global" }}</td>
-              <td class="py-2">{{ job.host }}</td>
-              <td class="py-2">{% if job.depends_on %}<a href="{% url 'job_detail' job.depends_on.pk %}" class="text-blue-600">#{{ job.depends_on.pk }}</a>{% else %}-{% endif %}</td>
-              <td class="py-2 text-gray-500">{{ job.created_at|timesince }} ago</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <p class="text-gray-500 text-sm">No pending jobs.</p>
-      {% endif %}
+  <!-- Job History -->
+  <div class="bg-white rounded-lg shadow p-5">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">Job History</h2>
+    {% if history_jobs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">ID</th><th class="pb-2">Phase</th><th class="pb-2">State</th><th class="pb-2">Status</th><th class="pb-2">Exit</th><th class="pb-2">Duration</th><th class="pb-2">Finished</th>
+        </tr></thead>
+        <tbody>
+          {% for job in history_jobs %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
+            <td class="py-2">{{ job.get_phase_display }}</td>
+            <td class="py-2">{{ job.state_code|default:"global" }}</td>
+            <td class="py-2">
+              {% if job.status == "completed" %}<span class="text-green-600">Completed</span>
+              {% elif job.status == "failed" %}<span class="text-red-600">Failed</span>
+              {% else %}<span class="text-gray-500">Cancelled</span>{% endif %}
+            </td>
+            <td class="py-2">{{ job.exit_code|default:"-" }}</td>
+            <td class="py-2">{% if job.started_at and job.finished_at %}{{ job.started_at|timesince:job.finished_at }}{% else %}-{% endif %}</td>
+            <td class="py-2 text-gray-500">{{ job.finished_at|timesince }} ago</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-
-    <!-- Job History -->
-    <div class="bg-white rounded-lg shadow p-5">
-      <h2 class="text-lg font-semibold text-gray-900 mb-3">Job History</h2>
-      {% if history_jobs %}
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead><tr class="text-left text-gray-500 border-b">
-            <th class="pb-2">ID</th><th class="pb-2">Phase</th><th class="pb-2">State</th><th class="pb-2">Status</th><th class="pb-2">Exit</th><th class="pb-2">Duration</th><th class="pb-2">Finished</th>
-          </tr></thead>
-          <tbody>
-            {% for job in history_jobs %}
-            <tr class="border-b hover:bg-gray-50">
-              <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
-              <td class="py-2">{{ job.get_phase_display }}</td>
-              <td class="py-2">{{ job.state_code|default:"global" }}</td>
-              <td class="py-2">
-                {% if job.status == "completed" %}<span class="text-green-600">Completed</span>
-                {% elif job.status == "failed" %}<span class="text-red-600">Failed</span>
-                {% else %}<span class="text-gray-500">Cancelled</span>{% endif %}
-              </td>
-              <td class="py-2">{{ job.exit_code|default:"-" }}</td>
-              <td class="py-2">{% if job.started_at and job.finished_at %}{{ job.started_at|timesince:job.finished_at }}{% else %}-{% endif %}</td>
-              <td class="py-2 text-gray-500">{{ job.finished_at|timesince }} ago</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <p class="text-gray-500 text-sm">No job history yet.</p>
-      {% endif %}
-    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No job history yet.</p>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

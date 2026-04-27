@@ -7,9 +7,12 @@ urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
     path("stats/", views.DashboardStatsPartial.as_view(), name="dashboard_stats"),
 
+    # Seeder
+    path("seeder/", views.SeederView.as_view(), name="seeder"),
+    path("seeder/queue/", views.JobCreateView.as_view(), name="job_create"),
+
     # Jobs
     path("jobs/", views.JobListView.as_view(), name="job_list"),
-    path("jobs/create/", views.JobCreateView.as_view(), name="job_create"),
     path("jobs/<int:pk>/", views.JobDetailView.as_view(), name="job_detail"),
     path("jobs/<int:pk>/cancel/", views.JobCancelView.as_view(), name="job_cancel"),
     path("jobs/<int:pk>/retry/", views.JobRetryView.as_view(), name="job_retry"),

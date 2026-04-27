@@ -1,0 +1,147 @@
+{% extends "pipeline/base.html" %}
+{% load pipeline_tags %}
+{% block title %}Seeder — Lavandula Pipeline{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">Seeder Controls</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Status + Form -->
+  <div class="space-y-4">
+    <!-- Status -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Status</h2>
+      {% if running_job %}
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+        <span class="font-medium">Job #{{ running_job.pk }} running ({{ running_job.state_code }})</span>
+      </div>
+      <div class="text-sm text-gray-500">PID: {{ running_job.pid|default:"-" }} | Started: {{ running_job.started_at|elapsed_since }} ago</div>
+      {% else %}
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+        <span class="text-gray-600">Idle</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Seed Form -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Run Seed</h2>
+      <form method="post" action="{% url 'job_create' %}">
+        {% csrf_token %}
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">States</label>
+          {{ form.state_codes }}
+          <p class="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+        </div>
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Phases</label>
+          <div class="space-y-1">{{ form.phases }}</div>
+        </div>
+        <div class="mb-4 space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-gray-600">NTEE Majors</label>
+            {{ form.ntee_majors }}
+            <p class="text-xs text-gray-400 mt-1">{{ form.ntee_majors.help_text }}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Revenue Min</label>
+              {{ form.revenue_min }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Revenue Max</label>
+              {{ form.revenue_max }}
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Target</label>
+            {{ form.target }}
+          </div>
+        </div>
+        <details class="mb-4">
+          <summary class="text-sm text-blue-600 cursor-pointer">Resolve overrides</summary>
+          <div class="mt-3 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600">{{ form.llm_preset.label }}</label>
+              {{ form.llm_preset }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Brave QPS</label>
+              {{ form.brave_qps }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Consumer Threads</label>
+              {{ form.consumer_threads }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Search Parallelism</label>
+              {{ form.search_parallelism }}
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600">Limit</label>
+              {{ form.limit }}
+            </div>
+          </div>
+        </details>
+        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700">Queue Jobs</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="lg:col-span-2 space-y-6">
+    <!-- Seed Counts by State -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Seeds by State</h2>
+      {% if seed_stats %}
+      <div class="flex flex-wrap gap-2">
+        {% for s in seed_stats %}
+        <div class="px-3 py-1.5 bg-gray-100 rounded text-sm">
+          <span class="font-medium">{{ s.state_code }}</span>
+          <span class="text-gray-500 ml-1">{{ s.count|default:"0" }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">No seeds yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Recent Seed Jobs -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Seed Jobs</h2>
+      {% if recent_jobs %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-left text-gray-500 border-b">
+            <th class="pb-2">ID</th><th class="pb-2">State</th><th class="pb-2">Status</th><th class="pb-2">Exit</th><th class="pb-2">Progress</th><th class="pb-2">Duration</th><th class="pb-2">Created</th>
+          </tr></thead>
+          <tbody>
+            {% for job in recent_jobs %}
+            <tr class="border-b hover:bg-gray-50">
+              <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
+              <td class="py-2">{{ job.state_code|default:"—" }}</td>
+              <td class="py-2">
+                {% if job.status == "running" %}<span class="text-blue-600">Running</span>
+                {% elif job.status == "completed" %}<span class="text-green-600">Completed</span>
+                {% elif job.status == "failed" %}<span class="text-red-600">Failed</span>
+                {% elif job.status == "pending" %}<span class="text-yellow-600">Pending</span>
+                {% else %}<span class="text-gray-500">{{ job.status }}</span>{% endif %}
+              </td>
+              <td class="py-2">{{ job.exit_code|default:"-" }}</td>
+              <td class="py-2">{{ job.progress_current|default:"0" }}</td>
+              <td class="py-2">{% if job.started_at and job.finished_at %}{{ job.started_at|timesince:job.finished_at }}{% elif job.started_at %}{{ job.started_at|elapsed_since }}{% else %}-{% endif %}</td>
+              <td class="py-2 text-gray-500">{{ job.created_at|timesince }} ago</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-gray-500 text-sm">No seed jobs yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
