@@ -29,6 +29,8 @@ class Report(models.Model):
     source_url_redacted = models.TextField(null=True)
     classification = models.TextField(null=True)
     classification_confidence = models.FloatField(null=True)
+    material_type = models.TextField(null=True)
+    material_group = models.TextField(null=True)
     archived_at = models.TextField()
     file_size_bytes = models.BigIntegerField()
     page_count = models.IntegerField(null=True)

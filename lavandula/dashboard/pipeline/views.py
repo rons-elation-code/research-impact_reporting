@@ -453,7 +453,7 @@ class ReportListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         qs = Report.objects.all().order_by("-archived_at")
         org = self.request.GET.get("org")
-        classification = self.request.GET.get("classification")
+        material_type = self.request.GET.get("material_type")
         year = self.request.GET.get("report_year")
         date_from = self.request.GET.get("date_from")
         date_to = self.request.GET.get("date_to")
@@ -462,8 +462,8 @@ class ReportListView(LoginRequiredMixin, ListView):
                 Q(ein__icontains=org) | Q(name__icontains=org)
             ).values_list("ein", flat=True)[:1000]
             qs = qs.filter(source_org_ein__in=matching_eins)
-        if classification:
-            qs = qs.filter(classification=classification)
+        if material_type:
+            qs = qs.filter(material_type=material_type)
         if year:
             try:
                 qs = qs.filter(report_year=int(year))
@@ -478,10 +478,16 @@ class ReportListView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["filter_org"] = self.request.GET.get("org", "")
-        ctx["filter_classification"] = self.request.GET.get("classification", "")
+        ctx["filter_material_type"] = self.request.GET.get("material_type", "")
         ctx["filter_year"] = self.request.GET.get("report_year", "")
         ctx["filter_date_from"] = self.request.GET.get("date_from", "")
         ctx["filter_date_to"] = self.request.GET.get("date_to", "")
+        ctx["material_type_choices"] = (
+            Report.objects.filter(material_type__isnull=False)
+            .values_list("material_type", flat=True)
+            .distinct()
+            .order_by("material_type")
+        )
         return ctx
 
 

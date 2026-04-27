@@ -12,8 +12,13 @@
       <input type="text" name="org" value="{{ filter_org }}" placeholder="Search" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-40">
     </div>
     <div>
-      <label class="block text-xs font-medium text-gray-600 mb-1">Classification</label>
-      <input type="text" name="classification" value="{{ filter_classification }}" placeholder="e.g. annual_report" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-36">
+      <label class="block text-xs font-medium text-gray-600 mb-1">Material Type</label>
+      <select name="material_type" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-44">
+        <option value="">All types</option>
+        {% for mt in material_type_choices %}
+        <option value="{{ mt }}" {% if mt == filter_material_type %}selected{% endif %}>{{ mt }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div>
       <label class="block text-xs font-medium text-gray-600 mb-1">Year</label>
@@ -38,14 +43,14 @@
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead><tr class="text-left text-gray-500 border-b bg-gray-50">
-        <th class="px-4 py-3">Filename</th><th class="py-3">Org</th><th class="py-3">Classification</th><th class="py-3">Confidence</th><th class="py-3">Year</th><th class="py-3">Size</th><th class="py-3">Archived</th>
+        <th class="px-4 py-3">Filename</th><th class="py-3">Org</th><th class="py-3">Material Type</th><th class="py-3">Confidence</th><th class="py-3">Year</th><th class="py-3">Size</th><th class="py-3">Archived</th>
       </tr></thead>
       <tbody>
         {% for r in reports %}
         <tr class="border-b hover:bg-gray-50">
           <td class="px-4 py-2"><a href="{% url 'report_detail' r.content_sha256 %}" class="text-blue-600 hover:underline text-xs">{{ r.source_url_redacted|url_basename|truncatechars:45 }}</a></td>
           <td class="py-2">{{ r.source_org_ein }}</td>
-          <td class="py-2">{{ r.classification|default:"-" }}</td>
+          <td class="py-2">{{ r.material_type|default:"-" }}</td>
           <td class="py-2">{% if r.classification_confidence %}{{ r.classification_confidence|floatformat:2 }}{% else %}-{% endif %}</td>
           <td class="py-2">{{ r.report_year|default:"-" }}</td>
           <td class="py-2">{{ r.file_size_bytes|filesizeformat }}</td>
@@ -61,10 +66,10 @@
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} reports)</span>
     <div class="flex gap-2">
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}&org={{ filter_org }}&classification={{ filter_classification }}&report_year={{ filter_year }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Previous</a>
+      <a href="?page={{ page_obj.previous_page_number }}&org={{ filter_org }}&material_type={{ filter_material_type }}&report_year={{ filter_year }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Previous</a>
       {% endif %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}&org={{ filter_org }}&classification={{ filter_classification }}&report_year={{ filter_year }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Next</a>
+      <a href="?page={{ page_obj.next_page_number }}&org={{ filter_org }}&material_type={{ filter_material_type }}&report_year={{ filter_year }}&date_from={{ filter_date_from }}&date_to={{ filter_date_to }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Next</a>
       {% endif %}
     </div>
   </div>
