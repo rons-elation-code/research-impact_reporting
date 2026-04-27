@@ -16,7 +16,7 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or get_secret("django-secret-ke
 
 DEBUG = False
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = ["127.0.0.1", "localhost", "cloud2.lavandulagroup.com"]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -112,7 +112,11 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "/static/"
+STATIC_URL = "/dashboard/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+LOGIN_URL = "/dashboard/login/"
+LOGIN_REDIRECT_URL = "/dashboard/"
+LOGOUT_REDIRECT_URL = "/dashboard/login/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -120,8 +124,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_COOKIE_AGE = 3600
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = True
-LOGOUT_REDIRECT_URL = "/login/"
-LOGIN_URL = "/login/"
+CSRF_TRUSTED_ORIGINS = ["https://cloud2.lavandulagroup.com"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # S3 bucket for report PDFs
 S3_COLLATERAL_BUCKET = "lavandula-nonprofit-collaterals"
