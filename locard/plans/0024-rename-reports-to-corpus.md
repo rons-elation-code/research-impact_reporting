@@ -5,65 +5,101 @@
 
 ## Overview
 
-This is a mechanical rename. The work divides into two independent tracks:
+This is a mechanical rename. The work divides into two tracks:
 
-1. **SQL migration file** (operator runs in PGAdmin) — rename table, constraints,
-   indexes, and view in a single transaction.
-2. **Python code changes** — find-and-replace SQL string references, update Django
-   model `db_table`, generate state-only Django migration.
+1. **SQL migration package** (operator runs in PGAdmin) — preflight checks,
+   migration, postflight verification, and rollback scripts.
+2. **Python code changes** — find-and-replace SQL string references, update
+   Django model `db_table`, generate state-only Django migration.
 
-The builder delivers both tracks plus the grep verification. The operator handles
-the RDS snapshot and PGAdmin execution.
+### Responsibility Split
+
+**Builder delivers** (steps 1–11): All code changes, SQL files committed to
+repo, grep verification, test suite run.
+
+**Operator handles** (after builder's PR merges): RDS snapshot → stop processes →
+run preflight SQL in PGAdmin → run migration SQL → run postflight SQL → deploy
+code → `manage.py migrate` → start dashboard → manual verification. The strict
+ordering is: **DB migration first, code deploy second** — new code references
+`corpus`; deploying against old `reports` schema will cause immediate SQL errors.
+
+### Guardrail: Historical Migrations
+
+Migrations 001–007 in `lavandula/migrations/rds/` are already applied and MUST
+NOT be modified. The builder must not touch these files during grep-based
+replacements or any other step.
 
 ## Implementation Steps
 
-### Step 1: Create RDS migration file
+### Step 1: Create SQL migration package
 
-Create `lavandula/migrations/rds/008_rename_reports_to_corpus.sql` with the
-exact SQL from the spec's "Migration SQL" section. This is a copy — do not
-modify the SQL.
+Create four files in `lavandula/migrations/rds/`:
 
-Also create `lavandula/migrations/rds/008_rollback.sql` with the rollback SQL
-from the spec.
+**`008_preflight.sql`** — Copy the 13 preflight queries from the spec's
+"Preflight Checks" section. These are run by the operator in PGAdmin before the
+migration. Include expected results as comments.
 
-**Files**:
-- `lavandula/migrations/rds/008_rename_reports_to_corpus.sql` (new)
-- `lavandula/migrations/rds/008_rollback.sql` (new)
+**`008_rename_reports_to_corpus.sql`** — Copy the exact migration SQL from the
+spec's "Migration SQL" section. Do not modify.
+
+**`008_postcheck.sql`** — Copy the post-migration verification queries from the
+spec's "Post-Migration Verification" section. Include expected results as
+comments.
+
+**`008_rollback.sql`** — Copy the rollback SQL from the spec. Add a header
+comment: `-- DO NOT RUN unless code has been rolled back to pre-spec-0024 state.`
+
+**Files** (all new):
+- `lavandula/migrations/rds/008_preflight.sql`
+- `lavandula/migrations/rds/008_rename_reports_to_corpus.sql`
+- `lavandula/migrations/rds/008_postcheck.sql`
+- `lavandula/migrations/rds/008_rollback.sql`
 
 ### Step 2: Update `db_writer.py` — SQL string references
 
-This is the highest-risk file (69 references in complex UPSERT SQL).
+This is the highest-risk file (~69 references in complex UPSERT SQL).
 
-**What to change**: Every occurrence of `{_SCHEMA}.reports.` and
-`{_SCHEMA}.reports` (as a table name in SQL context) must become
-`{_SCHEMA}.corpus.` / `{_SCHEMA}.corpus`.
+**Before starting**: Count current references:
+```bash
+grep -c '{_SCHEMA}.reports' lavandula/reports/db_writer.py
+```
+Record this number.
 
-Specific patterns in the `_UPSERT_REPORT_SQL` constant (lines 183–376):
-- Line 184: `INSERT INTO {_SCHEMA}.reports (` → `INSERT INTO {_SCHEMA}.corpus (`
-- Lines 215–375: All `{_SCHEMA}.reports.column_name` → `{_SCHEMA}.corpus.column_name`
-  in the `ON CONFLICT ... DO UPDATE SET` clause. There are ~40 of these.
+**What to change**: Every SQL-context occurrence of `{_SCHEMA}.reports` must
+become `{_SCHEMA}.corpus`. This includes:
 
-Also update the module docstring (lines 15–16):
-- `lava_impact.reports` → `lava_impact.corpus`
-- `lava_impact.reports_public` → `lava_impact.corpus_public`
+1. **Column qualifiers** (trailing dot): `{_SCHEMA}.reports.column_name` →
+   `{_SCHEMA}.corpus.column_name` (~40 occurrences in the UPSERT SET clause)
+2. **INSERT target**: `INSERT INTO {_SCHEMA}.reports (` → `INSERT INTO {_SCHEMA}.corpus (`
+3. **Docstrings**: `lava_impact.reports` → `lava_impact.corpus`,
+   `lava_impact.reports_public` → `lava_impact.corpus_public`
 
-And the docstring on `upsert_report` (line 415):
-- `lava_impact.reports` → `lava_impact.corpus`
+**Technique**: Use `replace_all` on the string `{_SCHEMA}.reports` → `{_SCHEMA}.corpus`.
+This catches ALL patterns — column qualifiers (`{_SCHEMA}.reports.foo`), INSERT
+targets (`{_SCHEMA}.reports (`), and any other occurrences. It is safe because:
+- The only `{_SCHEMA}` references in this file are to SQL table names
+- No Python import paths use `{_SCHEMA}` syntax
+- Other tables (`crawled_orgs`, `fetch_log`, etc.) don't contain `reports`
+
+**After replacing**: Verify count drops to zero:
+```bash
+grep -c '{_SCHEMA}.reports' lavandula/reports/db_writer.py
+# Expected: 0
+```
+
+Also update docstring references to `lava_impact.reports` and
+`lava_impact.reports_public` (lines 15–16, line 415).
 
 **What NOT to change**:
 - `_SCHEMA = "lava_impact"` — stays
-- Any `from lavandula.reports` import paths — stays
+- Any `from lavandula.reports` import paths — stays (none in this file)
 - References to other tables (`fetch_log`, `crawled_orgs`, `deletion_log`, `runs`) — stays
-
-**Technique**: Use `replace_all` with `{_SCHEMA}.reports.` → `{_SCHEMA}.corpus.`
-(with trailing dot, catches all column qualifiers). Then separately fix
-`INSERT INTO {_SCHEMA}.reports (` → `INSERT INTO {_SCHEMA}.corpus (`.
 
 **File**: `lavandula/reports/db_writer.py`
 
 ### Step 3: Update `catalogue.py` — SQL string references
 
-6 references to change:
+8 references to change:
 
 - Line 3: docstring `lava_impact.reports_public` → `lava_impact.corpus_public`
 - Line 4: docstring `reports` table → `corpus` table
@@ -121,8 +157,14 @@ db_table = "reports"  →  db_table = "corpus"
 
 ### Step 8: Create state-only Django migration
 
-Create a new migration file in `lavandula/dashboard/pipeline/migrations/`.
-Use `SeparateDatabaseAndState` so no SQL is emitted:
+**First**: Verify the latest existing migration:
+```bash
+ls lavandula/dashboard/pipeline/migrations/
+```
+Confirm `0002_partial_unique_indexes.py` is still the latest. Adjust the
+dependency and filename if a newer migration exists.
+
+Create a new migration using `SeparateDatabaseAndState` so no SQL is emitted:
 
 ```python
 from django.db import migrations
@@ -162,29 +204,71 @@ class Migration(migrations.Migration):
 ### Step 10: Run grep verification
 
 Execute the three grep checks from the spec's "Grep-Based Completion Check"
-section. All must return 0 hits.
+section. All must return 0 hits. This is the **primary correctness signal** for
+the code changes — unit tests under SQLite won't exercise the schema-qualified
+SQL strings.
+
+```bash
+# Check for stale SQL table references IN the reports module
+grep -rn 'INTO reports\b\|FROM reports\b\|UPDATE reports\b\|JOIN reports\b\|\.reports\b' \
+  lavandula/reports/ --include="*.py" \
+  | grep -v '__pycache__' \
+  | grep -v 'from lavandula\.reports' \
+  | grep -v 'import.*reports'
+# Expected: 0 hits
+
+# Check for stale view refs everywhere
+grep -rn 'reports_public' lavandula/ --include="*.py" | grep -v __pycache__
+# Expected: 0 hits
+
+# Check for stale SQL refs outside the reports module
+grep -rn 'INTO reports\b\|FROM reports\b\|UPDATE reports\b\|JOIN reports\b' \
+  lavandula/ --include="*.py" \
+  | grep -v 'lavandula/reports/' \
+  | grep -v __pycache__
+# Expected: 0 hits
+
+# Verify historical migrations were NOT modified
+git diff --name-only lavandula/migrations/rds/001_initial_schema.sql \
+  lavandula/migrations/rds/002_attribution_helper.sql \
+  lavandula/migrations/rds/003_resolver_updated_at.sql \
+  lavandula/migrations/rds/004_crawled_orgs_status_attempts.sql \
+  lavandula/migrations/rds/005_wayback_provenance.sql \
+  lavandula/migrations/rds/006_wayback_attribution_values.sql \
+  lavandula/migrations/rds/007_classifier_expansion.sql
+# Expected: no output (no changes to historical migrations)
+```
 
 ### Step 11: Run tests
 
-Run the existing test suite to confirm nothing broke:
 ```bash
-python -m pytest lavandula/reports/tests/ -v
+python -m pytest lavandula/ -v
 ```
+
+Run the **full** test suite, not just the reports subset. Tests use SQLite
+in-memory, so they verify that `schema.py`'s `insert_raw_report_for_test` and
+Django's `db_table` are consistent, but they do NOT exercise the
+schema-qualified SQL in `db_writer.py` or `catalogue.py` (those are
+Postgres-specific). The grep verification in Step 10 is the primary correctness
+check for SQL strings; tests catch Python-level breakage.
 
 ## Testing Strategy
 
-- **Unit tests**: Run existing test suite. Tests use SQLite in-memory via Django
-  `db_table`, which will be updated to `"corpus"` in Step 7. If any test creates
-  tables named `reports` explicitly, it will need updating (schema.py's
-  `insert_raw_report_for_test` handles this — updated in Step 5).
-- **Grep verification**: Mechanical check that no stale SQL references remain.
-- **Manual (operator)**: After RDS migration, run dashboard and `pipeline_classify --limit 1`.
+- **Grep verification** (Step 10): The **primary** correctness signal. Confirms
+  no stale `reports` SQL references remain in any Python file.
+- **Unit tests** (Step 11): Confirms Python-level consistency (Django model,
+  test helper table names). Does NOT exercise Postgres-specific SQL strings.
+- **Manual (operator)**: After deployment, `pipeline_classify --limit 1` is the
+  true end-to-end verification that SQL strings are correct against the renamed
+  RDS table. Dashboard Reports tab confirms the view works.
 
 ## Files Changed
 
 | File | Type | Step |
 |------|------|------|
+| `lavandula/migrations/rds/008_preflight.sql` | New | 1 |
 | `lavandula/migrations/rds/008_rename_reports_to_corpus.sql` | New | 1 |
+| `lavandula/migrations/rds/008_postcheck.sql` | New | 1 |
 | `lavandula/migrations/rds/008_rollback.sql` | New | 1 |
 | `lavandula/reports/db_writer.py` | Edit | 2 |
 | `lavandula/reports/catalogue.py` | Edit | 3 |
@@ -199,17 +283,17 @@ python -m pytest lavandula/reports/tests/ -v
 
 ## Risk Assessment
 
-**db_writer.py** is the only high-risk file. It has 69 SQL references in a
-complex UPSERT statement. The replace-all approach (`{_SCHEMA}.reports.` →
-`{_SCHEMA}.corpus.`) is safe because:
-1. The trailing dot ensures only SQL column qualifiers match, not import paths.
-2. The `INSERT INTO {_SCHEMA}.reports (` pattern is unique and unambiguous.
-3. No other table name starts with `reports` in this schema.
+**db_writer.py** is the only high-risk file. The `replace_all` on
+`{_SCHEMA}.reports` → `{_SCHEMA}.corpus` catches all SQL patterns (column
+qualifiers, INSERT targets, etc.) because:
+1. The `{_SCHEMA}` prefix is only used for SQL table references in this file.
+2. No Python import paths use `{_SCHEMA}` syntax.
+3. The before/after grep count verifies completeness.
 
 Everything else is straightforward: view name swaps, docstring updates, and a
 one-line Django model change.
 
 ## Acceptance Criteria
 
-Per spec. The builder is responsible for steps 1–11. The operator handles the
-RDS snapshot, PGAdmin execution, and post-deploy verification.
+Per spec. See "Responsibility Split" above for which criteria are verified by
+the builder vs. the operator.
