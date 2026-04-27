@@ -18,6 +18,7 @@ urlpatterns = [
 
     # Pipeline Controls
     path("resolver/", views.ResolverView.as_view(), name="resolver"),
+    path("resolver/queue/", views.ResolveJobCreateView.as_view(), name="resolve_job_create"),
     path("crawler/", views.CrawlerView.as_view(), name="crawler"),
     path("crawler/queue/", views.CrawlJobCreateView.as_view(), name="crawl_job_create"),
     path("classifier/", views.ClassifierView.as_view(), name="classifier"),

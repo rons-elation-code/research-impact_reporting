@@ -216,6 +216,30 @@ def create_state_jobs(
     return created
 
 
+def create_resolve_job(config_overrides: dict, host: str) -> Job:
+    """Create a global resolve job (state_code=NULL, no depends_on)."""
+    with transaction.atomic():
+        existing = (
+            Job.objects.select_for_update()
+            .filter(phase="resolve", status__in=["pending", "running"])
+            .first()
+        )
+        if existing:
+            raise DuplicateJobError(f"Active resolve job already exists: Job #{existing.pk}")
+
+        state = config_overrides.pop("state", None)
+        try:
+            return Job.objects.create(
+                state_code=state or None,
+                phase="resolve",
+                status="pending",
+                host=host,
+                config_json=config_overrides,
+            )
+        except IntegrityError:
+            raise DuplicateJobError("Duplicate resolve job (constraint violation)")
+
+
 _DEFAULT_ARCHIVE = "s3://lavandula-nonprofit-collaterals"
 
 

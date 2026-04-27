@@ -23,6 +23,7 @@ from .orchestrator import (
     cancel_job,
     create_classify_job,
     create_crawl_job,
+    create_resolve_job,
     create_state_jobs,
     retry_job,
 )
@@ -196,6 +197,25 @@ class CrawlJobCreateView(LoginRequiredMixin, View):
         return redirect("crawler")
 
 
+class ResolveJobCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        from .forms import ResolverForm
+        form = ResolverForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, f"Invalid form: {form.errors.as_text()}")
+            return redirect("resolver")
+
+        config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        try:
+            job = create_resolve_job(config, _get_hostname())
+            _log_audit(request, "job_create", "resolve", {"job_id": job.pk})
+            messages.success(request, f"Created resolve job #{job.pk}")
+        except DuplicateJobError as e:
+            messages.error(request, str(e))
+
+        return redirect("resolver")
+
+
 class ClassifyJobCreateView(LoginRequiredMixin, View):
     def post(self, request):
         from .forms import ClassifierForm
@@ -303,11 +323,8 @@ class ResolverView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        try:
-            ctx["process"] = check_process("resolve")
-        except PipelineProcess.DoesNotExist:
-            ctx["process"] = None
         ctx["running_job"] = Job.objects.filter(phase="resolve", status="running").first()
+        ctx["pending_job"] = Job.objects.filter(phase="resolve", status="pending").first()
         ctx["recent_results"] = NonprofitSeed.objects.filter(
             resolver_updated_at__isnull=False
         ).order_by("-resolver_updated_at")[:50]
