@@ -216,8 +216,12 @@ def create_state_jobs(
     return created
 
 
+_DEFAULT_ARCHIVE = "s3://lavandula-nonprofit-collaterals"
+
+
 def create_crawl_job(config_overrides: dict, host: str) -> Job:
     """Create a global crawl job (state_code=NULL, no depends_on)."""
+    config_overrides.setdefault("archive", _DEFAULT_ARCHIVE)
     with transaction.atomic():
         existing = (
             Job.objects.select_for_update()
