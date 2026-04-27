@@ -22,7 +22,7 @@
       <div class="flex"><dt class="w-40 text-gray-500">Archived At</dt><dd>{{ report.archived_at }}</dd></div>
     </dl>
     <div class="mt-4">
-      <a href="{% url 'report_download' report.content_sha256 %}" class="inline-block bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Download PDF</a>
+      <a href="{% url 'report_download' report.content_sha256 %}" target="_blank" rel="noopener" class="inline-block bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">Download PDF</a>
     </div>
   </div>
 
