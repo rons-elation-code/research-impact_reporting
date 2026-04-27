@@ -409,9 +409,22 @@ projects:
     tags: [classifier, taxonomy, data-quality, national-scale]
     notes: "Motivated by 0020 taxonomy expansion. The crawler knows 70+ material types but the classifier only outputs 5 labels. First-page text from pypdf is sufficient for type classification. PR #18 merged. Post-merge commit 00d4cb3 added taxonomy labels, timing, run_id tracking. Marked integrated 2026-04-27 by human."
 
+  - id: "0024"
+    title: "Rename reports table to corpus"
+    summary: "Rename lava_impact.reports to lava_impact.corpus and lava_impact.reports_public to lava_impact.corpus_public across RDS, pipeline code, dashboard, and tests. Python module lavandula/reports/ and user-facing URL paths remain unchanged."
+    status: planned
+    priority: medium
+    files:
+      spec: locard/specs/0024-rename-reports-to-corpus.md
+      plan: locard/plans/0024-rename-reports-to-corpus.md
+      review: null
+    dependencies: ["0017", "0019"]
+    tags: [database, naming, migration, cleanup]
+    notes: "Requested 2026-04-27. Single operator on DB, controlled migration window. Plan approved 2026-04-27."
+
 ## Next Available Number
 
-**0024** - Reserve this number for your next project
+**0025** - Reserve this number for your next project
 
 ---
 
