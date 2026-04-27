@@ -110,13 +110,13 @@ class ResolverForm(forms.Form):
         widget=forms.Select(attrs={"class": _SELECT}),
         label="LLM",
     )
-    brave_qps = forms.FloatField(required=False, min_value=0.1, max_value=50.0, widget=forms.NumberInput(
+    brave_qps = forms.FloatField(initial=10.0, required=False, min_value=0.1, max_value=50.0, widget=forms.NumberInput(
         attrs={"class": _SELECT, "step": "0.1"}
     ))
-    search_parallelism = forms.IntegerField(required=False, min_value=1, max_value=32, widget=forms.NumberInput(
+    search_parallelism = forms.IntegerField(initial=12, required=False, min_value=1, max_value=32, widget=forms.NumberInput(
         attrs={"class": _SELECT}
     ))
-    consumer_threads = forms.IntegerField(required=False, min_value=1, max_value=16, widget=forms.NumberInput(
+    consumer_threads = forms.IntegerField(initial=4, required=False, min_value=1, max_value=16, widget=forms.NumberInput(
         attrs={"class": _SELECT}
     ))
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
