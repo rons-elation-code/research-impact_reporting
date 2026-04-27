@@ -191,7 +191,8 @@ def create_state_jobs(
 
             prev_job = None
             for phase in phases:
-                config = dict(config_overrides)
+                allowed_keys = set(COMMAND_MAP[phase]["params"])
+                config = {k: v for k, v in config_overrides.items() if k in allowed_keys}
                 if phase == "seed":
                     config["states"] = sc
                 elif phase == "resolve":

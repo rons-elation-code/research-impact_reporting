@@ -21,12 +21,33 @@
         <label class="block text-sm font-medium text-gray-700 mb-1">Phases</label>
         <div class="space-y-1">{{ form.phases }}</div>
       </div>
+      <div class="mb-4 space-y-3">
+        <div>
+          <label class="block text-xs font-medium text-gray-600">NTEE Majors</label>
+          {{ form.ntee_majors }}
+          <p class="text-xs text-gray-400 mt-1">{{ form.ntee_majors.help_text }}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Revenue Min</label>
+            {{ form.revenue_min }}
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600">Revenue Max</label>
+            {{ form.revenue_max }}
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600">Target</label>
+          {{ form.target }}
+        </div>
+      </div>
       <details class="mb-4">
-        <summary class="text-sm text-blue-600 cursor-pointer">Configuration overrides</summary>
+        <summary class="text-sm text-blue-600 cursor-pointer">Resolve overrides</summary>
         <div class="mt-3 space-y-3">
           <div>
-            <label class="block text-xs font-medium text-gray-600">LLM Model</label>
-            {{ form.llm_model }}
+            <label class="block text-xs font-medium text-gray-600">{{ form.llm_preset.label }}</label>
+            {{ form.llm_preset }}
           </div>
           <div>
             <label class="block text-xs font-medium text-gray-600">Brave QPS</label>

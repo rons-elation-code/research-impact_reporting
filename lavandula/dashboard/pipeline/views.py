@@ -169,7 +169,8 @@ class JobCreateView(LoginRequiredMixin, View):
 
         state_codes = form.cleaned_data["state_codes"]
         phases = form.cleaned_data["phases"]
-        config = {k: v for k, v in form.cleaned_data.items() if k not in ("state_codes", "phases") and v not in (None, "")}
+        config = {k: v for k, v in form.cleaned_data.items() if k not in ("state_codes", "phases") and v not in (None, "", False)}
+        config = _expand_llm_preset(config)
 
         try:
             jobs = create_state_jobs(state_codes, phases, config, _get_hostname())

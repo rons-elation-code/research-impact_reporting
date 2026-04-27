@@ -25,33 +25,60 @@ LLM_PRESET_CHOICES = [
 ]
 
 
+ALL_NTEE_MAJORS = "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z"
+
+
 class RunStateForm(forms.Form):
     state_codes = forms.MultipleChoiceField(
         choices=STATE_CHOICES,
-        widget=forms.SelectMultiple(attrs={
-            "class": "w-full border border-gray-300 rounded px-3 py-2",
-            "size": "6",
-        }),
+        widget=forms.SelectMultiple(attrs={"class": _SELECT, "size": "6"}),
     )
     phases = forms.MultipleChoiceField(
         choices=PHASE_CHOICES,
         initial=["seed", "resolve"],
         widget=forms.CheckboxSelectMultiple,
     )
-    llm_model = forms.CharField(required=False, widget=forms.TextInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2", "placeholder": "e.g. gpt-4o-mini"}
-    ))
+    ntee_majors = forms.CharField(
+        initial=ALL_NTEE_MAJORS,
+        widget=forms.TextInput(attrs={"class": _SELECT}),
+        label="NTEE Majors",
+        help_text="Comma-separated letter codes",
+    )
+    revenue_min = forms.IntegerField(
+        initial=500000,
+        min_value=0,
+        widget=forms.NumberInput(attrs={"class": _SELECT}),
+        label="Revenue Min",
+    )
+    revenue_max = forms.IntegerField(
+        initial=999999999999,
+        min_value=0,
+        widget=forms.NumberInput(attrs={"class": _SELECT}),
+        label="Revenue Max",
+    )
+    target = forms.IntegerField(
+        initial=999999,
+        min_value=1, max_value=999999,
+        widget=forms.NumberInput(attrs={"class": _SELECT}),
+        label="Target",
+    )
+    llm_preset = forms.ChoiceField(
+        choices=LLM_PRESET_CHOICES,
+        initial="deepseek-v4-flash",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="LLM (resolve phase)",
+    )
     brave_qps = forms.FloatField(required=False, min_value=0.1, max_value=50.0, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2", "step": "0.1"}
+        attrs={"class": _SELECT, "step": "0.1"}
     ))
     consumer_threads = forms.IntegerField(required=False, min_value=1, max_value=16, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))
     search_parallelism = forms.IntegerField(required=False, min_value=1, max_value=32, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
-        attrs={"class": "w-full border border-gray-300 rounded px-3 py-2"}
+        attrs={"class": _SELECT}
     ))
 
 
