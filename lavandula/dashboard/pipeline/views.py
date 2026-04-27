@@ -26,7 +26,7 @@ from .orchestrator import (
     create_state_jobs,
     retry_job,
 )
-from .process_manager import read_log_tail, start_process, stop_process
+from .process_manager import check_process, read_log_tail, start_process, stop_process
 
 
 def _log_audit(request, action, process_name, parameters=None):
@@ -303,7 +303,10 @@ class ResolverView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["process"] = PipelineProcess.objects.filter(name="resolve").first()
+        try:
+            ctx["process"] = check_process("resolve")
+        except PipelineProcess.DoesNotExist:
+            ctx["process"] = None
         ctx["running_job"] = Job.objects.filter(phase="resolve", status="running").first()
         ctx["recent_results"] = NonprofitSeed.objects.filter(
             resolver_updated_at__isnull=False
@@ -318,7 +321,10 @@ class CrawlerView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["process"] = PipelineProcess.objects.filter(name="crawl").first()
+        try:
+            ctx["process"] = check_process("crawl")
+        except PipelineProcess.DoesNotExist:
+            ctx["process"] = None
         ctx["running_job"] = Job.objects.filter(phase="crawl", status="running").first()
         ctx["recent_orgs"] = CrawledOrg.objects.order_by("-last_crawled_at")[:50]
         ctx["recent_reports"] = Report.objects.order_by("-archived_at")[:50]
@@ -333,7 +339,10 @@ class ClassifierView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["process"] = PipelineProcess.objects.filter(name="classify").first()
+        try:
+            ctx["process"] = check_process("classify")
+        except PipelineProcess.DoesNotExist:
+            ctx["process"] = None
         ctx["running_job"] = Job.objects.filter(phase="classify", status="running").first()
         ctx["recent_results"] = Report.objects.filter(
             classification__isnull=False
@@ -449,7 +458,10 @@ class ReportListView(LoginRequiredMixin, ListView):
         date_from = self.request.GET.get("date_from")
         date_to = self.request.GET.get("date_to")
         if org:
-            qs = qs.filter(Q(source_org_ein__icontains=org) | Q(source_url_redacted__icontains=org))
+            matching_eins = NonprofitSeed.objects.filter(
+                Q(ein__icontains=org) | Q(name__icontains=org)
+            ).values_list("ein", flat=True)[:1000]
+            qs = qs.filter(source_org_ein__in=matching_eins)
         if classification:
             qs = qs.filter(classification=classification)
         if year:

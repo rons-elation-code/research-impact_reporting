@@ -10,7 +10,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from pipeline.models import Job
+from pipeline.models import CrawledOrg, Job, NonprofitSeed, Report
 from pipeline.orchestrator import (
     LOG_DIR,
     PROJECT_ROOT,
@@ -136,7 +136,10 @@ class Command(BaseCommand):
         job.started_at = timezone.now()
         job.last_heartbeat = timezone.now()
         job.log_file = str(log_path)
-        job.save(update_fields=["status", "pid", "started_at", "last_heartbeat", "log_file"])
+        job.progress_total = self._init_progress_total(job)
+        job.save(update_fields=[
+            "status", "pid", "started_at", "last_heartbeat", "log_file", "progress_total",
+        ])
 
         self._tracked[job.pk] = proc
         self.stdout.write(f"Started Job #{job.pk} ({job.phase} {state_label}) PID={proc.pid}")
@@ -176,6 +179,24 @@ class Command(BaseCommand):
                         os.killpg(job.pid, signal.SIGKILL)
                     except (ProcessLookupError, PermissionError):
                         pass
+
+    @staticmethod
+    def _init_progress_total(job: Job):
+        """Set progress_total at job start based on phase."""
+        try:
+            if job.phase == "resolve" and job.state_code:
+                return NonprofitSeed.objects.filter(
+                    state=job.state_code,
+                ).exclude(resolver_status="resolved").count()
+            if job.phase == "crawl":
+                return NonprofitSeed.objects.filter(
+                    resolver_status="resolved", website_url__isnull=False,
+                ).count() - CrawledOrg.objects.count()
+            if job.phase == "classify":
+                return Report.objects.filter(classification__isnull=True).count()
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _is_pid_alive(pid: int) -> bool:
