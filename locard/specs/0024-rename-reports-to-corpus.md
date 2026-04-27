@@ -23,8 +23,13 @@ backwards-compatibility shims. The migration is a controlled, offline operation
 run from a single terminal session.
 
 All hosts (t3.small dev, t3.medium crawl, g6 resolver) share the same RDS
-instance and deploy from the same git branch. The operator controls when each
-host pulls new code.
+instance (`lava_prod1`) and deploy from the same git branch. The operator
+controls when each host pulls new code.
+
+**Database access**: The operator manages RDS via PGAdmin. All migration SQL
+must be provided as PGAdmin-compatible scripts (standard SQL, no `psql`
+meta-commands like `\dt` or `\dv`). Verification queries must also be
+PGAdmin-compatible.
 
 ## Goals
 
@@ -435,7 +440,7 @@ explicitly excluded from this check.
    If a constraint is missing, the transaction will roll back. Investigate first.
 6. **View WHERE clause** — `corpus_public` must have identical filtering to
    `reports_public`. This is the security boundary. Verify by reading the current
-   view definition: `\d+ lava_impact.reports_public`.
+   view definition via `SELECT definition FROM pg_views WHERE schemaname='lava_impact' AND viewname='reports_public'`.
 7. **Don't deploy code before DB migration** — new code + old schema = immediate
    SQL errors. Run migration 008 first.
 8. **Django migration is state-only** — use `SeparateDatabaseAndState` so Django
@@ -445,8 +450,8 @@ explicitly excluded from this check.
 
 - [ ] Preflight checks pass (20 constraints, 8 indexes, 1 view, 0 dependents)
 - [ ] Migration 008 runs cleanly on RDS within a single transaction
-- [ ] `\dt lava_impact.*` shows `corpus`, no `reports`
-- [ ] `\dv lava_impact.*` shows `corpus_public`, no `reports_public`
+- [ ] `SELECT tablename FROM pg_tables WHERE schemaname='lava_impact'` shows `corpus`, no `reports`
+- [ ] `SELECT viewname FROM pg_views WHERE schemaname='lava_impact'` shows `corpus_public`, no `reports_public`
 - [ ] `SELECT COUNT(*) FROM lava_impact.corpus_public` matches pre-migration count
 - [ ] All Python SQL references updated (grep checks above return zero hits)
 - [ ] Django model `db_table = "corpus"` with state-only migration
