@@ -217,7 +217,7 @@ def create_state_jobs(
 
 
 def create_resolve_job(config_overrides: dict, host: str) -> Job:
-    """Create a global resolve job (state_code=NULL, no depends_on)."""
+    """Create a resolve job."""
     with transaction.atomic():
         existing = (
             Job.objects.select_for_update()
@@ -227,7 +227,7 @@ def create_resolve_job(config_overrides: dict, host: str) -> Job:
         if existing:
             raise DuplicateJobError(f"Active resolve job already exists: Job #{existing.pk}")
 
-        state = config_overrides.pop("state", None)
+        state = config_overrides.get("state")
         try:
             return Job.objects.create(
                 state_code=state or None,
