@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from lavandula.common.secrets import get_secret  # noqa: E402
+from lavandula.common.db import IAMTokenManager  # noqa: E402
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or get_secret("django-secret-key")
 
@@ -63,27 +64,36 @@ def _get_secret_or_env(name):
     return os.environ.get(env_key) or get_secret(name)
 
 
+_RDS_HOST = _get_secret_or_env("rds-endpoint")
+_RDS_PORT = int(_get_secret_or_env("rds-port"))
+_RDS_DATABASE = _get_secret_or_env("rds-database")
+_APP_USER = _get_secret_or_env("rds-app-user")
+
+_iam = IAMTokenManager(region="us-east-1", host=_RDS_HOST, port=_RDS_PORT, user=_APP_USER)
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": _get_secret_or_env("rds-database"),
-        "USER": _get_secret_or_env("rds-dashboard-user"),
-        "PASSWORD": _get_secret_or_env("rds-dashboard-password"),
-        "HOST": _get_secret_or_env("rds-endpoint"),
-        "PORT": _get_secret_or_env("rds-port"),
+        "ENGINE": "dashboard.pg_iam_backend",
+        "NAME": _RDS_DATABASE,
+        "USER": _APP_USER,
+        "HOST": _RDS_HOST,
+        "PORT": _RDS_PORT,
+        "IAM_TOKEN_MANAGER": _iam,
         "OPTIONS": {
             "options": "-c search_path=lava_dashboard,public",
+            "sslmode": "require",
         },
     },
     "pipeline": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": _get_secret_or_env("rds-database"),
-        "USER": _get_secret_or_env("rds-app-user"),
-        "PASSWORD": _get_secret_or_env("rds-app-password"),
-        "HOST": _get_secret_or_env("rds-endpoint"),
-        "PORT": _get_secret_or_env("rds-port"),
+        "ENGINE": "dashboard.pg_iam_backend",
+        "NAME": _RDS_DATABASE,
+        "USER": _APP_USER,
+        "HOST": _RDS_HOST,
+        "PORT": _RDS_PORT,
+        "IAM_TOKEN_MANAGER": _iam,
         "OPTIONS": {
             "options": "-c search_path=lava_impact,public",
+            "sslmode": "require",
         },
     },
 }
