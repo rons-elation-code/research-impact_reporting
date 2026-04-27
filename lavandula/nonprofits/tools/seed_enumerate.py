@@ -378,6 +378,7 @@ def enumerate_new_orgs(
             # cursor[key] = last committed page; resume from cursor[key]+1
             start_page = cursor.get(key, -1) + 1
             page = start_page
+            consecutive_empty = 0
 
             while found < target:
                 url = f"{PROPUBLICA_SEARCH}?state%5Bid%5D={state}&page={page}"
@@ -493,6 +494,14 @@ def enumerate_new_orgs(
                     page,
                     page_added,
                 )
+
+                if page_added == 0:
+                    consecutive_empty += 1
+                    if consecutive_empty >= 10:
+                        log.info("skip_ntee state=%s ntee=%s reason=10_consecutive_empty_pages", state, ntee_major)
+                        break
+                else:
+                    consecutive_empty = 0
 
                 num_pages = data.get("num_pages", 0)
                 if num_pages and page >= num_pages - 1:
