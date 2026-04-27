@@ -99,6 +99,30 @@ WHERE source.relname = 'reports_public'
 -- Expected: 0 rows (no dependent views)
 ```
 
+-- Verify no active connections to the database (quiescence)
+SELECT pid, usename, application_name, state, query
+FROM pg_stat_activity
+WHERE datname = current_database()
+  AND pid != pg_backend_pid()
+  AND state != 'idle';
+-- Expected: 0 rows (no active queries besides your session)
+-- If rows appear → stop those processes before proceeding.
+
+-- Record view owner and grants for preservation
+SELECT viewowner FROM pg_views
+WHERE schemaname = 'lava_impact' AND viewname = 'reports_public';
+-- Record this value; apply same owner to corpus_public after migration.
+
+SELECT grantee, privilege_type
+FROM information_schema.role_table_grants
+WHERE table_schema = 'lava_impact' AND table_name = 'reports_public';
+-- Record these grants; re-apply to corpus_public after migration.
+
+-- Record pre-migration corpus_public row count for post-check
+SELECT COUNT(*) FROM lava_impact.reports_public;
+-- Save this number for post-migration verification.
+```
+
 If any preflight check fails, do NOT proceed. Investigate the discrepancy first.
 
 #### Migration SQL
@@ -155,6 +179,12 @@ CREATE VIEW lava_impact.corpus_public AS
     AND pdf_has_embedded    = 0
     AND pdf_has_uri_actions = 0;
 
+-- 5. Preserve view ownership (substitute actual owner from preflight)
+-- ALTER VIEW lava_impact.corpus_public OWNER TO <recorded_owner>;
+
+-- 6. Re-apply any grants recorded in preflight
+-- GRANT SELECT ON lava_impact.corpus_public TO <recorded_grantee>;
+
 COMMIT;
 ```
 
@@ -171,8 +201,42 @@ If rollback is needed (e.g., code not yet deployed, want to revert DB):
 
 ```sql
 BEGIN;
+
 ALTER TABLE lava_impact.corpus RENAME TO reports;
--- (constraints/indexes reverse similarly)
+
+-- Reverse constraint renames
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_sha_len_chk TO reports_sha_len_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_size_chk TO reports_size_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_ct_chk TO reports_ct_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_disc_chk TO reports_disc_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_platform_chk TO reports_platform_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_class_chk TO reports_class_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_conf_chk TO reports_conf_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_attr_chk TO reports_attr_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_redirect_chk TO reports_redirect_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_js_chk TO reports_js_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_launch_chk TO reports_launch_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_embed_chk TO reports_embed_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_uri_chk TO reports_uri_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_fpt_len_chk TO reports_fpt_len_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_creator_chk TO reports_creator_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_producer_chk TO reports_producer_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_year_src_chk TO reports_year_src_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_mt_chk TO reports_mt_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_mg_chk TO reports_mg_chk;
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_et_chk TO reports_et_chk;
+
+-- Reverse index renames
+ALTER INDEX lava_impact.idx_corpus_ein RENAME TO idx_reports_ein;
+ALTER INDEX lava_impact.idx_corpus_classification RENAME TO idx_reports_classification;
+ALTER INDEX lava_impact.idx_corpus_year RENAME TO idx_reports_year;
+ALTER INDEX lava_impact.idx_corpus_platform RENAME TO idx_reports_platform;
+ALTER INDEX lava_impact.idx_corpus_discovered_via RENAME TO idx_reports_discovered_via;
+ALTER INDEX lava_impact.idx_corpus_material_type RENAME TO idx_reports_material_type;
+ALTER INDEX lava_impact.idx_corpus_material_group RENAME TO idx_reports_material_group;
+ALTER INDEX lava_impact.idx_corpus_event_type RENAME TO idx_reports_event_type;
+
+-- Reverse view rename
 DROP VIEW IF EXISTS lava_impact.corpus_public;
 CREATE VIEW lava_impact.reports_public AS
   SELECT * FROM lava_impact.reports
@@ -182,6 +246,7 @@ CREATE VIEW lava_impact.reports_public AS
     AND pdf_has_launch      = 0
     AND pdf_has_embedded    = 0
     AND pdf_has_uri_actions = 0;
+
 COMMIT;
 ```
 
@@ -241,6 +306,10 @@ but won't break if missed.
   fine; only `db_table` changes.
 - **Historical migrations** (001–007) — already applied, never re-run.
 - **SQLite** — if any local SQLite references remain, they are legacy and out of scope.
+- **Fresh-environment bootstrap** — migrations 001–007 still create a `reports`
+  table. A fresh RDS setup would need to run 001–007 then 008. This is acceptable
+  since there is only one RDS instance and no plan to recreate it from scratch.
+  If a fresh bootstrap is ever needed, run all migrations in order.
 
 ## Technical Implementation
 
@@ -277,17 +346,46 @@ SELECT tablename FROM pg_tables
 WHERE schemaname = 'lava_impact' AND tablename = 'reports';
 -- Expected: 0 rows
 
--- View works and returns same count
+-- All 20 constraints renamed
+SELECT conname FROM pg_constraint
+WHERE conrelid = 'lava_impact.corpus'::regclass
+  AND conname LIKE 'corpus_%'
+ORDER BY conname;
+-- Expected: 20 rows, all starting with corpus_
+
+-- No old constraint names remain
+SELECT conname FROM pg_constraint
+WHERE conrelid = 'lava_impact.corpus'::regclass
+  AND conname LIKE 'reports_%';
+-- Expected: 0 rows
+
+-- All 8 indexes renamed
+SELECT indexname FROM pg_indexes
+WHERE schemaname = 'lava_impact' AND tablename = 'corpus'
+  AND indexname LIKE 'idx_corpus_%'
+ORDER BY indexname;
+-- Expected: 8 rows
+
+-- No old index names remain
+SELECT indexname FROM pg_indexes
+WHERE schemaname = 'lava_impact' AND tablename = 'corpus'
+  AND indexname LIKE 'idx_reports_%';
+-- Expected: 0 rows
+
+-- View works and returns same count as pre-migration
 SELECT COUNT(*) FROM lava_impact.corpus_public;
--- Expected: same count as pre-migration reports_public
+-- Expected: matches saved pre-migration count
 
 -- Old view gone
 SELECT viewname FROM pg_views
 WHERE schemaname = 'lava_impact' AND viewname = 'reports_public';
 -- Expected: 0 rows
 
--- Spot-check a write path (optional, only if comfortable)
--- INSERT a test row, verify it appears, DELETE it
+-- Nothing named 'reports' remains in lava_impact schema
+SELECT relname FROM pg_class c
+JOIN pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = 'lava_impact' AND relname LIKE '%reports%';
+-- Expected: 0 rows
 ```
 
 ### Code Change Strategy
