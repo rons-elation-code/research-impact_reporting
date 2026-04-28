@@ -192,13 +192,18 @@ def load_definition(name: str) -> ClassifierDefinition:
     """
 ```
 
+**Definition name validation**: Names must match `^[a-z][a-z0-9_]*$` and resolve ONLY within `lavandula/nonprofits/definitions/`. Path traversal is rejected (no `/`, `..`, or absolute paths). Unknown names fail fast at startup/argument validation, not mid-run.
+
 The loader:
-1. Reads the `.md` file, parses YAML frontmatter
-2. Extracts sections by heading: `# System Instructions`, `# Categories`, `# Guidelines`, `# Event Types`
-3. Parses categories from `## group` / `### category_id` heading structure
-4. If `source_taxonomy` is set, validates all category IDs exist in the taxonomy YAML
-5. Builds the tool schema dynamically from `output_columns`
-6. Caches the result (module-level, loaded once at startup)
+1. Validates name against regex, constructs path as `definitions/{name}.md` relative to the nonprofits package
+2. Reads the `.md` file, parses YAML frontmatter
+3. Extracts sections by heading: `# System Instructions`, `# Categories`, `# Guidelines`, `# Event Types`
+4. Parses categories from `## group` / `### category_id` heading structure
+5. If `source_taxonomy` is set, validates all category IDs exist in the taxonomy YAML
+6. Builds the tool schema dynamically from `output_columns`
+7. Caches the result (module-level, loaded once at startup)
+
+**File size guard**: The loader rejects definition files larger than 100KB. This prevents accidentally loading enormous files into the LLM prompt.
 
 ### Tool Schema Generation
 
@@ -289,6 +294,23 @@ class LLMClient:
 
 `classify_null.py` already builds a taxonomy-driven prompt. This spec refactors it to use the same `load_definition()` / `build_tool_schema()` path. The definition file becomes the single source of truth for both classifiers.
 
+**Parity contract**: Both classifiers MUST share:
+- The same `ClassifierDefinition` object (from `load_definition()`)
+- The same tool schema (from `build_tool_schema()`)
+- The same validation logic (enum check, group derivation, legacy mapping)
+- The same persisted fields (all classification columns + `classifier_definition`)
+
+They MAY differ in:
+- API transport (OpenAI-compatible REST vs subscription CLI invocation)
+- Retry/backoff semantics (different providers have different failure modes)
+- Prompt framing (the user message wrapping may differ, but the system prompt and tool schema must be identical)
+
+### Taxonomy Version Drift
+
+The definition file references `collateral_taxonomy.yaml` via `source_taxonomy`. If the taxonomy YAML is edited (groups renamed, legacy mapping changed) without incrementing the definition version, historical `classifier_definition` values become unreliable for reproducing past behavior.
+
+**Rule**: Taxonomy YAML edits that change group assignments, add/remove material types, or modify legacy mappings MUST be accompanied by a definition version bump. The definition version represents the full classification contract — not just the definition file content, but also the taxonomy it references.
+
 ### Integration with pipeline_classify (consumer)
 
 The consumer in `pipeline_classify.py` currently writes only `classification`, `classification_confidence`, and `classifier_model`. After this spec, it also writes:
@@ -336,7 +358,9 @@ When the LLM returns a malformed or invalid classification response, the behavio
 | `event_type` not in definition enum (and not null) | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
 | `confidence` missing or out of range | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
 | `material_type` missing from response | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
-| No `first_page_text` (empty/whitespace) | Skip classification, write `classification='skipped'` | Write `skipped` + `classifier_model` |
+| No `first_page_text` (empty/whitespace) | Skip classification, write `classification='skipped'` | Write `skipped` + `classifier_model` + `classifier_definition` |
+
+**All attempted rows** — including `parse_error` and `skipped` — MUST write `classifier_definition = {name}:v{version}`. This distinguishes "never attempted under v2" (`classifier_definition IS NULL`) from "attempted under v2 and failed" (`classifier_definition = 'corpus_reports:v2'` with `classification = 'parse_error'`). Without this, the `--re-classify-definition` targeting cannot work correctly.
 
 The `parse_error` and `skipped` rows can be targeted for re-classification later. The existing retry logic in `pipeline_classify` consumer is preserved unchanged.
 
@@ -348,8 +372,9 @@ The parser extracts sections from the Markdown body (after frontmatter) by `#`-l
 2. **Extra sections are rejected** — the parser raises `DefinitionLoadError` for any unrecognized `#`-level heading. This prevents silent content loss if a PM misspells a heading.
 3. **Category structure**: `## group_name` headings define groups, `### category_id` headings define categories within the current group. Category IDs must match `^[a-z][a-z0-9_]*$`. Group names must match the same regex.
 4. **Category body**: Everything between the `### category_id` heading and the next heading (or end of section) is the category body text. This includes descriptions, `**Examples**`, and `**Not this**` blocks — all passed verbatim to the LLM prompt.
-5. **Event types**: Parsed as a flat list of `- event_type_id` items under `# Event Types`. IDs must match `^[a-z][a-z0-9_]*$`.
-6. **Whitespace**: Leading/trailing whitespace in section bodies is stripped. Internal formatting (paragraphs, bullet lists) is preserved.
+5. **Subheadings in prose sections**: `# System Instructions` and `# Guidelines` may contain `##`-level and lower headings for operator readability. These are not parsed structurally — they pass through as plain text to the LLM. Only `#`-level headings are structural delimiters. Only `## group` and `### category` headings within `# Categories` are parsed structurally.
+6. **Event types**: Parsed as a flat list of `- event_type_id` items under `# Event Types`. IDs must match `^[a-z][a-z0-9_]*$`.
+7. **Whitespace**: Leading/trailing whitespace in section bodies is stripped. Internal formatting (paragraphs, bullet lists) is preserved.
 
 ### Existing Row Treatment
 
@@ -457,6 +482,8 @@ This spec moves prompt content from Python code to Markdown files. The trust bou
 - **AC35**: Integration test with fixture text "2024 Annual Report to the Community\nDear Friends, As we reflect on another year..." → `material_type='annual_report'`, `material_group='reports'`, `classification='annual'`, `confidence >= 0.7`.
 - **AC36**: Integration test with fixture text "Form 990 Return of Organization Exempt From Income Tax\nDepartment of the Treasury Internal Revenue Service..." → `material_type` in (`financial_report`, `not_relevant`), `classification` in (`annual`, `not_a_report`).
 - **AC37**: Parity test: given the same definition file and the same fixture text, `pipeline_classify` and `classify_null` produce the same `material_type` and `material_group` (LLM-dependent fields like confidence/reasoning may vary, but the enum-constrained fields must match when the LLM returns the same classification).
+- **AC38**: Mocked response-path tests (no LLM required): valid tool response → correct derived DB fields; invalid enum → `parse_error`; missing required fields → `parse_error`; `classifier_definition` persisted on both success and failure paths.
+- **AC39**: Mocked test for `--re-classify-definition` query: verifies `IS DISTINCT FROM` semantics correctly selects NULL rows and mismatched version rows.
 
 ### Traps to Avoid
 
@@ -483,5 +510,21 @@ This spec moves prompt content from Python code to Markdown files. The trust bou
 6. **Existing row treatment undefined** — Added "Existing Row Treatment" section: `classifier_definition = NULL` means pre-definition. No backfill. Downstream queries handle mixed populations.
 7. **Definition parser heading format not nailed down** — Added "Definition File Parser Rules" section: fixed section order, extra sections rejected, category structure defined, whitespace rules.
 8. **Test ACs too loose** — AC35/AC36 now include specific fixture text and expected outputs. AC37 defines parity test scope.
+
+**Gemini** — Quota exhausted (429), review not completed.
+
+### Round 2: Red-Team Security Review (2026-04-28)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+7 findings, all addressed in v3:
+
+1. **`classifier_definition` not written on failure paths** — Fixed: runtime error handling table now requires `classifier_definition` on ALL attempted rows including `parse_error` and `skipped`. Added explanatory paragraph.
+2. **Definition name validation underspecified** — Added: names must match `^[a-z][a-z0-9_]*$`, resolve only within `definitions/`, path traversal rejected, unknown names fail fast at startup.
+3. **Markdown parser subheading rules incomplete** — Added rule 5: `##`/`###` headings in `System Instructions` and `Guidelines` pass through as plain text. Only `#`-level headings are structural delimiters.
+4. **classify_null parity contract too vague** — Added explicit parity contract: what MUST be shared (definition object, tool schema, validation, persisted fields) vs what MAY differ (API transport, retry semantics).
+5. **Taxonomy version drift not addressed** — Added "Taxonomy Version Drift" section: taxonomy YAML edits that change groups/types/mappings MUST be accompanied by definition version bump.
+6. **Integration tests rely on live LLM** — Added AC38: mocked response-path tests covering valid response → derived fields, invalid enum → parse_error, missing fields → parse_error, and classifier_definition persistence. Added AC39: mocked `--re-classify-definition` query test.
+7. **File size / prompt size risk** — Added: loader rejects definition files > 100KB.
 
 **Gemini** — Quota exhausted (429), review not completed.
