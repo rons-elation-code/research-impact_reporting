@@ -172,7 +172,7 @@ def _engine_from_ssm(user_key: str) -> Engine:
 
 
 def make_app_engine() -> Engine:
-    """Production engine for the app role (CRUD on `lava_impact`)."""
+    """Production engine for the app role (CRUD on `lava_corpus`)."""
     return _engine_from_ssm("rds-app-user")
 
 
@@ -187,7 +187,7 @@ def assert_schema_at_least(
     """Hard-fail if the RDS schema is older than `min_version`.
 
     Called at the top of every production CLI entrypoint that writes
-    to `lava_impact`. Two failure modes, both exit 2:
+    to `lava_corpus`. Two failure modes, both exit 2:
 
       1. `schema_version` table unreadable (missing or no grants) —
          usually means migrations haven't been applied.
@@ -199,7 +199,7 @@ def assert_schema_at_least(
         with engine.connect() as conn:
             v = conn.execute(text(
                 "SELECT COALESCE(MAX(version), 0) "
-                "FROM lava_impact.schema_version"
+                "FROM lava_corpus.schema_version"
             )).scalar()
     except Exception as exc:
         # SystemExit(str) exits with code 1; the spec documents exit 2

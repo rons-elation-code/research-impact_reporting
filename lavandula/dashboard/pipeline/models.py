@@ -2,7 +2,7 @@ from django.db import models
 
 
 # ---------------------------------------------------------------------------
-# Unmanaged models — read-only views of existing lava_impact tables
+# Unmanaged models — read-only views of existing lava_corpus tables
 # ---------------------------------------------------------------------------
 
 class NonprofitSeed(models.Model):

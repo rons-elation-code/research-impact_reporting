@@ -1,6 +1,6 @@
 """Classifier budget ledger backed by Postgres (Spec 0017).
 
-Two-phase reserve/settle protocol against `lava_impact.budget_ledger`:
+Two-phase reserve/settle protocol against `lava_corpus.budget_ledger`:
 
   1. `check_and_reserve(engine, estimated_cents, ...)` — inside a single
      transaction: `SELECT pg_advisory_xact_lock(...)` to serialize the
@@ -31,7 +31,7 @@ from lavandula.common.lock_keys import BUDGET_LEDGER_RESERVE
 from . import classify as _classify
 from . import config
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 
 class BudgetExceeded(RuntimeError):

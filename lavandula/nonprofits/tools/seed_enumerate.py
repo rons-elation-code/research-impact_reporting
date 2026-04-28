@@ -86,7 +86,7 @@ SLEEP_BETWEEN_CALLS = 0.35
 
 _EIN_RE = re.compile(r"^\d{9}$")
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 
 # ── sentinel exceptions ───────────────────────────────────────────────────────

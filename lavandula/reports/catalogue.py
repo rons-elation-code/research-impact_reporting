@@ -1,6 +1,6 @@
 """Query helpers + deletion / retention (AC22, AC22.1, AC23, AC24).
 
-Per AC23, consumers query the `lava_impact.corpus_public` view. The
+Per AC23, consumers query the `lava_corpus.corpus_public` view. The
 base `corpus` table is accessed only here + `db_writer.py`. Deletion
 is a hard delete (AC22) — the PDF is unlinked, the row is removed
 from `corpus`, and the event is logged in `deletion_log`.
@@ -18,7 +18,7 @@ from sqlalchemy.engine import Engine
 from . import config
 from . import db_writer
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 
 def get_public_row(engine: Engine, *, content_sha256: str) -> Any | None:

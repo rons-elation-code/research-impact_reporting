@@ -1,6 +1,6 @@
 """Main crawler orchestration (Spec 0004 + Spec 0017).
 
-Loops the seed list from `lava_impact.nonprofits_seed`, runs
+Loops the seed list from `lava_corpus.nonprofits_seed`, runs
 discovery → fetch → sandbox → db_writer for each candidate, and
 enforces operational ACs (flock AC19, resume AC20, permissions AC21,
 encryption-at-rest AC21.1).
@@ -153,7 +153,7 @@ def should_skip_ein(engine: Engine, *, ein: str, refresh: bool) -> bool:
         return False
     with engine.connect() as conn:
         row = conn.execute(
-            text("SELECT 1 FROM lava_impact.crawled_orgs "
+            text("SELECT 1 FROM lava_corpus.crawled_orgs "
                  "WHERE ein = :ein "
                  "  AND status IN ('ok', 'permanent_skip')"),
             {"ein": ein},
@@ -567,10 +567,10 @@ def _resolve_archive(parser: argparse.ArgumentParser, args) -> object:
 
 
 def fetch_seeds(engine: Engine) -> list[tuple[str, str]]:
-    """Read (ein, website_url) pairs from `lava_impact.nonprofits_seed`."""
+    """Read (ein, website_url) pairs from `lava_corpus.nonprofits_seed`."""
     with engine.connect() as conn:
         rows = conn.execute(text(
-            "SELECT ein, website_url FROM lava_impact.nonprofits "
+            "SELECT ein, website_url FROM lava_corpus.nonprofits "
             " WHERE website_url IS NOT NULL AND website_url <> '' "
             "   AND (resolver_status IS NULL "
             "        OR resolver_status IN ('resolved', 'accepted'))"

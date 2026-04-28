@@ -35,7 +35,7 @@ from lavandula.common.db import (
 )
 from lavandula.common.secrets import SecretUnavailable, get_brave_api_key
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 log = logging.getLogger(__name__)
 

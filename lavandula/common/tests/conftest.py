@@ -27,14 +27,14 @@ _MIGRATIONS_DIR = (
 def _apply_migrations(engine) -> None:
     """Apply lavandula/migrations/rds/*.sql against `engine`.
 
-    The production migrations assume the `lava_impact` schema and the
+    The production migrations assume the `lava_corpus` schema and the
     `app_user1` / `ro_user1` roles already exist (created outside of
     migrations on the real RDS instance). For a fresh testing.postgresql
     cluster we stand those up first.
     """
     from sqlalchemy import text
     with engine.begin() as conn:
-        conn.execute(text("CREATE SCHEMA IF NOT EXISTS lava_impact"))
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS lava_corpus"))
         for role in ("app_user1", "ro_user1"):
             conn.execute(text(
                 f"DO $$BEGIN "

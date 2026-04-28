@@ -1,7 +1,7 @@
 """One-time SQLite → RDS Postgres backfill (Spec 0013 Phase 2).
 
 Copies rows from a source SQLite DB file into the configured RDS
-Postgres instance (schema `lava_impact`) using fast batched inserts.
+Postgres instance (schema `lava_corpus`) using fast batched inserts.
 Runs under the runtime IAM-auth path via
 `lavandula.common.db.make_app_engine` — no master credentials are
 ever read.
@@ -20,7 +20,7 @@ Usage
         --source-sqlite /path/to/seeds.db \\
         [--table TABLE]... \\
         [--batch-size 1000] \\
-        [--schema lava_impact] \\
+        [--schema lava_corpus] \\
         (--dry-run | --apply) \\
         [--apply-duplicates-ok]
 
@@ -396,8 +396,8 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help="Rows per execute_values call (default 1000).",
     )
     ap.add_argument(
-        "--schema", default="lava_impact",
-        help="Target Postgres schema (default lava_impact).",
+        "--schema", default="lava_corpus",
+        help="Target Postgres schema (default lava_corpus).",
     )
     ap.add_argument(
         "--apply-duplicates-ok", action="store_true",
@@ -549,7 +549,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
 
     # Spec 0017 AC: every production entrypoint hard-fails on stale schema.
-    # backfill_rds writes into lava_impact and assumes v2+ is live. The
+    # backfill_rds writes into lava_corpus and assumes v2+ is live. The
     # check lives in main() (not run()) so unit tests that inject a mock
     # engine into run() don't need a full schema_version fixture.
     from lavandula.common.db import (

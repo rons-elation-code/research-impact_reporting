@@ -1,4 +1,4 @@
-"""Parameterized writes into the `lava_impact` schema (Spec 0017).
+"""Parameterized writes into the `lava_corpus` schema (Spec 0017).
 
 All writes go through SQLAlchemy `text()` with `:named` bind parameters
 against a single SQLAlchemy engine. Every public function takes an
@@ -8,12 +8,12 @@ commits at block exit (or rolls back on exception).
 The attribution-rank merge logic that SQLite implemented as a
 read-then-write is expressed here as an atomic
 `INSERT ... ON CONFLICT (content_sha256) DO UPDATE SET ...` using the
-`lava_impact.attribution_rank(TEXT)` helper function from migration
+`lava_corpus.attribution_rank(TEXT)` helper function from migration
 `002_attribution_helper.sql`.
 
 This module plus `catalogue.py` and `schema.py` are the only files
-permitted to reference the `lava_impact.corpus` table directly; every
-other module reads through the `lava_impact.corpus_public` view.
+permitted to reference the `lava_corpus.corpus` table directly; every
+other module reads through the `lava_corpus.corpus_public` view.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 
 def git_short_sha() -> str | None:
@@ -58,7 +58,7 @@ def record_fetch(
     elapsed_ms: int | None = None,
     notes: str | None = None,
 ) -> None:
-    """Append a row to `lava_impact.fetch_log`. Auto-id; omit `id`."""
+    """Append a row to `lava_corpus.fetch_log`. Auto-id; omit `id`."""
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -412,7 +412,7 @@ def upsert_report(
     reasoning: str | None = None,
     run_id: str | None = None,
 ) -> None:
-    """Atomic upsert into `lava_impact.corpus` with attribution merge.
+    """Atomic upsert into `lava_corpus.corpus` with attribution merge.
 
     The ON CONFLICT UPDATE clause uses `attribution_rank()` to prefer
     stronger attribution tiers on conflicting sha256, and

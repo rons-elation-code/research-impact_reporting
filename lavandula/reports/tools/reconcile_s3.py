@@ -1,4 +1,4 @@
-"""Reconcile S3 archive against `lava_impact.corpus` (Spec 0007 AC16, Spec 0017).
+"""Reconcile S3 archive against `lava_corpus.corpus` (Spec 0007 AC16, Spec 0017).
 
 Detects orphan objects — bytes in S3 whose sha256 has no `corpus`
 row (e.g. because the crawler crashed between PUT and the DB write).
@@ -61,7 +61,7 @@ def _db_shas(engine: Engine) -> set[str]:
     with engine.connect() as conn:
         return {
             row[0] for row in conn.execute(text(
-                "SELECT content_sha256 FROM lava_impact.corpus"
+                "SELECT content_sha256 FROM lava_corpus.corpus"
             ))
         }
 
@@ -71,7 +71,7 @@ def _fetch_log_attribution(engine: Engine, sha: str) -> tuple[str, str] | None:
     with engine.connect() as conn:
         row = conn.execute(
             text(
-                "SELECT ein, url_redacted FROM lava_impact.fetch_log "
+                "SELECT ein, url_redacted FROM lava_corpus.fetch_log "
                 " WHERE kind = 'pdf-get' AND notes LIKE :pat "
                 " ORDER BY id DESC LIMIT 1"
             ),
@@ -132,7 +132,7 @@ def _insert_orphan_row(
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO lava_impact.corpus ("
+                "INSERT INTO lava_corpus.corpus ("
                 "  content_sha256, source_url_redacted, source_org_ein, "
                 "  discovered_via, attribution_confidence, archived_at, "
                 "  content_type, file_size_bytes, classifier_model, "
@@ -262,7 +262,7 @@ def reconcile(
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Reconcile S3 archive with lava_impact.corpus")
+    ap = argparse.ArgumentParser(description="Reconcile S3 archive with lava_corpus.corpus")
     ap.add_argument("--archive", required=True, help="s3://bucket/prefix")
     mx = ap.add_mutually_exclusive_group(required=True)
     mx.add_argument("--dry-run", action="store_true")

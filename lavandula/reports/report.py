@@ -1,6 +1,6 @@
 """Coverage report generator (Phase 6 deliverable).
 
-Reads `lava_impact.corpus_public` + `fetch_log` aggregates and emits
+Reads `lava_corpus.corpus_public` + `fetch_log` aggregates and emits
 a Markdown summary for operator review.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 
 def _table(rows: list[tuple]) -> str:

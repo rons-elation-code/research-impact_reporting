@@ -1,7 +1,7 @@
 """Spec 0017 — upsert_report attribution-rank merge logic.
 
 Exercises the ON CONFLICT (content_sha256) DO UPDATE path that uses
-`lava_impact.attribution_rank()` to prefer stronger attribution tiers.
+`lava_corpus.attribution_rank()` to prefer stronger attribution tiers.
 Category A (real Postgres required).
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ def test_attribution_rank_helper_ordering(postgres_engine):
     with postgres_engine.connect() as conn:
         ranks = {
             tier: int(conn.execute(
-                text("SELECT lava_impact.attribution_rank(:t)"),
+                text("SELECT lava_corpus.attribution_rank(:t)"),
                 {"t": tier},
             ).scalar())
             for tier in ("own_domain", "platform_verified",
@@ -78,7 +78,7 @@ def test_upsert_stronger_attribution_wins(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT attribution_confidence, source_url_redacted "
-            "FROM lava_impact.corpus WHERE content_sha256 = :s"
+            "FROM lava_corpus.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "own_domain"
     assert row[1] == "https://strong.example.org/a.pdf"
@@ -104,7 +104,7 @@ def test_upsert_weaker_attribution_loses(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT attribution_confidence, source_url_redacted "
-            "FROM lava_impact.corpus WHERE content_sha256 = :s"
+            "FROM lava_corpus.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "own_domain"
     assert row[1] == "https://strong.example.org/a.pdf"
@@ -124,7 +124,7 @@ def test_active_content_flags_never_downgrade(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT pdf_has_javascript, pdf_has_launch "
-            "FROM lava_impact.corpus WHERE content_sha256 = :s"
+            "FROM lava_corpus.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == 1
     assert row[1] == 1
@@ -150,7 +150,7 @@ def test_classification_prefers_higher_confidence(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT classification, classification_confidence "
-            "FROM lava_impact.corpus WHERE content_sha256 = :s"
+            "FROM lava_corpus.corpus WHERE content_sha256 = :s"
         ), {"s": "f" * 64}).fetchone()
     assert row[0] == "annual"
     assert float(row[1]) == pytest.approx(0.95)

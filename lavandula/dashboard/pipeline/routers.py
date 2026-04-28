@@ -10,7 +10,7 @@ class PipelineRouter:
         if not model._meta.managed:
             raise RuntimeError(
                 f"Write blocked: {model._meta.label} is an unmanaged model; "
-                "lava_impact schema is owned by lavandula/migrations/rds/."
+                "lava_corpus schema is owned by lavandula/migrations/rds/."
             )
         return "default"
 

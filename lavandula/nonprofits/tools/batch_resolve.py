@@ -75,7 +75,7 @@ EST_TOKENS_IN_PER_ORG = 8_000
 EST_TOKENS_OUT_PER_ORG = 200
 
 UPDATE_SQL = text("""
-UPDATE lava_impact.nonprofits_seed
+UPDATE lava_corpus.nonprofits_seed
    SET website_url = :url,
        resolver_status = :status,
        resolver_confidence = :confidence,
@@ -199,7 +199,7 @@ def _normalize_filters(args: argparse.Namespace) -> None:
 
 SELECT_SQL_TMPL = """
 SELECT ein, name, address, city, state, zipcode, ntee_code
-  FROM lava_impact.nonprofits_seed
+  FROM lava_corpus.nonprofits_seed
  WHERE 1=1
  {state_clause}
  {ntee_clause}
@@ -454,7 +454,7 @@ def ingest_rows(engine: Engine, rows: dict[str, dict], *,
                 placeholders = ",".join(f":e{j}" for j in range(len(chunk)))
                 params = {f"e{j}": v for j, v in enumerate(chunk)}
                 q = text(
-                    "SELECT ein FROM lava_impact.nonprofits_seed "
+                    "SELECT ein FROM lava_corpus.nonprofits_seed "
                     f"WHERE ein IN ({placeholders}) "
                     "AND resolver_status = 'resolved'"
                 )

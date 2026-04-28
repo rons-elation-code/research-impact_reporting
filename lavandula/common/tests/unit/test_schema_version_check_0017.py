@@ -35,6 +35,6 @@ def test_current_version_passes(postgres_engine):
 def test_schema_version_row_at_2(postgres_engine):
     with postgres_engine.connect() as conn:
         v = conn.execute(text(
-            "SELECT MAX(version) FROM lava_impact.schema_version"
+            "SELECT MAX(version) FROM lava_corpus.schema_version"
         )).scalar()
     assert int(v) >= 2

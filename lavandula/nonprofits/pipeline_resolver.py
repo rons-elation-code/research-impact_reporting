@@ -42,7 +42,7 @@ from .url_normalize import normalize_url
 
 log = logging.getLogger(__name__)
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 _SENTINEL = None
 _RETRY_DELAYS = [5, 10, 20]
 _LEGAL_SUFFIX_RE = re.compile(

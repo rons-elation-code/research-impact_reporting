@@ -93,7 +93,7 @@ DATABASES = {
         "PORT": _RDS_PORT,
         "IAM_TOKEN_MANAGER": _iam,
         "OPTIONS": {
-            "options": "-c search_path=lava_impact,public",
+            "options": "-c search_path=lava_corpus,public",
             "sslmode": "require",
         },
     },

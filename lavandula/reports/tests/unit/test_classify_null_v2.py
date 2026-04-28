@@ -43,7 +43,7 @@ def test_default_mode_query_filter():
 def test_v2_write_includes_all_columns():
     """The _write_result UPDATE statement includes all 6 classification columns."""
     update_sql = (
-        "UPDATE lava_impact.corpus SET "
+        "UPDATE lava_corpus.corpus SET "
         "  classification = :class, "
         "  classification_confidence = :conf, "
         "  material_type = :mt, "

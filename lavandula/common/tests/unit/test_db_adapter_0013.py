@@ -165,7 +165,7 @@ def test_do_connect_injects_token_as_password():
     "bad",
     [
         'lava"; DROP SCHEMA public; --',
-        "lava_impact; SELECT 1",
+        "lava_corpus; SELECT 1",
         "Lava_Impact",           # uppercase not allowed
         "1lava",                 # leading digit
         "lava-impact",           # hyphen
@@ -188,7 +188,7 @@ def test_make_engine_accepts_valid_schema():
     mgr = MagicMock(spec=IAMTokenManager)
     engine = make_engine(
         host="h", port=5432, database="d", user="u",
-        schema="lava_impact", token_manager=mgr,
+        schema="lava_corpus", token_manager=mgr,
     )
     assert engine is not None
 
@@ -207,7 +207,7 @@ def test_ssm_based_factory_wiring(monkeypatch):
         "rds-endpoint": "db.prod.example",
         "rds-port": "5432",
         "rds-database": "lava_prod1",
-        "rds-schema": "lava_impact",
+        "rds-schema": "lava_corpus",
         "rds-app-user": "app_user1",
         "rds-ro-user": "ro_user1",
     }
@@ -229,7 +229,7 @@ def test_ssm_based_factory_wiring(monkeypatch):
     assert captured["host"] == "db.prod.example"
     assert captured["port"] == 5432
     assert captured["database"] == "lava_prod1"
-    assert captured["schema"] == "lava_impact"
+    assert captured["schema"] == "lava_corpus"
     assert captured["region"] == "us-east-1"
 
     captured.clear()
@@ -304,7 +304,7 @@ def test_live_rds_ro_engine_cannot_insert():
         with pytest.raises(DBAPIError):
             conn.execute(
                 text(
-                    "INSERT INTO lava_impact.schema_version (version, note) "
+                    "INSERT INTO lava_corpus.schema_version (version, note) "
                     "VALUES (-1, 'ro-user insert probe')"
                 )
             )

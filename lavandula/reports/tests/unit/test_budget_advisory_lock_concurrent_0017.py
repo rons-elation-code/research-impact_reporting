@@ -85,7 +85,7 @@ def test_budget_settle_marks_row(postgres_engine):
     with postgres_engine.connect() as conn:
         row = conn.execute(text(
             "SELECT sha256_classified, notes "
-            "FROM lava_impact.budget_ledger WHERE id = :i"
+            "FROM lava_corpus.budget_ledger WHERE id = :i"
         ), {"i": rid}).fetchone()
     assert row[0] == "a" * 64
     assert row[1] == "settled"

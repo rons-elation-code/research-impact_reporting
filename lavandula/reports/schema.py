@@ -36,7 +36,7 @@ def insert_raw_report_for_test(
     discovered_via: str = "homepage-link",
     classifier_model: str = "claude-haiku-4-5",
     file_size_bytes: int = 1024,
-    schema: str | None = "lava_impact",
+    schema: str | None = "lava_corpus",
 ) -> None:
     """Test-only helper: insert a pre-shaped row into `corpus`.
 
@@ -45,7 +45,7 @@ def insert_raw_report_for_test(
     queries without rebuilding the full pipeline. Accepts either an
     `Engine` (uses `.begin()`) or an open SQLAlchemy `Connection`.
 
-    `schema` prefix defaults to `lava_impact`; pass `None` for
+    `schema` prefix defaults to `lava_corpus`; pass `None` for
     unqualified access (unit-test SQLite fixtures without a schema).
     """
     if archived_at is None:

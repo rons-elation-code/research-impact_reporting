@@ -25,7 +25,7 @@ from lavandula.common.db import make_app_engine
 
 log = logging.getLogger(__name__)
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 
 _RESOLVER_CONFIGS = {
     "codex": {
@@ -198,7 +198,7 @@ def _check_timestamp_column(engine) -> bool:
     with engine.connect() as conn:
         row = conn.execute(text(
             "SELECT 1 FROM information_schema.columns "
-            "WHERE table_schema = 'lava_impact' AND table_name = 'nonprofits_seed' "
+            "WHERE table_schema = 'lava_corpus' AND table_name = 'nonprofits_seed' "
             "AND column_name = 'resolver_updated_at'"
         )).fetchone()
         _timestamp_col_exists = row is not None

@@ -1,6 +1,6 @@
 """Batch-classify all reports where classification IS NULL.
 
-Iterates `lava_impact.corpus`, calls the selected classifier backend
+Iterates `lava_corpus.corpus`, calls the selected classifier backend
 on each row's `first_page_text`, and writes the result back in-place
 via the SQLAlchemy engine (Spec 0017).
 
@@ -239,7 +239,7 @@ def main() -> int:
     sql = (
         "SELECT content_sha256, first_page_text, "
         "       source_org_ein, source_url_redacted "
-        "  FROM lava_impact.corpus "
+        "  FROM lava_corpus.corpus "
         " WHERE first_page_text IS NOT NULL "
         "   AND first_page_text <> '' "
         f"{row_filter}"
@@ -330,7 +330,7 @@ def main() -> int:
         with engine.begin() as conn:
             conn.execute(
                 text(
-                    "UPDATE lava_impact.corpus SET "
+                    "UPDATE lava_corpus.corpus SET "
                     "  classification = :class, "
                     "  classification_confidence = :conf, "
                     "  material_type = :mt, "
@@ -463,9 +463,9 @@ def main() -> int:
     try:
         with engine.begin() as conn:
             conn.execute(text(
-                "UPDATE lava_impact.crawled_orgs "
+                "UPDATE lava_corpus.crawled_orgs "
                 "   SET confirmed_report_count = ( "
-                "       SELECT COUNT(*) FROM lava_impact.corpus "
+                "       SELECT COUNT(*) FROM lava_corpus.corpus "
                 "        WHERE corpus.source_org_ein = crawled_orgs.ein "
                 "          AND corpus.classification IN "
                 "              ('annual','impact','hybrid')"

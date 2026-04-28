@@ -22,7 +22,7 @@ from .pipeline_resolver import PipelineQueue, ShutdownFlag
 
 log = logging.getLogger(__name__)
 
-_SCHEMA = "lava_impact"
+_SCHEMA = "lava_corpus"
 _SENTINEL = None
 _RETRY_DELAYS = [5, 10, 20]
 _PAGE_SIZE = 100
