@@ -1,5 +1,5 @@
 {% extends "pipeline/base.html" %}
-{% load pipeline_tags %}
+{% load pipeline_tags tz %}
 {% block title %}Job #{{ job.pk }} — Lavandula Pipeline{% endblock %}
 {% block content %}
 <div class="flex items-center gap-4 mb-6">
@@ -32,9 +32,9 @@
       <div class="flex"><dt class="w-32 text-gray-500">State</dt><dd>{{ job.state_code|default:"Global" }}</dd></div>
       <div class="flex"><dt class="w-32 text-gray-500">Host</dt><dd>{{ job.host }}</dd></div>
       <div class="flex"><dt class="w-32 text-gray-500">PID</dt><dd>{{ job.pid|default:"-" }}</dd></div>
-      <div class="flex"><dt class="w-32 text-gray-500">Created</dt><dd>{{ job.created_at }}</dd></div>
-      <div class="flex"><dt class="w-32 text-gray-500">Started</dt><dd>{{ job.started_at|default:"-" }}</dd></div>
-      <div class="flex"><dt class="w-32 text-gray-500">Finished</dt><dd>{{ job.finished_at|default:"-" }}</dd></div>
+      <div class="flex"><dt class="w-32 text-gray-500">Created</dt><dd>{{ job.created_at|localtime|date:"M j, Y g:i A T" }}</dd></div>
+      <div class="flex"><dt class="w-32 text-gray-500">Started</dt><dd>{% if job.started_at %}{{ job.started_at|localtime|date:"M j, Y g:i A T" }}{% else %}-{% endif %}</dd></div>
+      <div class="flex"><dt class="w-32 text-gray-500">Finished</dt><dd>{% if job.finished_at %}{{ job.finished_at|localtime|date:"M j, Y g:i A T" }}{% else %}-{% endif %}</dd></div>
       <div class="flex"><dt class="w-32 text-gray-500">Exit Code</dt><dd>{{ job.exit_code|default:"-" }}</dd></div>
       {% if job.depends_on %}
       <div class="flex"><dt class="w-32 text-gray-500">Depends On</dt><dd><a href="{% url 'job_detail' job.depends_on.pk %}" class="text-blue-600 hover:underline">Job #{{ job.depends_on.pk }}</a></dd></div>
