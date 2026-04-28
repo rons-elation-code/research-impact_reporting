@@ -214,6 +214,9 @@ def main() -> int:
         help="Reclassify v1-classified rows with v2 schema "
              "(rows where material_type IS NULL AND classification IS NOT NULL).",
     )
+    ap.add_argument("--state", type=str, default=None,
+                    help="Only classify corpus rows from orgs in this state "
+                    "(e.g. TX, NY). Joins on crawled_orgs.ein.")
     ap.add_argument("--max-workers", type=int, default=4,
                     help="Parallel classifier threads (TICK-002). Default 4.")
     args = ap.parse_args()
@@ -226,29 +229,42 @@ def main() -> int:
     engine = make_app_engine()
     assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
 
+    tbl = "c" if args.state else ""
+    col = f"{tbl}." if tbl else ""
+
     if args.backfill_material_type:
-        row_filter = (
-            " AND material_type IS NULL "
-            " AND classification IS NOT NULL "
-        )
+        row_filter = f" AND {col}material_type IS NULL AND {col}classification IS NOT NULL "
     elif args.re_classify:
         row_filter = ""
     else:
-        row_filter = " AND classification IS NULL "
+        row_filter = f" AND {col}classification IS NULL "
 
-    sql = (
-        "SELECT content_sha256, first_page_text, "
-        "       source_org_ein, source_url_redacted "
-        "  FROM lava_corpus.corpus "
-        " WHERE first_page_text IS NOT NULL "
-        "   AND first_page_text <> '' "
-        f"{row_filter}"
-    )
-    params: dict = {}
+    if args.state:
+        sql = (
+            "SELECT c.content_sha256, c.first_page_text, "
+            "       c.source_org_ein, c.source_url_redacted "
+            "  FROM lava_corpus.corpus c "
+            "  JOIN lava_corpus.crawled_orgs co ON co.ein = c.source_org_ein "
+            " WHERE c.first_page_text IS NOT NULL "
+            "   AND c.first_page_text <> '' "
+            "   AND co.state_code = :state "
+            f"{row_filter}"
+        )
+        params: dict = {"state": args.state.upper()}
+    else:
+        sql = (
+            "SELECT content_sha256, first_page_text, "
+            "       source_org_ein, source_url_redacted "
+            "  FROM lava_corpus.corpus "
+            " WHERE first_page_text IS NOT NULL "
+            "   AND first_page_text <> '' "
+            f"{row_filter}"
+        )
+        params: dict = {}
     if args.sha_prefix:
-        sql += " AND content_sha256 LIKE :prefix "
+        sql += f" AND {col}content_sha256 LIKE :prefix "
         params["prefix"] = args.sha_prefix + "%"
-    sql += " ORDER BY archived_at"
+    sql += f" ORDER BY {col}archived_at"
     if args.limit:
         sql += " LIMIT :limit"
         params["limit"] = int(args.limit)

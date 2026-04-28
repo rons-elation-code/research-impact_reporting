@@ -49,6 +49,7 @@ def classify_producer(
     limit: int | None = None,
     shutdown: ShutdownFlag,
     method: str = "",
+    state: str | None = None,
 ) -> ClassifyProducerStats:
     """Keyset pagination over reports with NULL classification, enqueue for LLM."""
     stats = ClassifyProducerStats()
@@ -60,19 +61,33 @@ def classify_producer(
             if shutdown.is_set():
                 break
 
-            sql = (
-                f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.reports "
-                "WHERE classification IS NULL AND content_sha256 > :cursor "
-                "ORDER BY content_sha256 LIMIT :page_size"
-            )
+            if state:
+                sql = (
+                    f"SELECT c.content_sha256, c.first_page_text "
+                    f"  FROM {_SCHEMA}.corpus c "
+                    f"  JOIN {_SCHEMA}.crawled_orgs co ON co.ein = c.source_org_ein "
+                    f" WHERE c.classification IS NULL AND c.content_sha256 > :cursor "
+                    f"   AND co.state_code = :state "
+                    f" ORDER BY c.content_sha256 LIMIT :page_size"
+                )
+            else:
+                sql = (
+                    f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.corpus "
+                    "WHERE classification IS NULL AND content_sha256 > :cursor "
+                    "ORDER BY content_sha256 LIMIT :page_size"
+                )
             page_size = _PAGE_SIZE
             if remaining is not None:
                 page_size = min(page_size, remaining)
 
+            bind_params: dict = {"cursor": last_cursor, "page_size": page_size}
+            if state:
+                bind_params["state"] = state
+
             with engine.connect() as conn:
                 rows = conn.execute(
                     text(sql),
-                    {"cursor": last_cursor, "page_size": page_size},
+                    bind_params,
                 ).fetchall()
 
             if not rows:
@@ -91,7 +106,7 @@ def classify_producer(
                         with engine.begin() as conn:
                             conn.execute(
                                 text(
-                                    f"UPDATE {_SCHEMA}.reports SET "
+                                    f"UPDATE {_SCHEMA}.corpus SET "
                                     "classification='skipped', "
                                     "classifier_model=:model "
                                     "WHERE content_sha256=:csha"
@@ -177,7 +192,7 @@ def classify_consumer(
                 with engine.begin() as conn:
                     conn.execute(
                         text(
-                            f"UPDATE {_SCHEMA}.reports SET "
+                            f"UPDATE {_SCHEMA}.corpus SET "
                             "classification='parse_error', "
                             "classifier_model=:model "
                             "WHERE content_sha256=:csha"
@@ -195,7 +210,7 @@ def classify_consumer(
             with engine.begin() as conn:
                 conn.execute(
                     text(
-                        f"UPDATE {_SCHEMA}.reports SET "
+                        f"UPDATE {_SCHEMA}.corpus SET "
                         "classification=:cls, "
                         "classification_confidence=:conf, "
                         "classifier_model=:model "

@@ -42,6 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm-url", default="http://localhost:11434/v1", help="OpenAI-compatible endpoint")
     p.add_argument("--llm-model", default="gemma4:e4b", help="Model name/tag")
     p.add_argument("--llm-api-key-ssm", default=None, help="SSM path for API key (omit for local Ollama)")
+    p.add_argument("--state", default=None, help="Only classify corpus rows from orgs in this state (e.g. TX)")
     return p
 
 
@@ -90,6 +91,7 @@ def main(argv: list[str] | None = None) -> None:
                 limit=limit,
                 shutdown=shutdown,
                 method=llm.method,
+                state=args.state.upper() if args.state else None,
             )
 
         producer_thread = threading.Thread(target=_run_producer, daemon=True)

@@ -141,6 +141,11 @@ class CrawlerForm(forms.Form):
 
 
 class ClassifierForm(forms.Form):
+    state = forms.ChoiceField(
+        choices=[("", "All states")] + STATE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": _SELECT}),
+    )
     llm_preset = forms.ChoiceField(
         choices=LLM_PRESET_CHOICES,
         initial="deepseek-v4-flash",
