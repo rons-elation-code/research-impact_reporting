@@ -412,7 +412,7 @@ projects:
   - id: "0024"
     title: "Rename reports table to corpus"
     summary: "Rename lava_impact.reports to lava_impact.corpus and lava_impact.reports_public to lava_impact.corpus_public across RDS, pipeline code, dashboard, and tests. Python module lavandula/reports/ and user-facing URL paths remain unchanged."
-    status: implementing
+    status: committed
     priority: medium
     files:
       spec: locard/specs/0024-rename-reports-to-corpus.md
@@ -420,7 +420,7 @@ projects:
       review: null
     dependencies: ["0017", "0019"]
     tags: [database, naming, migration, cleanup]
-    notes: "Requested 2026-04-27. Single operator on DB, controlled migration window. Plan approved 2026-04-27. Builder spawned 2026-04-27."
+    notes: "Requested 2026-04-27. Single operator on DB, controlled migration window. Plan approved 2026-04-27. PR #20 merged 2026-04-27. Awaiting operator: RDS migration via PGAdmin."
 
 ## Next Available Number
 
