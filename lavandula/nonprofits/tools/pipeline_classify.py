@@ -43,6 +43,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm-model", default="gemma4:e4b", help="Model name/tag")
     p.add_argument("--llm-api-key-ssm", default=None, help="SSM path for API key (omit for local Ollama)")
     p.add_argument("--state", default=None, help="Only classify corpus rows from orgs in this state (e.g. TX)")
+    p.add_argument("--re-classify", action="store_true", help="Re-classify all rows, not just NULL classification")
     return p
 
 
@@ -92,6 +93,7 @@ def main(argv: list[str] | None = None) -> None:
                 shutdown=shutdown,
                 method=llm.method,
                 state=args.state.upper() if args.state else None,
+                re_classify=args.re_classify,
             )
 
         producer_thread = threading.Thread(target=_run_producer, daemon=True)

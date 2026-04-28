@@ -50,6 +50,7 @@ def classify_producer(
     shutdown: ShutdownFlag,
     method: str = "",
     state: str | None = None,
+    re_classify: bool = False,
 ) -> ClassifyProducerStats:
     """Keyset pagination over reports with NULL classification, enqueue for LLM."""
     stats = ClassifyProducerStats()
@@ -61,19 +62,24 @@ def classify_producer(
             if shutdown.is_set():
                 break
 
+            null_filter = "" if re_classify else " AND {p}classification IS NULL"
             if state:
+                p = "c."
                 sql = (
                     f"SELECT c.content_sha256, c.first_page_text "
                     f"  FROM {_SCHEMA}.corpus c "
                     f"  JOIN {_SCHEMA}.crawled_orgs co ON co.ein = c.source_org_ein "
-                    f" WHERE c.classification IS NULL AND c.content_sha256 > :cursor "
+                    f" WHERE c.content_sha256 > :cursor "
                     f"   AND co.state_code = :state "
+                    f"{null_filter.format(p=p)} "
                     f" ORDER BY c.content_sha256 LIMIT :page_size"
                 )
             else:
+                p = ""
                 sql = (
                     f"SELECT content_sha256, first_page_text FROM {_SCHEMA}.corpus "
-                    "WHERE classification IS NULL AND content_sha256 > :cursor "
+                    f"WHERE content_sha256 > :cursor "
+                    f"{null_filter.format(p=p)} "
                     "ORDER BY content_sha256 LIMIT :page_size"
                 )
             page_size = _PAGE_SIZE
