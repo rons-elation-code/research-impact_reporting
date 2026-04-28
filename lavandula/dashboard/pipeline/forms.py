@@ -155,3 +155,4 @@ class ClassifierForm(forms.Form):
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
         attrs={"class": _SELECT}
     ))
+    re_classify = forms.BooleanField(required=False, label="Re-classify")

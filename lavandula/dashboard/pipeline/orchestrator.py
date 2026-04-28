@@ -68,6 +68,7 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "llm_api_key_ssm": {"type": "text", "flag": "--llm-api-key-ssm"},
             "limit": {"type": "int", "min": 0, "max": 999999, "flag": "--limit"},
             "state": {"type": "text", "pattern": r"^[A-Z]{2}$", "flag": "--state"},
+            "re_classify": {"type": "bool", "flag": "--re-classify"},
         },
     },
 }
