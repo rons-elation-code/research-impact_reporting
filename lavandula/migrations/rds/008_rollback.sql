@@ -11,7 +11,8 @@ ALTER VIEW lava_impact.corpus_public RENAME TO reports_public;
 -- Reverse table rename
 ALTER TABLE lava_impact.corpus RENAME TO reports;
 
--- Reverse constraint renames
+-- Reverse constraint renames (21 total: 1 pkey + 20 check)
+ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_pkey TO reports_pkey;
 ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_sha_len_chk TO reports_sha_len_chk;
 ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_size_chk TO reports_size_chk;
 ALTER TABLE lava_impact.reports RENAME CONSTRAINT corpus_ct_chk TO reports_ct_chk;

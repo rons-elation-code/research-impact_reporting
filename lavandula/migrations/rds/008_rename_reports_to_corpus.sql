@@ -8,7 +8,8 @@ SET LOCAL lock_timeout = '5s';
 -- 1. Rename table
 ALTER TABLE lava_impact.reports RENAME TO corpus;
 
--- 2. Rename constraints (20 total: 17 from 001 + 3 from 007)
+-- 2. Rename constraints (21 total: 1 pkey + 17 check from 001 + 3 check from 007)
+ALTER TABLE lava_impact.corpus RENAME CONSTRAINT reports_pkey TO corpus_pkey;
 ALTER TABLE lava_impact.corpus RENAME CONSTRAINT reports_sha_len_chk TO corpus_sha_len_chk;
 ALTER TABLE lava_impact.corpus RENAME CONSTRAINT reports_size_chk TO corpus_size_chk;
 ALTER TABLE lava_impact.corpus RENAME CONSTRAINT reports_ct_chk TO corpus_ct_chk;

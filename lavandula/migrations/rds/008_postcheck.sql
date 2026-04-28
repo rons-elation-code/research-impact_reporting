@@ -12,12 +12,12 @@ SELECT tablename FROM pg_tables
 WHERE schemaname = 'lava_impact' AND tablename = 'reports';
 -- Expected: 0 rows
 
--- All 20 constraints renamed
+-- All 21 constraints renamed (1 pkey + 20 check)
 SELECT conname FROM pg_constraint
 WHERE conrelid = 'lava_impact.corpus'::regclass
   AND conname LIKE 'corpus_%'
 ORDER BY conname;
--- Expected: 20 rows, all starting with corpus_
+-- Expected: 21 rows, all starting with corpus_
 
 -- No old constraint names remain
 SELECT conname FROM pg_constraint
