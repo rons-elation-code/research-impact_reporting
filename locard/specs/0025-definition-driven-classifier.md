@@ -48,6 +48,7 @@ If we want to classify a different document type (scraped HTML, donor letters, i
 - **Hot-reload** — definition files are loaded once at startup, consistent with existing taxonomy behavior.
 - **Multi-definition classification** — each row is classified by exactly one definition. Running multiple definitions on the same corpus is a future concern.
 - **Crawler changes** — the crawler continues to use `collateral_taxonomy.yaml` for discovery signals. This spec only affects the classification step.
+- **Non-corpus definition files** — this spec delivers one definition file (`corpus_reports`) and the loader infrastructure. Future definitions for different document types (scraped HTML, interview transcripts) will share the same loader but may require additional DB columns or output mappings. Those are separate specs — this spec does not design for them beyond ensuring the loader is not hard-coded to `corpus_reports`.
 
 ## Architecture
 
@@ -150,8 +151,27 @@ budget document (→ not_relevant)
 | `name` | yes | Identifier used in CLI `--definition` flag and stored in DB |
 | `version` | yes | Integer, incremented when categories or guidelines change |
 | `description` | yes | Human-readable one-liner |
-| `source_taxonomy` | no | If set, the loader validates that all category IDs in the definition exist in this taxonomy YAML. Catches typos. |
-| `output_columns` | yes | List of DB columns this definition populates beyond `classification`. Used by the tool schema builder. |
+| `source_taxonomy` | no | If set, the loader validates that all category IDs in the definition exist in this taxonomy YAML (both `material_types` and `event_types` sections, plus `other_collateral` and `not_relevant` which are always valid catch-alls). Catches typos. |
+| `output_columns` | yes | List of DB columns this definition populates beyond the standard fields. Used by the tool schema builder. |
+
+### Field Ownership Contract
+
+Every classification produces two kinds of fields:
+
+**Always-derived fields** (produced by the framework, not the definition):
+- `classification` — derived via `material_type_to_legacy()` mapping
+- `classification_confidence` — copied from `confidence` in LLM response
+- `material_group` — derived from `material_type` via definition category lookup
+- `classifier_model` — set by the caller (LLM model name)
+- `classifier_definition` — set by the framework (`{name}:v{version}`)
+
+**Definition-driven fields** (listed in `output_columns`, sent to LLM via tool schema):
+- `material_type` — required, constrained to `enum` from definition categories
+- `event_type` — optional, constrained to `enum` from definition event types
+- `reasoning` — always requested (standard tool field, max 300 chars)
+- `confidence` — always requested (standard tool field, 0..1)
+
+All definition files in this spec MUST include `material_type` in `output_columns`. The `material_type_to_legacy()` mapping, `material_group` derivation, and DB CHECK constraints all depend on it. Future specs may define definitions without `material_type`, but that requires new framework support (different legacy mapping, different DB columns).
 
 ### Definition Loader
 
@@ -304,6 +324,41 @@ ALTER TABLE lava_corpus.corpus ADD CONSTRAINT corpus_class_chk
          ('annual','impact','hybrid','other','not_a_report','skipped','parse_error'));
 ```
 
+### Runtime Error Handling
+
+When the LLM returns a malformed or invalid classification response, the behavior depends on the failure mode:
+
+| Failure | Behavior | DB write |
+|---------|----------|----------|
+| LLM unreachable (ConnectionError) | Retry with backoff (existing `_RETRY_DELAYS`), then skip row | No write, `stats.skipped += 1` |
+| Tool response unparseable (no tool call, malformed JSON) | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
+| `material_type` not in definition enum | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
+| `event_type` not in definition enum (and not null) | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
+| `confidence` missing or out of range | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
+| `material_type` missing from response | `LLMParseError` → `classification='parse_error'` | Write `parse_error` + `classifier_model` |
+| No `first_page_text` (empty/whitespace) | Skip classification, write `classification='skipped'` | Write `skipped` + `classifier_model` |
+
+The `parse_error` and `skipped` rows can be targeted for re-classification later. The existing retry logic in `pipeline_classify` consumer is preserved unchanged.
+
+### Definition File Parser Rules
+
+The parser extracts sections from the Markdown body (after frontmatter) by `#`-level headings:
+
+1. **Section order is fixed**: `# System Instructions`, `# Categories`, `# Guidelines`, `# Event Types` (optional).
+2. **Extra sections are rejected** — the parser raises `DefinitionLoadError` for any unrecognized `#`-level heading. This prevents silent content loss if a PM misspells a heading.
+3. **Category structure**: `## group_name` headings define groups, `### category_id` headings define categories within the current group. Category IDs must match `^[a-z][a-z0-9_]*$`. Group names must match the same regex.
+4. **Category body**: Everything between the `### category_id` heading and the next heading (or end of section) is the category body text. This includes descriptions, `**Examples**`, and `**Not this**` blocks — all passed verbatim to the LLM prompt.
+5. **Event types**: Parsed as a flat list of `- event_type_id` items under `# Event Types`. IDs must match `^[a-z][a-z0-9_]*$`.
+6. **Whitespace**: Leading/trailing whitespace in section bodies is stripped. Internal formatting (paragraphs, bullet lists) is preserved.
+
+### Existing Row Treatment
+
+After migration, existing rows will have `classifier_definition = NULL`. This is expected and correct — it indicates the row was classified before the definition system existed. Downstream queries MUST handle mixed populations:
+
+- **Dashboard stats**: No change needed — dashboard queries `classification` and `material_type` columns, both of which remain populated.
+- **Re-classification targeting**: `WHERE classifier_definition IS NULL` selects all pre-definition rows. `WHERE classifier_definition != 'corpus_reports:v2'` selects rows needing update (including NULLs via `IS DISTINCT FROM`).
+- **Audit**: `classifier_definition IS NULL` means "V1 or early V2 classifier, before definition tracking." No backfill of this column for historic rows — it stays NULL until the row is re-classified.
+
 ### Legacy Compatibility
 
 The `material_type_to_legacy()` mapping from Spec 0023 is preserved. The `classification` column continues to be populated for backward compatibility. Dashboard stats, budget ledger, and reports_public view continue to work.
@@ -387,13 +442,21 @@ This spec moves prompt content from Python code to Markdown files. The trust bou
 ### Re-classification Support
 - **AC25**: `--re-classify` flag (existing) works with definition-driven classifier — reclassifies all rows, writing new definition version.
 - **AC26**: Targeted re-classification possible via `--re-classify` combined with `--state` or `--limit`.
+- **AC27**: `--re-classify-definition <name:vN>` flag targets rows where `classifier_definition != <name:vN>` (including NULLs). This enables "re-classify everything not yet on the latest definition version." When combined with `--re-classify`, it replaces the `classification IS NULL` filter with `classifier_definition IS DISTINCT FROM <name:vN>`.
+
+### Runtime Error Handling
+- **AC28**: LLM returns unknown `material_type` → row written with `classification='parse_error'`, no `material_type` set.
+- **AC29**: LLM returns unknown `event_type` (non-null) → same `parse_error` treatment.
+- **AC30**: LLM returns unparseable response → `parse_error` treatment (existing behavior preserved).
+- **AC31**: Empty/whitespace `first_page_text` → `classification='skipped'` (existing behavior preserved).
 
 ### Tests
-- **AC27**: Unit tests for definition loader: valid file, missing file, malformed frontmatter, bad IDs, source_taxonomy validation.
-- **AC28**: Unit tests for tool schema generation from definition.
-- **AC29**: Unit tests for `material_type_to_legacy()` covering all material types.
-- **AC30**: Integration test: classify a known annual report → `material_type='annual_report'`, `classification='annual'`.
-- **AC31**: Integration test: classify a known 990 → `material_type='financial_report'` or `not_relevant`.
+- **AC32**: Unit tests for definition loader: valid file, missing file, malformed frontmatter, bad IDs, source_taxonomy validation, unrecognized section heading.
+- **AC33**: Unit tests for tool schema generation: `enum` values match definition categories, `event_type` enum includes null.
+- **AC34**: Unit tests for `material_type_to_legacy()` covering every material type in `corpus_reports.md`.
+- **AC35**: Integration test with fixture text "2024 Annual Report to the Community\nDear Friends, As we reflect on another year..." → `material_type='annual_report'`, `material_group='reports'`, `classification='annual'`, `confidence >= 0.7`.
+- **AC36**: Integration test with fixture text "Form 990 Return of Organization Exempt From Income Tax\nDepartment of the Treasury Internal Revenue Service..." → `material_type` in (`financial_report`, `not_relevant`), `classification` in (`annual`, `not_a_report`).
+- **AC37**: Parity test: given the same definition file and the same fixture text, `pipeline_classify` and `classify_null` produce the same `material_type` and `material_group` (LLM-dependent fields like confidence/reasoning may vary, but the enum-constrained fields must match when the LLM returns the same classification).
 
 ### Traps to Avoid
 
@@ -406,4 +469,19 @@ This spec moves prompt content from Python code to Markdown files. The trust bou
 
 ## Consultation Log
 
-(Pending — will be filled after expert review)
+### Round 1: Spec Review (2026-04-28)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+8 findings, all addressed in v2:
+
+1. **`output_columns` underspecified** — Added "Field Ownership Contract" section defining which fields are definition-driven vs always-derived. All definitions in this spec MUST include `material_type`.
+2. **"Swappable" scope too broad** — Added non-goal: "Non-corpus definition files" — future definitions for different doc types require separate specs. This spec delivers `corpus_reports` + loader infrastructure.
+3. **`source_taxonomy` validation ambiguous** — Clarified: validation checks `material_types` and `event_types` sections, plus `other_collateral` and `not_relevant` which are always-valid catch-alls.
+4. **Re-classification targeting incomplete** — Added AC27: `--re-classify-definition <name:vN>` flag targets rows where `classifier_definition IS DISTINCT FROM <name:vN>`.
+5. **Runtime error handling missing** — Added "Runtime Error Handling" section with failure mode table (6 cases) and ACs 28-31.
+6. **Existing row treatment undefined** — Added "Existing Row Treatment" section: `classifier_definition = NULL` means pre-definition. No backfill. Downstream queries handle mixed populations.
+7. **Definition parser heading format not nailed down** — Added "Definition File Parser Rules" section: fixed section order, extra sections rejected, category structure defined, whitespace rules.
+8. **Test ACs too loose** — AC35/AC36 now include specific fixture text and expected outputs. AC37 defines parity test scope.
+
+**Gemini** — Quota exhausted (429), review not completed.
