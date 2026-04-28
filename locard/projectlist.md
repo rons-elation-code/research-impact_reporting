@@ -422,9 +422,22 @@ projects:
     tags: [database, naming, migration, cleanup]
     notes: "Requested 2026-04-27. Single operator on DB, controlled migration window. Plan approved 2026-04-27. PR #20 merged 2026-04-27. Awaiting operator: RDS migration via PGAdmin."
 
+  - id: "0025"
+    title: "Definition-Driven Classifier"
+    summary: "Decouple classifier behavior from code via swappable definition files. Each definition file specifies categories, descriptions, examples, and counter-examples that the classifier prompt consumes at runtime. Enables PM-level taxonomy iteration without code changes and reuse of the classifier engine for different document types (corpus PDFs, scraped HTML, etc.)."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0025-definition-driven-classifier.md
+      plan: null
+      review: null
+    dependencies: ["0023"]
+    tags: [classifier, taxonomy, data-quality, architecture]
+    notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced."
+
 ## Next Available Number
 
-**0025** - Reserve this number for your next project
+**0026** - Reserve this number for your next project
 
 ---
 
