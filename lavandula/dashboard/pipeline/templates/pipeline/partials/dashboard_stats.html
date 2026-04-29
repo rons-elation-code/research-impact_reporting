@@ -19,7 +19,7 @@
     <div class="space-y-2">
       <div class="flex justify-between"><span class="text-gray-600">Total Orgs</span><span class="font-bold">{{ seed_total }}</span></div>
       {% for status, count in seed_by_status %}
-      <div class="flex justify-between"><span class="text-gray-600">{{ status|default:"unresolved" }}</span><span class="font-medium">{{ count }}</span></div>
+      <div class="flex justify-between"><span class="text-gray-600">{% if status == "unresolved" %}no website found{% elif status == "ambiguous" %}ambiguous (multiple matches){% else %}{{ status|default:"pending (not run)" }}{% endif %}</span><span class="font-medium">{{ count }}</span></div>
       {% endfor %}
     </div>
   </div>
