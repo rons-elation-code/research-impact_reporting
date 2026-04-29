@@ -68,9 +68,9 @@ def classify_producer(
                 sql = (
                     f"SELECT c.content_sha256, c.first_page_text "
                     f"  FROM {_SCHEMA}.corpus c "
-                    f"  JOIN {_SCHEMA}.crawled_orgs co ON co.ein = c.source_org_ein "
+                    f"  JOIN {_SCHEMA}.nonprofits_seed ns ON ns.ein = c.source_org_ein "
                     f" WHERE c.content_sha256 > :cursor "
-                    f"   AND co.state_code = :state "
+                    f"   AND ns.state = :state "
                     f"{null_filter.format(p=p)} "
                     f" ORDER BY c.content_sha256 LIMIT :page_size"
                 )
@@ -108,6 +108,7 @@ def classify_producer(
 
                 if not first_page_text or not first_page_text.strip():
                     stats.skipped_no_text += 1
+                    log.info("[skip] sha=%s  no text", content_sha256[:10])
                     try:
                         with engine.begin() as conn:
                             conn.execute(
@@ -230,6 +231,10 @@ def classify_consumer(
                     },
                 )
             stats.classified += 1
+            log.info(
+                "[%d] sha=%s  %s (%.2f)",
+                stats.classified, content_sha256[:10], classification, confidence,
+            )
         except Exception:
             stats.errors += 1
             log.exception("DB write error for content_sha256=%s", content_sha256)

@@ -216,7 +216,7 @@ def main() -> int:
     )
     ap.add_argument("--state", type=str, default=None,
                     help="Only classify corpus rows from orgs in this state "
-                    "(e.g. TX, NY). Joins on crawled_orgs.ein.")
+                    "(e.g. TX, NY). Joins on nonprofits_seed.ein.")
     ap.add_argument("--max-workers", type=int, default=4,
                     help="Parallel classifier threads (TICK-002). Default 4.")
     args = ap.parse_args()
@@ -244,10 +244,10 @@ def main() -> int:
             "SELECT c.content_sha256, c.first_page_text, "
             "       c.source_org_ein, c.source_url_redacted "
             "  FROM lava_corpus.corpus c "
-            "  JOIN lava_corpus.crawled_orgs co ON co.ein = c.source_org_ein "
+            "  JOIN lava_corpus.nonprofits_seed ns ON ns.ein = c.source_org_ein "
             " WHERE c.first_page_text IS NOT NULL "
             "   AND c.first_page_text <> '' "
-            "   AND co.state_code = :state "
+            "   AND ns.state = :state "
             f"{row_filter}"
         )
         params: dict = {"state": args.state.upper()}
