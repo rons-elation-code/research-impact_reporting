@@ -18,6 +18,7 @@ import threading
 import time
 
 from lavandula.common.db import MIN_SCHEMA_VERSION, assert_schema_at_least, make_app_engine
+from lavandula.nonprofits.definition_loader import resolve_definition_name
 from lavandula.nonprofits.gemma_client import LLMClient
 from lavandula.nonprofits.pipeline_classify import (
     classify_consumer,
@@ -44,6 +45,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--llm-api-key-ssm", default=None, help="SSM path for API key (omit for local Ollama)")
     p.add_argument("--state", default=None, help="Only classify corpus rows from orgs in this state (e.g. TX)")
     p.add_argument("--re-classify", action="store_true", help="Re-classify all rows, not just NULL classification")
+    p.add_argument("--definition", default=None,
+                   help="Definition file name (default: env LAVANDULA_CLASSIFIER_DEFINITION or corpus_reports)")
+    p.add_argument("--re-classify-definition", default=None,
+                   help="Re-classify rows where classifier_definition != this value "
+                   "(e.g., corpus_reports:v2). Uses IS DISTINCT FROM to include NULLs. "
+                   "Implies --re-classify.")
     return p
 
 
@@ -55,6 +62,11 @@ def main(argv: list[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
+    if args.re_classify_definition:
+        args.re_classify = True
+
+    defn_name = resolve_definition_name(args.definition)
+
     api_key_value = None
     if args.llm_api_key_ssm:
         from lavandula.common.secrets import get_secret
@@ -62,8 +74,9 @@ def main(argv: list[str] | None = None) -> None:
 
     llm = LLMClient(
         base_url=args.llm_url, model=args.llm_model, api_key=api_key_value,
+        definition_name=defn_name,
     )
-    log.info("LLM: %s model=%s method=%s", args.llm_url, args.llm_model, llm.method)
+    log.info("LLM: %s model=%s method=%s definition=%s", args.llm_url, args.llm_model, llm.method, defn_name)
     if not llm.health_check():
         print(
             f"ERROR: LLM endpoint unreachable at {args.llm_url}",
@@ -83,6 +96,8 @@ def main(argv: list[str] | None = None) -> None:
 
         t_start = time.monotonic()
 
+        cdef = f"{llm.definition.name}:v{llm.definition.version}"
+
         producer_stats = [None]
 
         def _run_producer():
@@ -94,6 +109,8 @@ def main(argv: list[str] | None = None) -> None:
                 method=llm.method,
                 state=args.state.upper() if args.state else None,
                 re_classify=args.re_classify,
+                classifier_definition=cdef,
+                re_classify_definition=args.re_classify_definition,
             )
 
         producer_thread = threading.Thread(target=_run_producer, daemon=True)
@@ -101,6 +118,7 @@ def main(argv: list[str] | None = None) -> None:
 
         consumer_stats = classify_consumer(
             pq=pq, gemma=llm, engine=engine, shutdown=shutdown,
+            classifier_definition=cdef,
         )
         producer_thread.join(timeout=10)
 
