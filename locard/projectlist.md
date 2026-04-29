@@ -425,7 +425,7 @@ projects:
   - id: "0025"
     title: "Definition-Driven Classifier"
     summary: "Decouple classifier behavior from code via swappable definition files. Each definition file specifies categories, descriptions, examples, and counter-examples that the classifier prompt consumes at runtime. Enables PM-level taxonomy iteration without code changes and reuse of the classifier engine for different document types (corpus PDFs, scraped HTML, etc.)."
-    status: specified
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0025-definition-driven-classifier.md
@@ -433,7 +433,7 @@ projects:
       review: null
     dependencies: ["0023"]
     tags: [classifier, taxonomy, data-quality, architecture]
-    notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced."
+    notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced. Builder spawned 2026-04-29."
 
 ## Next Available Number
 
