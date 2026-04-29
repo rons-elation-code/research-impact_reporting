@@ -124,15 +124,31 @@ class ClassifierDefinition:
     description: str
     source_taxonomy: str | None
     output_columns: list[str]
-    system_prompt: str
+    system_prompt: str       # FULL assembled prompt (see below)
     categories: list[CategoryDef]
     guidelines: str
     event_types: list[EventTypeDef]
-    tool_schema: dict   # Pre-built OpenAI function-calling schema
+    tool_schema: dict        # Pre-built OpenAI function-calling schema
 
     def get_category(self, category_id: str) -> CategoryDef | None:
         ...
 ```
+
+**CRITICAL: `system_prompt` assembly** — The `system_prompt` field is the **fully assembled prompt** that includes ALL definition sections, not just `# System Instructions`. The loader assembles it as:
+
+```
+{# System Instructions text}
+
+{# Categories rendered as structured text — group/category/body}
+
+{# Guidelines text}
+
+{# Event Types rendered as list}
+```
+
+This is the prompt that gets sent to the LLM as the system message. The category descriptions, examples, counter-examples, and guidelines — the whole point of this spec — are embedded in this assembled prompt. Both classifiers receive this identical string.
+
+The individual parsed sections (categories list, guidelines text, event types list) are stored separately on `ClassifierDefinition` for tool schema generation and validation. But the prompt the LLM sees is `system_prompt`.
 
 **Functions:**
 
@@ -163,7 +179,7 @@ class ClassifierDefinition:
 - Use `yaml.safe_load` for frontmatter parsing.
 - For Markdown section parsing: split on lines starting with `# ` (single `#` + space). Within `# Categories`, split on `## ` for groups and `### ` for categories. Lines in `# System Instructions` and `# Guidelines` that happen to have `##` or lower headings pass through as prose (spec parser rule 5).
 - Module-level cache: `_cache: dict[str, ClassifierDefinition] = {}`.
-- Source taxonomy validation: load the YAML via `taxonomy.load_taxonomy()`, check each category ID is in `taxonomy.material_type_ids` or is `other_collateral`/`not_relevant`, check each event type ID is in `taxonomy.event_type_ids`.
+- Source taxonomy validation: resolve `source_taxonomy` to a concrete file path relative to `lavandula/docs/` (e.g., `source_taxonomy: collateral_taxonomy.yaml` → `lavandula/docs/collateral_taxonomy.yaml`). Load that specific file via `taxonomy.load_taxonomy(path)`, then check each category ID is in `taxonomy.material_type_ids` or is `other_collateral`/`not_relevant`, and each event type ID is in `taxonomy.event_type_ids`. Do NOT use the default taxonomy loader — always resolve the explicitly named file so validation is tied to the referenced YAML, not an implicit global.
 
 #### Step 1.3: Unit tests for loader
 
@@ -476,11 +492,20 @@ def _write_error_result(sha: str, classification: str = "parse_error") -> None:
 
 Call `_write_error_result(sha)` in the `schema_error`, `unexpected`, and null-classification handlers.
 
-#### Step 3.3: Parity test
+#### Step 3.3: Parity tests
 
-Test that given the same definition file and the same fixture text, both classifiers produce the same `material_type`, `material_group`, `classification`, and `classifier_definition`. The LLM-dependent fields (confidence, reasoning) may vary since different LLM backends are used, but the enum-constrained fields (material_type, event_type) and derived fields (material_group, classification) must match when the LLM returns the same raw classification.
+**Test A — Prompt construction parity** (AC37, structural parity):
 
-Test approach: mock both LLM backends to return the same raw `material_type` + `event_type` + `confidence` + `reasoning`, verify the derived fields match exactly.
+Build request payloads from both classifier paths using the same definition file and same fixture text. Assert:
+- System prompt text is byte-identical between both paths
+- User message template text is identical (same `<untrusted_document>` wrapping)
+- Tool schema content is identical after normalizing format differences (OpenAI `parameters` → Anthropic `input_schema` — same keys, same enum values, same descriptions)
+
+This catches regressions where one path changes prompt assembly without the other.
+
+**Test B — Output derivation parity** (AC37, behavioral parity):
+
+Mock both LLM backends to return the same raw `material_type` + `event_type` + `confidence` + `reasoning`. Verify the derived fields match exactly: `material_type`, `material_group`, `classification`, `classifier_definition`.
 
 ---
 
@@ -539,7 +564,15 @@ class ClassifierForm(forms.Form):
 ```python
 p.add_argument("--re-classify-definition", default=None,
                help="Re-classify rows where classifier_definition != this value "
-               "(e.g., corpus_reports:v2). Uses IS DISTINCT FROM to include NULLs.")
+               "(e.g., corpus_reports:v2). Uses IS DISTINCT FROM to include NULLs. "
+               "Implies --re-classify.")
+```
+
+**CLI validation**: If `--re-classify-definition` is supplied, automatically enable `re_classify=True` regardless of whether `--re-classify` is also passed. This avoids a confusing state where the definition filter is set but the code still filters on `classification IS NULL`. Add explicit handling:
+
+```python
+if args.re_classify_definition:
+    args.re_classify = True
 ```
 
 When set, the producer's WHERE clause changes:
@@ -548,7 +581,7 @@ When set, the producer's WHERE clause changes:
 
 #### Step 5.2: Add flag to `classify_null` CLI
 
-Same flag, same semantics. Modify the SQL query builder in `main()`.
+Same flag, same semantics, same validation rule (`--re-classify-definition` implies `--re-classify`). Modify the SQL query builder in `main()`.
 
 #### Step 5.3: Add to COMMAND_MAP
 
@@ -695,5 +728,18 @@ Phases 2 and 3 can be done in parallel after Phase 1. Phase 4 depends on Phase 2
 5. **`material_type_to_legacy()` canonical path unclear** — Added "Canonical Legacy Mapping" section: always call `taxonomy.material_type_to_legacy()` (the public function). Never import private dict, never duplicate.
 6. **Migration step incomplete** — Pinned migration number to `009_classifier_definition.sql`. Added verification SQL. Added prerequisite note: migration must be applied before deploying new code.
 7. **Test gaps** — Added Steps 6.6 (env-var precedence), 6.7 (dashboard definition discovery edge cases), 6.8 (`classify_null` persistence completeness).
+
+**Gemini** — Quota exhausted (429), review not completed.
+
+### Round 2: Red-Team Security Review (2026-04-29)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+4 findings, all addressed in v3:
+
+1. **Definition content not injected into prompt** — The plan had `system_prompt` as only the `# System Instructions` section, leaving category descriptions/examples/guidelines out of the LLM prompt. Fixed: `system_prompt` is now the fully assembled prompt including all definition sections. Added explicit assembly documentation in Phase 1.2.
+2. **`source_taxonomy` not resolved to specific file** — Validation loaded the default taxonomy instead of the file named by `source_taxonomy`. Fixed: loader now resolves `source_taxonomy` to a concrete file path relative to `lavandula/docs/` and validates against that specific file.
+3. **`--re-classify-definition` semantics when `--re-classify` absent** — The CLI didn't define behavior when `--re-classify-definition` was supplied without `--re-classify`. Fixed: `--re-classify-definition` now implies `--re-classify` in both CLIs. Explicit validation added.
+4. **Parity test doesn't test prompt construction** — The proposed test only checked derived output fields, not prompt parity. Fixed: split into Test A (prompt construction parity — byte-identical system prompt, identical user template, normalized schema content) and Test B (output derivation parity — mocked response → identical derived fields).
 
 **Gemini** — Quota exhausted (429), review not completed.
