@@ -3,11 +3,22 @@ import socket
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Q
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
+
+
+class HtmxLoginRequiredMixin(LoginRequiredMixin):
+    """LoginRequiredMixin that returns HX-Redirect for HTMX requests."""
+
+    def handle_no_permission(self):
+        if self.request.headers.get("HX-Request"):
+            response = HttpResponse(status=204)
+            response["HX-Redirect"] = self.get_login_url()
+            return response
+        return super().handle_no_permission()
 
 from .models import (
     CrawledOrg,
@@ -66,7 +77,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class DashboardStatsPartial(LoginRequiredMixin, TemplateView):
+class DashboardStatsPartial(HtmxLoginRequiredMixin, TemplateView):
     template_name = "pipeline/partials/dashboard_stats.html"
 
     def get_context_data(self, **kwargs):
@@ -149,7 +160,7 @@ class SeederView(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class JobListView(LoginRequiredMixin, TemplateView):
+class JobListView(HtmxLoginRequiredMixin, TemplateView):
     template_name = "pipeline/jobs.html"
 
     def get_context_data(self, **kwargs):
@@ -284,7 +295,7 @@ class JobRetryView(LoginRequiredMixin, View):
             return redirect("job_detail", pk=pk)
 
 
-class JobProgressPartial(LoginRequiredMixin, TemplateView):
+class JobProgressPartial(HtmxLoginRequiredMixin, TemplateView):
     template_name = "pipeline/partials/job_progress.html"
 
     def get_context_data(self, **kwargs):
@@ -295,7 +306,7 @@ class JobProgressPartial(LoginRequiredMixin, TemplateView):
         return ctx
 
 
-class JobLogPartial(LoginRequiredMixin, View):
+class JobLogPartial(HtmxLoginRequiredMixin, View):
     def get(self, request, pk):
         job = get_object_or_404(Job, pk=pk)
         content = read_log_tail(job.log_file)
