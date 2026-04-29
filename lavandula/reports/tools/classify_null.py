@@ -29,6 +29,10 @@ from lavandula.common.db import (
     make_app_engine,
 )
 from lavandula.reports import budget, config, db_writer
+from lavandula.nonprofits.definition_loader import (
+    load_definition,
+    resolve_definition_name,
+)
 from lavandula.reports.classifier_clients import (
     DeepSeekAPIClient,
     SubscriptionCLIClient,
@@ -36,13 +40,11 @@ from lavandula.reports.classifier_clients import (
 )
 from lavandula.reports.classify import (
     ClassifierError,
-    classify_first_page_v2,
+    classify_first_page_v3,
     estimate_cents,
 )
 from lavandula.reports.taxonomy import (
-    build_taxonomy_prompt_section,
     ensure_loaded as _ensure_taxonomy,
-    get_taxonomy,
 )
 
 
@@ -121,6 +123,8 @@ def iso_now() -> str:
 # Per-thread classifier client (TICK-002 round-3 review).
 _classifier_local = threading.local()
 _classifier_factory = None  # set by main() before dispatch
+_definition = None  # set by main() before dispatch
+_cdef = ""  # set by main() before dispatch
 
 
 def _get_thread_classifier():
@@ -157,9 +161,8 @@ def _classify_one(sha: str, text_input: str, *, engine: Engine,
             return sha, ("budget_error", exc)
 
     try:
-        taxonomy = get_taxonomy()
-        result = classify_first_page_v2(
-            text_input, client=client, taxonomy=taxonomy,
+        result = classify_first_page_v3(
+            text_input, client=client, definition=_definition,
             raise_on_error=False,
         )
     except ClassifierError as exc:
@@ -214,6 +217,11 @@ def main() -> int:
         help="Reclassify v1-classified rows with v2 schema "
              "(rows where material_type IS NULL AND classification IS NOT NULL).",
     )
+    ap.add_argument("--definition", default=None,
+                    help="Definition file name (default: env LAVANDULA_CLASSIFIER_DEFINITION or corpus_reports)")
+    ap.add_argument("--re-classify-definition", default=None,
+                    help="Re-classify rows where classifier_definition != this value. "
+                    "Uses IS DISTINCT FROM to include NULLs. Implies --re-classify.")
     ap.add_argument("--state", type=str, default=None,
                     help="Only classify corpus rows from orgs in this state "
                     "(e.g. TX, NY). Joins on nonprofits_seed.ein.")
@@ -224,7 +232,15 @@ def main() -> int:
     if args.max_workers < 1 or args.max_workers > 32:
         ap.error("--max-workers must be between 1 and 32")
 
+    if args.re_classify_definition:
+        args.re_classify = True
+
     _ensure_taxonomy()
+
+    global _definition, _cdef
+    defn_name = resolve_definition_name(args.definition)
+    _definition = load_definition(defn_name)
+    _cdef = f"{_definition.name}:v{_definition.version}"
 
     engine = make_app_engine()
     assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
@@ -234,6 +250,8 @@ def main() -> int:
 
     if args.backfill_material_type:
         row_filter = f" AND {col}material_type IS NULL AND {col}classification IS NOT NULL "
+    elif args.re_classify_definition:
+        row_filter = f" AND {col}classifier_definition IS DISTINCT FROM :target_def "
     elif args.re_classify:
         row_filter = ""
     else:
@@ -261,6 +279,8 @@ def main() -> int:
             f"{row_filter}"
         )
         params: dict = {}
+    if args.re_classify_definition:
+        params["target_def"] = args.re_classify_definition
     if args.sha_prefix:
         sql += f" AND {col}content_sha256 LIKE :prefix "
         params["prefix"] = args.sha_prefix + "%"
@@ -355,6 +375,7 @@ def main() -> int:
                     "  reasoning = :reasoning, "
                     "  classifier_model = :model, "
                     "  classifier_version = :cver, "
+                    "  classifier_definition = :cdef, "
                     "  classified_at = :ts, "
                     "  run_id = COALESCE(:run_id, run_id) "
                     "WHERE content_sha256 = :sha"
@@ -367,7 +388,32 @@ def main() -> int:
                     "et": result.event_type,
                     "reasoning": result.reasoning,
                     "model": _effective_classifier_model(sample_client, result),
-                    "cver": 2,
+                    "cver": 3,
+                    "cdef": _cdef,
+                    "ts": iso_now(),
+                    "sha": sha,
+                    "run_id": run_id,
+                },
+            )
+
+    def _write_error_result(sha: str, classification: str = "parse_error") -> None:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE lava_corpus.corpus SET "
+                    "  classification = :cls, "
+                    "  classifier_model = :model, "
+                    "  classifier_definition = :cdef, "
+                    "  classifier_version = :cver, "
+                    "  classified_at = :ts, "
+                    "  run_id = COALESCE(:run_id, run_id) "
+                    "WHERE content_sha256 = :sha"
+                ),
+                {
+                    "cls": classification,
+                    "model": _effective_classifier_model(sample_client, None),
+                    "cdef": _cdef,
+                    "cver": 3,
                     "ts": iso_now(),
                     "sha": sha,
                     "run_id": run_id,
@@ -413,6 +459,7 @@ def main() -> int:
                 print(f"  [{i:>3}/{total}] sha={sha[:10]}  SCHEMA ERROR: {payload}")
                 _log_classify_event(sha, ein, url_redacted,
                                     "classifier_error", f"schema:{payload}")
+                _write_error_result(sha)
                 continue
             if kind == "unexpected":
                 errs += 1
@@ -421,6 +468,7 @@ def main() -> int:
                 _log_classify_event(sha, ein, url_redacted,
                                     "classifier_error",
                                     f"{type(payload).__name__}")
+                _write_error_result(sha)
                 continue
             if kind == "budget_halt":
                 halt_message["text"] = str(payload)
@@ -443,6 +491,7 @@ def main() -> int:
                 _log_classify_event(sha, ein, url_redacted,
                                     "classifier_error",
                                     str(result.error)[:200])
+                _write_error_result(sha)
                 continue
 
             label = result.material_type or result.classification or "?"

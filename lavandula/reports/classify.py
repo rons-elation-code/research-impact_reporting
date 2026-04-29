@@ -449,9 +449,128 @@ def classify_first_page_v2(
     )
 
 
+# ---------------------------------------------------------------------------
+# V3 classifier — definition-driven (Spec 0025)
+# ---------------------------------------------------------------------------
+
+
+def classify_first_page_v3(
+    first_page_text: str,
+    *,
+    client: _HasMessagesCreate,
+    definition: "ClassifierDefinition",
+    model: str | None = None,
+    raise_on_error: bool = True,
+) -> ClassificationResult:
+    """V3 classifier using definition-driven prompt."""
+    from lavandula.nonprofits.definition_loader import (
+        openai_to_anthropic_tool,
+        sanitize_document_text,
+    )
+    from lavandula.reports.taxonomy import material_type_to_legacy
+
+    used_model = model or config.CLASSIFIER_MODEL
+    sanitized = sanitize_document_text(first_page_text)
+
+    tool = openai_to_anthropic_tool(definition.tool_schema)
+    kwargs = {
+        "model": used_model,
+        "max_tokens": 512,
+        "temperature": config.CLASSIFIER_TEMPERATURE,
+        "system": definition.system_prompt,
+        "messages": [{"role": "user", "content": (
+            "Classify the nonprofit PDF below by calling the "
+            "record_classification tool.\n"
+            "<untrusted_document>\n"
+            f"{sanitized}\n"
+            "</untrusted_document>"
+        )}],
+        "tools": [tool],
+        "tool_choice": {"type": "tool", "name": "record_classification"},
+    }
+
+    def _error_result(error: str, resp: Any = None) -> ClassificationResult:
+        return ClassificationResult(
+            classification=None,
+            classification_confidence=None,
+            reasoning=None,
+            classifier_model=used_model,
+            input_tokens=_safe_tok(resp, "input_tokens") if resp else 0,
+            output_tokens=_safe_tok(resp, "output_tokens") if resp else 0,
+            error=error,
+        )
+
+    try:
+        resp = client.messages.create(**kwargs)
+    except ClassifierError:
+        raise
+    except Exception as exc:
+        if raise_on_error:
+            raise ClassifierError(sanitize_exception(exc)) from exc
+        return _error_result(sanitize_exception(exc))
+
+    tool_data = _parse_tool_use(resp)
+    if tool_data is None:
+        err = "no tool_use block in response"
+        if raise_on_error:
+            raise ClassifierError(err)
+        return _error_result(err, resp)
+
+    mt = tool_data.get("material_type")
+    if not isinstance(mt, str) or definition.get_category(mt) is None:
+        err = f"material_type {mt!r} not in definition"
+        if raise_on_error:
+            raise ClassifierError(err)
+        return _error_result(err, resp)
+
+    et = tool_data.get("event_type")
+    valid_ets = {e.id for e in definition.event_types}
+    if et is not None and et not in valid_ets:
+        err = f"event_type {et!r} not in definition"
+        if raise_on_error:
+            raise ClassifierError(err)
+        return _error_result(err, resp)
+
+    conf = tool_data.get("confidence")
+    if not isinstance(conf, (int, float)):
+        err = f"confidence not numeric: {conf!r}"
+        if raise_on_error:
+            raise ClassifierError(err)
+        return _error_result(err, resp)
+    confidence = float(conf)
+    if not (0.0 <= confidence <= 1.0):
+        err = f"confidence {confidence} out of [0,1]"
+        if raise_on_error:
+            raise ClassifierError(err)
+        return _error_result(err, resp)
+
+    reasoning = tool_data.get("reasoning") or ""
+    if not isinstance(reasoning, str):
+        reasoning = str(reasoning)
+    if len(reasoning) > 500:
+        reasoning = reasoning[:500]
+
+    cat = definition.get_category(mt)
+    mg = cat.group
+    legacy_cls = material_type_to_legacy(mt)
+
+    return ClassificationResult(
+        classification=legacy_cls,
+        classification_confidence=confidence,
+        reasoning=reasoning,
+        classifier_model=used_model,
+        input_tokens=_safe_tok(resp, "input_tokens"),
+        output_tokens=_safe_tok(resp, "output_tokens"),
+        material_type=mt,
+        material_group=mg,
+        event_type=et,
+    )
+
+
 # Type import for annotation only
 if TYPE_CHECKING:
     from .taxonomy import Taxonomy
+    from lavandula.nonprofits.definition_loader import ClassifierDefinition
 
 
 __all__ = [
@@ -466,5 +585,6 @@ __all__ = [
     "ClassificationResult",
     "classify_first_page",
     "classify_first_page_v2",
+    "classify_first_page_v3",
     "estimate_cents",
 ]
