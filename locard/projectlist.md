@@ -425,11 +425,11 @@ projects:
   - id: "0025"
     title: "Definition-Driven Classifier"
     summary: "Decouple classifier behavior from code via swappable definition files. Each definition file specifies categories, descriptions, examples, and counter-examples that the classifier prompt consumes at runtime. Enables PM-level taxonomy iteration without code changes and reuse of the classifier engine for different document types (corpus PDFs, scraped HTML, etc.)."
-    status: conceived
+    status: specified
     priority: high
     files:
       spec: locard/specs/0025-definition-driven-classifier.md
-      plan: null
+      plan: locard/plans/0025-definition-driven-classifier.md
       review: null
     dependencies: ["0023"]
     tags: [classifier, taxonomy, data-quality, architecture]
