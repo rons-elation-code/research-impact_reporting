@@ -23,6 +23,48 @@ Replace the hard-coded V1 classifier prompt in `gemma_client.py` and the taxonom
 | `lavandula/dashboard/pipeline/orchestrator.py` | **MODIFY** — Add `definition` to COMMAND_MAP |
 | `lavandula/dashboard/pipeline/forms.py` | **MODIFY** — Add definition dropdown |
 
+## Definition Selection (Spec Goal 3)
+
+Both classifiers resolve the definition name via:
+
+1. CLI `--definition <name>` flag (highest priority)
+2. `LAVANDULA_CLASSIFIER_DEFINITION` env var (fallback)
+3. Hard-coded default `"corpus_reports"` (final fallback)
+
+Resolution helper in `definition_loader.py`:
+
+```python
+import os
+
+def resolve_definition_name(cli_value: str | None = None) -> str:
+    """Resolve definition name: CLI flag > env var > default."""
+    if cli_value:
+        return cli_value
+    return os.environ.get("LAVANDULA_CLASSIFIER_DEFINITION", "corpus_reports")
+```
+
+Both CLIs call `resolve_definition_name(args.definition)` before passing to `load_definition()`. The dashboard orchestrator passes the form value via `--definition` flag (the env var path is for ad-hoc CLI usage outside the dashboard).
+
+## Prompt Parity Contract
+
+Both classifiers (`pipeline_classify` via OpenAI API, `classify_null` via Anthropic CLI) MUST share **identical prompt content**:
+
+- **System prompt**: `definition.system_prompt` (verbatim, same bytes)
+- **User message template**: `"Classify the nonprofit PDF below by calling the record_classification tool.\n<untrusted_document>\n{first_page_text}\n</untrusted_document>"` (identical template, same text)
+- **Tool schema content**: Same `enum` values, same field names, same descriptions. The _format_ differs (OpenAI `parameters` vs Anthropic `input_schema`), but the content is identical — the `_openai_to_anthropic_tool()` converter is a structural transform only.
+- **Response validation**: Same enum checks, same derived fields, same error classification
+
+They MAY differ ONLY in API transport format (OpenAI vs Anthropic JSON structure) and retry semantics.
+
+## Canonical Legacy Mapping
+
+One canonical function for legacy mapping: **`taxonomy.material_type_to_legacy()`** (already exists in `lavandula/reports/taxonomy.py` line 416). Both `definition_loader.py` and `classify.py` import and call this function. No wrapper, no duplicate dict.
+
+```python
+# In definition_loader.py:
+from lavandula.reports.taxonomy import material_type_to_legacy
+```
+
 ## Phased Implementation
 
 ### Phase 1: Definition File + Loader (AC1-AC9)
@@ -110,7 +152,7 @@ class ClassifierDefinition:
 
 - `build_tool_schema(definition: ClassifierDefinition) -> dict` — Builds OpenAI-compatible function-calling schema with `enum` constraint on `material_type` from definition categories. See spec for exact schema shape.
 
-- `material_type_to_legacy(material_type_id: str) -> str` — Wraps the existing `_MATERIAL_TYPE_TO_LEGACY` mapping from `taxonomy.py`. Import and delegate — don't duplicate the mapping.
+- `resolve_definition_name(cli_value: str | None = None) -> str` — Resolves definition name via CLI flag > env var > default (see "Definition Selection" above).
 
 **Error handling:**
 
@@ -251,21 +293,24 @@ Also update the `parse_error` and `skipped` paths to write `classifier_definitio
 
 **Producer needs access to the definition string**. Pass `classifier_definition` as a parameter to `classify_producer()` alongside `method`. The producer writes it on skipped rows.
 
-#### Step 2.3: Add `--definition` flag to CLI
+#### Step 2.3: Add `--definition` flag + env var to CLI
 
 In `lavandula/nonprofits/tools/pipeline_classify.py`:
 
 ```python
-p.add_argument("--definition", default="corpus_reports",
-               help="Definition file name (default: corpus_reports)")
+p.add_argument("--definition", default=None,
+               help="Definition file name (default: env LAVANDULA_CLASSIFIER_DEFINITION or corpus_reports)")
 ```
 
-Pass to `LLMClient`:
+Resolve and pass to `LLMClient`:
 
 ```python
+from lavandula.nonprofits.definition_loader import resolve_definition_name
+
+defn_name = resolve_definition_name(args.definition)
 llm = LLMClient(
     base_url=args.llm_url, model=args.llm_model,
-    api_key=api_key_value, definition_name=args.definition,
+    api_key=api_key_value, definition_name=defn_name,
 )
 ```
 
@@ -280,7 +325,7 @@ cdef = f"{llm.definition.name}:v{llm.definition.version}"
 **Single SQL migration** file (not Django migration — this project uses raw SQL migrations applied via PGAdmin per the single-operator pattern):
 
 ```sql
--- Migration: Add classifier_definition column + formalize corpus_class_chk
+-- Migration 009: Add classifier_definition column + formalize corpus_class_chk
 ALTER TABLE lava_corpus.corpus ADD COLUMN IF NOT EXISTS classifier_definition TEXT;
 
 ALTER TABLE lava_corpus.corpus DROP CONSTRAINT IF EXISTS corpus_class_chk;
@@ -289,9 +334,17 @@ ALTER TABLE lava_corpus.corpus ADD CONSTRAINT corpus_class_chk
          ('annual','impact','hybrid','other','not_a_report','skipped','parse_error'));
 ```
 
-Place at: `lavandula/migrations/rds/migration_XXX_classifier_definition.sql` (determine next migration number).
+Place at: `lavandula/migrations/rds/009_classifier_definition.sql` (next after existing 008 series).
 
-**Important**: The CHECK constraint was already applied manually during this session. The migration formalizes it. The `ADD COLUMN IF NOT EXISTS` is safe for re-runs.
+**Important**: The CHECK constraint was already applied manually during this session. The migration formalizes it. `ADD COLUMN IF NOT EXISTS` is safe for re-runs.
+
+**Verification**: After migration is applied via PGAdmin, verify with:
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_schema='lava_corpus' AND table_name='corpus' AND column_name='classifier_definition';
+```
+
+**Pre-migration code behavior**: The new code MUST handle the case where `classifier_definition` column does not yet exist. Since both classifiers use raw SQL `UPDATE SET`, a missing column causes a Postgres error. The migration MUST be applied before deploying the new code. Document this in the migration file header as a prerequisite.
 
 ---
 
@@ -349,15 +402,79 @@ Validation of the response uses the definition's category list (same as `gemma_c
 
 #### Step 3.2: Refactor `classify_null.py` main()
 
-- Add `--definition` flag (default: `corpus_reports`)
-- Load definition at startup: `defn = load_definition(args.definition)`
+- Add `--definition` flag (default: `None`, resolved via `resolve_definition_name()`)
+- Load definition at startup: `defn = load_definition(resolve_definition_name(args.definition))`
 - Pass `defn` to `classify_first_page_v3()` instead of taxonomy
-- Write `classifier_definition` in `_write_result()`:
-  ```python
-  "classifier_definition=:cdef"
-  ...
-  "cdef": f"{defn.name}:v{defn.version}",
-  ```
+- Compute `cdef` string once at startup: `cdef = f"{defn.name}:v{defn.version}"`
+
+**`_write_result()` changes (AC15, AC23)**:
+
+Update the SQL to include `classifier_definition` and continue writing `classifier_version`:
+
+```python
+def _write_result(sha: str, result) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE lava_corpus.corpus SET "
+                "  classification = :class, "
+                "  classification_confidence = :conf, "
+                "  material_type = :mt, "
+                "  material_group = :mg, "
+                "  event_type = :et, "
+                "  reasoning = :reasoning, "
+                "  classifier_model = :model, "
+                "  classifier_version = :cver, "
+                "  classifier_definition = :cdef, "  # NEW
+                "  classified_at = :ts, "
+                "  run_id = COALESCE(:run_id, run_id) "
+                "WHERE content_sha256 = :sha"
+            ),
+            {
+                ...,
+                "cver": 3,  # bumped from 2
+                "cdef": cdef,  # e.g., "corpus_reports:v1"
+            },
+        )
+```
+
+**Failure path changes (AC23 — classifier_definition on ALL rows)**:
+
+Currently `classify_null` has several outcome kinds: `ok`, `schema_error`, `unexpected`, `budget_halt`, `budget_error`, `cancelled`. For `schema_error` and `unexpected`, no row is written to the DB. After this spec:
+
+- `schema_error` → write `classification='parse_error'`, `classifier_definition=cdef`, `classifier_model`
+- `unexpected` → write `classification='parse_error'`, `classifier_definition=cdef`, `classifier_model`
+- `ok` with `result.classification is None` → write `classification='parse_error'`, `classifier_definition=cdef`, `classifier_model`
+
+Add a `_write_error_result()` helper:
+
+```python
+def _write_error_result(sha: str, classification: str = "parse_error") -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE lava_corpus.corpus SET "
+                "  classification = :cls, "
+                "  classifier_model = :model, "
+                "  classifier_definition = :cdef, "
+                "  classifier_version = :cver, "
+                "  classified_at = :ts, "
+                "  run_id = COALESCE(:run_id, run_id) "
+                "WHERE content_sha256 = :sha"
+            ),
+            {
+                "cls": classification,
+                "model": _effective_classifier_model(sample_client, None),
+                "cdef": cdef,
+                "cver": 3,
+                "ts": iso_now(),
+                "sha": sha,
+                "run_id": run_id,
+            },
+        )
+```
+
+Call `_write_error_result(sha)` in the `schema_error`, `unexpected`, and null-classification handlers.
 
 #### Step 3.3: Parity test
 
@@ -481,6 +598,25 @@ Mock the DB and verify:
 
 Verify every material type in `corpus_reports.md` maps to a valid legacy classification. Load the definition, iterate all categories, call `material_type_to_legacy()`, assert result is in `('annual', 'impact', 'hybrid', 'other', 'not_a_report')`.
 
+#### Step 6.6: Env-var precedence tests
+
+- `LAVANDULA_CLASSIFIER_DEFINITION=foo` with no CLI flag → resolves to `foo`
+- `LAVANDULA_CLASSIFIER_DEFINITION=foo` with `--definition bar` → resolves to `bar` (CLI wins)
+- Neither set → resolves to `corpus_reports`
+
+#### Step 6.7: Dashboard definition discovery edge cases
+
+- No definitions directory → falls back to `[("corpus_reports", "corpus_reports")]`
+- Invalid `.md` files in directory (not valid definitions) → still listed in dropdown (validation happens at load time, not discovery time)
+- Empty directory → falls back to default
+
+#### Step 6.8: `classify_null` persistence completeness tests
+
+- Success path: verify `classifier_definition`, `classifier_version=3`, `material_type`, `material_group`, `event_type`, `reasoning` all written
+- `schema_error` path: verify `classification='parse_error'` + `classifier_definition` written
+- `unexpected` path: verify `classification='parse_error'` + `classifier_definition` written
+- `null classification` path: verify `classification='parse_error'` + `classifier_definition` written
+
 ---
 
 ## Dependency Graph
@@ -508,7 +644,7 @@ Phases 2 and 3 can be done in parallel after Phase 1. Phase 4 depends on Phase 2
 
 4. **Don't break the resolver** — `LLMClient` is shared between classifier and resolver. The `definition_name` parameter must default to `"corpus_reports"` and only affect `classify()`, not `disambiguate()`.
 
-5. **Legacy mapping lives in one place** — Use `taxonomy.material_type_to_legacy()` or import the `_MATERIAL_TYPE_TO_LEGACY` dict. Don't duplicate it in `definition_loader.py`.
+5. **Legacy mapping lives in one place** — Always call `taxonomy.material_type_to_legacy()` (the public function at `lavandula/reports/taxonomy.py:416`). Never import the private `_MATERIAL_TYPE_TO_LEGACY` dict or duplicate the mapping anywhere.
 
 6. **Category count** — The full taxonomy has 70+ material types. The definition file with descriptions + examples for all of them will be large. Stay under 100KB. Rare categories get one-line descriptions per spec trap #6.
 
@@ -543,3 +679,21 @@ Phases 2 and 3 can be done in parallel after Phase 1. Phase 4 depends on Phase 2
 | AC37 | 3.3 | Parity test |
 | AC38 | 6.2 | Mocked response-path tests |
 | AC39 | 6.3 | `--re-classify-definition` query test |
+
+## Consultation Log
+
+### Round 1: Plan Review (2026-04-29)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+7 findings, all addressed in v2:
+
+1. **Missing env var `LAVANDULA_CLASSIFIER_DEFINITION`** — Spec Goal 3 requires env var fallback. Added "Definition Selection" section with `resolve_definition_name()` helper implementing CLI > env var > default precedence. Updated both CLIs to use it.
+2. **Prompt parity language too loose** — Plan said "prompt framing may differ", contradicting the parity contract. Added "Prompt Parity Contract" section specifying identical system prompt bytes, identical user message template, identical tool schema content. Only API transport format differs.
+3. **`classify_null` backward compat not an implementation step** — Was only mentioned in a trap. Phase 3.2 now explicitly shows `_write_result()` changes: `classifier_version` bumped to 3, `classifier_definition` added to SQL.
+4. **`classify_null` failure paths incomplete** — Phase 3.2 now includes `_write_error_result()` helper and explicit coverage of `schema_error`, `unexpected`, and null-classification handlers writing `classifier_definition`.
+5. **`material_type_to_legacy()` canonical path unclear** — Added "Canonical Legacy Mapping" section: always call `taxonomy.material_type_to_legacy()` (the public function). Never import private dict, never duplicate.
+6. **Migration step incomplete** — Pinned migration number to `009_classifier_definition.sql`. Added verification SQL. Added prerequisite note: migration must be applied before deploying new code.
+7. **Test gaps** — Added Steps 6.6 (env-var precedence), 6.7 (dashboard definition discovery edge cases), 6.8 (`classify_null` persistence completeness).
+
+**Gemini** — Quota exhausted (429), review not completed.
