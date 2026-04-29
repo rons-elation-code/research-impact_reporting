@@ -60,11 +60,9 @@ def test_v2_write_includes_all_columns():
         assert col in update_sql
 
 
-def test_classifier_version_is_2():
-    """classify_null now writes classifier_version=2."""
+def test_classifier_version_is_3():
+    """classify_null now writes classifier_version=3 (Spec 0025 bump)."""
     import inspect
     from lavandula.reports.tools import classify_null
-    source = inspect.getsource(classify_null._write_result.__code__) if hasattr(classify_null, '_write_result') else ""
-    # Since _write_result is a nested function, we'll verify via the module source
     src = inspect.getsource(classify_null)
-    assert '"cver": 2' in src or "'cver': 2" in src
+    assert '"cver": 3' in src or "'cver': 3" in src
