@@ -98,11 +98,12 @@ class TestDisambiguate:
 
 class TestClassify:
     def test_classify_valid_response(self):
-        """AC5: valid record_classification tool response with 5-enum."""
+        """Definition-driven: valid record_classification with material_type."""
         client = _make_client()
         response_data = _mock_tool_response(
             "record_classification",
-            {"classification": "annual", "confidence": 0.92, "reasoning": "Annual report"},
+            {"material_type": "annual_report", "confidence": 0.92,
+             "reasoning": "Annual report", "event_type": None},
         )
 
         with patch("lavandula.nonprofits.gemma_client.requests.post") as mock_post:
@@ -115,7 +116,10 @@ class TestClassify:
             result = client.classify("This is an annual report...")
 
         assert result["classification"] == "annual"
+        assert result["material_type"] == "annual_report"
+        assert result["material_group"] == "reports"
         assert result["confidence"] == 0.92
+        assert "classifier_definition" in result
 
 
 class TestMaxTokens:
