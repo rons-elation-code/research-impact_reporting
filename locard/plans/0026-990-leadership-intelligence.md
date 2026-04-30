@@ -140,8 +140,10 @@ Implementation:
 - Query `filing_index` grouped by `(filing_year, xml_batch_id)` — `ORDER BY filing_year, xml_batch_id`
 - Status filter: `indexed` (normal), or `indexed/downloaded/parsed/skipped/error` (if reparse)
 - For `--reparse`: UPDATE filing_index SET status='downloaded', error_message=NULL, parsed_at=NULL WHERE status IN ('parsed', 'skipped', 'error')
+- **`--limit` enforcement**: `--limit` caps the number of **unique EINs** processed. In Phase 3, after loading matching EINs from `nonprofits_seed`, truncate the set to `--limit` EINs. Only those EINs' filings are inserted into `filing_index`. This means limit controls org count, not filing count (one org may have multiple filings across years).
+
 - Per batch:
-  1. Construct zip URL: `https://apps.irs.gov/pub/epostcard/990/xml/{filing_year}/{xml_batch_id}.zip`
+  1. Construct zip URL: `https://apps.irs.gov/pub/epostcard/990/xml/{filing_year}/{xml_batch_id}.zip` (note: `xml_batch_id` already includes the year prefix, e.g., `2024_TEOS_XML_01A`)
   2. Check cache: `cache_dir / f"{xml_batch_id}.zip"`
   3. If not cached and not skip_download: download atomically (`.tmp` suffix, rename on success, Content-Length check)
   4. If not cached and skip_download: log warning, leave filings as `indexed`, continue
@@ -156,6 +158,7 @@ Implementation:
 - Retry: exponential backoff 2s/4s/8s for HTTP 429/5xx/ConnectionError, max 3 attempts
 - 404: mark all filings in batch as error, continue
 - Missing member in zip: mark that specific filing as error (AC48), continue others
+- **Error message sanitization**: When setting `filing_index.error_message`, never persist raw XML content or Python stack traces. Use sanitized summaries only: `f"Part VII parse error: {type(exc).__name__}"` or `"Missing member {object_id}_public.xml in zip"`. Truncate to 500 chars max.
 
 DB upsert pattern:
 ```python
@@ -293,6 +296,8 @@ Download/batch tests (Phase 4 ACs):
 CLI tests (Phase 5 ACs):
 - Input validation (--ein, --state, --years, --cache-dir)
 
+**AC32 manual verification**: The integration test for real TEOS index download is NOT in the automated test suite. Builder runs it once manually during development: `python3 -c "from lavandula.nonprofits.teos_index import ...; ..."` against the live IRS endpoint, verifying the CSV has the expected 10 columns and filters work. Document the result in the PR description. Pass criteria: CSV downloads, header matches expected columns, at least 1 row matches a known test EIN.
+
 **ACs**: 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 46, 47, 49, 50, 51, 52, 53, 54
 
 ## File Summary
@@ -313,7 +318,7 @@ CLI tests (Phase 5 ACs):
 
 ## Dependencies
 
-- `defusedxml` — must be added to requirements (if not already present)
+- `defusedxml` — **Phase 0 prerequisite**: `pip install defusedxml` and add to `requirements.txt` (or equivalent). Builder must verify import works before starting Phase 2. This is a hard dependency — the parser cannot use stdlib xml.etree.
 - `requests` — already in use
 - `sqlalchemy` — already in use
 - No new infrastructure needed
@@ -349,3 +354,19 @@ Phases 1-5 are sequential (each depends on the previous). Phase 6 (dashboard) ca
 2. **Large index CSV (77MB+)** — Must stream, not load into memory. `requests.get(stream=True)` + `csv.reader`.
 3. **Schedule J name matching** — Names may have minor differences between Part VII and Schedule J (e.g., suffix differences). V1 uses exact match after normalization. Monitor mismatch rate in production.
 4. **defusedxml not installed** — Builder must add to requirements/dependencies.
+
+## Consultation Log
+
+### Round 1: Plan Review (2026-04-30)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+5 findings, all addressed:
+
+1. **`--limit` behavior undefined** — Fixed: `--limit` caps unique EINs in Phase 3 (index filtering). One org may have multiple filings.
+2. **Zip URL construction inconsistent with spec** — Clarified: `xml_batch_id` already includes the year prefix (e.g., `2024_TEOS_XML_01A`), so URL is `{filing_year}/{xml_batch_id}.zip`. Also fixed the spec's wording.
+3. **`defusedxml` dependency not assigned to a phase** — Fixed: added as Phase 0 prerequisite with explicit install + verify step.
+4. **AC32 integration test undefined** — Fixed: documented as manual verification step with pass criteria.
+5. **Error message sanitization not explicit** — Fixed: added sanitization rule in Phase 4 (no raw XML, no stack traces, 500 char max).
+
+**Gemini** — Quota exhausted, no response.

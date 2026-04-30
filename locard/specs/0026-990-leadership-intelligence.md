@@ -246,7 +246,7 @@ Insert matching rows into `filing_index` with `status='indexed'`. Skip rows wher
 ### Step 2: XML Download + Parse
 
 For each `filing_index` row with `status='indexed'`:
-1. Look up `xml_batch_id` from the filing_index row. The `XML_BATCH_ID` column from the TEOS index CSV directly names the zip file: `{YEAR}_TEOS_XML_{XML_BATCH_ID}.zip`. Store this in `filing_index.xml_batch_id` during Step 1.
+1. Look up `xml_batch_id` from the filing_index row. The `XML_BATCH_ID` column from the TEOS index CSV IS the zip filename stem (e.g., `2024_TEOS_XML_01A`). The zip URL is `https://apps.irs.gov/pub/epostcard/990/xml/{filing_year}/{xml_batch_id}.zip`. Store this in `filing_index.xml_batch_id` during Step 1.
 2. Download the zip if not already cached. Update status to `'downloaded'`.
 3. Extract the specific XML file (`{OBJECT_ID}_public.xml`) from the zip using `zipfile.ZipFile` — read by name, don't extract the entire archive.
 4. Parse Part VII Section A and Section B.
