@@ -110,7 +110,12 @@ def download_and_filter_index(
 Implementation:
 - Stream CSV via `requests.get(url, stream=True)` — 77MB+ files, don't load all into memory
 - Use `csv.reader` on response iter_lines
-- Filter: `RETURN_TYPE = '990'` AND `EIN IN (SELECT ein FROM lava_corpus.nonprofits_seed WHERE state = :state)` — load matching EINs into a Python set first for O(1) lookup
+- **EIN selection rules** (precedence):
+  1. `--ein XXXXXXXXX` → single-EIN mode. Process only this EIN. Does NOT require it to be in `nonprofits_seed`. Bypasses `--state` filter entirely (if both given, `--ein` wins).
+  2. `--state XX` → load all EINs from `nonprofits_seed WHERE state = :state` into a Python set for O(1) lookup.
+  3. Neither `--state` nor `--ein` → **error**. CLI exits with "Must specify --state or --ein". We don't allow processing all 700K+ seeded EINs by accident.
+- If `--limit` is set, truncate the EIN set to `--limit` entries (arbitrary order is fine — this is for testing).
+- Filter CSV: `RETURN_TYPE = '990'` AND EIN in the selected set
 - Insert with `ON CONFLICT (object_id) DO NOTHING` for idempotency
 - `filing_year = year` (the TEOS directory year, not tax_period)
 - `xml_batch_id` from CSV column 10
@@ -138,8 +143,8 @@ def process_filings(
 
 Implementation:
 - Query `filing_index` grouped by `(filing_year, xml_batch_id)` — `ORDER BY filing_year, xml_batch_id`
-- Status filter: `indexed` (normal), or `indexed/downloaded/parsed/skipped/error` (if reparse)
-- For `--reparse`: UPDATE filing_index SET status='downloaded', error_message=NULL, parsed_at=NULL WHERE status IN ('parsed', 'skipped', 'error')
+- Status filter: `indexed` or `downloaded` (normal), or all statuses (if reparse)
+- For `--reparse`: UPDATE filing_index SET status='downloaded', error_message=NULL, parsed_at=NULL WHERE status IN ('parsed', 'skipped', 'error') **AND scoped to the current run's EIN set and filing years**. The reset query must include `AND ein IN (:ein_set) AND filing_year IN (:years)` to avoid touching filings outside the operator's requested scope.
 - **`--limit` enforcement**: `--limit` caps the number of **unique EINs** processed. In Phase 3, after loading matching EINs from `nonprofits_seed`, truncate the set to `--limit` EINs. Only those EINs' filings are inserted into `filing_index`. This means limit controls org count, not filing count (one org may have multiple filings across years).
 
 - Per batch:
@@ -262,6 +267,7 @@ Create additional minimal fixture XMLs for edge cases:
 - `test_fixtures/990_no_person_nm.xml` — Part VII entry missing PersonNm
 - `test_fixtures/990_schedule_j_mismatch.xml` — Schedule J names don't match Part VII
 - `test_fixtures/990_xxe_attack.xml` — DTD with external entity (must be rejected)
+- `test_fixtures/malicious_zip.zip` — zip with path-traversing member name (`../../../etc/passwd`) — must be rejected by member name validation (AC34)
 
 Parser tests (Phase 2 ACs):
 - Part VII Section A parsing with all field variations
@@ -368,5 +374,18 @@ Phases 1-5 are sequential (each depends on the previous). Phase 6 (dashboard) ca
 3. **`defusedxml` dependency not assigned to a phase** — Fixed: added as Phase 0 prerequisite with explicit install + verify step.
 4. **AC32 integration test undefined** — Fixed: documented as manual verification step with pass criteria.
 5. **Error message sanitization not explicit** — Fixed: added sanitization rule in Phase 4 (no raw XML, no stack traces, 500 char max).
+
+**Gemini** — Quota exhausted, no response.
+
+### Round 2: Red Team Security Review (2026-04-30)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+4 findings, all addressed:
+
+1. **`--ein` semantics unspecified** — Fixed: `--ein` bypasses `--state`, doesn't require `nonprofits_seed`. Neither `--state` nor `--ein` → error exit.
+2. **`--reparse` scope too broad** — Fixed: reset query scoped to current EIN set + filing years.
+3. **Missing path-traversal zip test** — Fixed: added `malicious_zip.zip` test fixture for AC34.
+4. **Default scope ambiguous** — Fixed: neither `--state` nor `--ein` is an error.
 
 **Gemini** — Quota exhausted, no response.
