@@ -198,6 +198,48 @@ class TestReparseResetsError:
         assert "downloaded" in sql_text
 
 
+class TestReparseScopeIsolation:
+    """Regression: --reparse scoped to requested EINs/years only."""
+
+    def test_reparse_scoped_to_ein_set(self):
+        engine, _, begin_conn = _mock_engine_for_process()
+
+        connect_ctx = MagicMock()
+        connect_conn = MagicMock()
+        connect_ctx.__enter__ = MagicMock(return_value=connect_conn)
+        connect_ctx.__exit__ = MagicMock(return_value=False)
+        engine.connect.return_value = connect_ctx
+
+        result = MagicMock()
+        result.rowcount = 1
+        begin_conn.execute.return_value = result
+
+        fetch_result = MagicMock()
+        fetch_result.fetchall.return_value = []
+        connect_conn.execute.return_value = fetch_result
+
+        ca_eins = {"111111111", "222222222"}
+        stats = process_filings(
+            engine=engine,
+            cache_dir=Path("/tmp"),
+            reparse=True,
+            run_id="test",
+            ein_set=ca_eins,
+            filing_years=[2024],
+        )
+
+        reset_call = begin_conn.execute.call_args_list[0]
+        sql_text = str(reset_call[0][0])
+        params = reset_call[0][1] if len(reset_call[0]) > 1 else reset_call[1]
+        assert "ein = ANY" in sql_text
+        assert "filing_year = ANY" in sql_text
+
+        query_call = connect_conn.execute.call_args_list[0]
+        query_sql = str(query_call[0][0])
+        assert "ein = ANY" in query_sql
+        assert "filing_year = ANY" in query_sql
+
+
 class TestAtomicDownload:
     """AC40: Atomic zip download (tmp + rename)."""
 

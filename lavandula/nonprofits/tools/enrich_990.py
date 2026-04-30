@@ -136,10 +136,10 @@ def main(argv: list[str] | None = None) -> None:
         cache_dir = args.cache_dir
     else:
         cache_dir = Path.home() / ".lavandula" / "990-cache"
-        cache_dir.mkdir(parents=True, exist_ok=True)
         if cache_dir.is_symlink():
             log.error("Default cache dir is a symlink — aborting")
             sys.exit(1)
+        cache_dir.mkdir(parents=True, exist_ok=True)
 
     _log_cache_size(cache_dir)
 
@@ -151,6 +151,10 @@ def main(argv: list[str] | None = None) -> None:
     ein_set: set[str] | None = None
     if args.ein:
         ein_set = {args.ein}
+    elif args.state:
+        from lavandula.nonprofits.teos_index import _load_ein_set
+        ein_set = _load_ein_set(engine, state=args.state, limit=args.limit)
+        log.info("Loaded %d EINs for state %s", len(ein_set), args.state)
 
     for year in years:
         try:

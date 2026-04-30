@@ -4,8 +4,10 @@
 --   - filing_index: tracks which 990 filings we've downloaded/parsed
 --   - people: officers, directors, key employees, and contractors per filing
 
+BEGIN;
+
 -- filing_index: one row per IRS 990 filing we know about
-CREATE TABLE lava_corpus.filing_index (
+CREATE TABLE IF NOT EXISTS lava_corpus.filing_index (
     object_id       TEXT PRIMARY KEY,
     ein             TEXT NOT NULL,
     tax_period      TEXT NOT NULL,
@@ -22,11 +24,11 @@ CREATE TABLE lava_corpus.filing_index (
     run_id          TEXT
 );
 
-CREATE INDEX idx_filing_ein ON lava_corpus.filing_index(ein);
-CREATE INDEX idx_filing_status ON lava_corpus.filing_index(status);
+CREATE INDEX IF NOT EXISTS idx_filing_ein ON lava_corpus.filing_index(ein);
+CREATE INDEX IF NOT EXISTS idx_filing_status ON lava_corpus.filing_index(status);
 
 -- people: one row per person per filing per org
-CREATE TABLE lava_corpus.people (
+CREATE TABLE IF NOT EXISTS lava_corpus.people (
     id              SERIAL PRIMARY KEY,
     ein             TEXT NOT NULL,
     tax_period      TEXT NOT NULL,
@@ -57,6 +59,15 @@ CREATE TABLE lava_corpus.people (
     run_id          TEXT
 );
 
-CREATE INDEX idx_people_ein ON lava_corpus.people(ein);
-CREATE INDEX idx_people_ein_period ON lava_corpus.people(ein, tax_period);
-CREATE UNIQUE INDEX idx_people_dedup ON lava_corpus.people(ein, object_id, person_name, person_type);
+CREATE INDEX IF NOT EXISTS idx_people_ein ON lava_corpus.people(ein);
+CREATE INDEX IF NOT EXISTS idx_people_ein_period ON lava_corpus.people(ein, tax_period);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_people_dedup ON lava_corpus.people(ein, object_id, person_name, person_type);
+
+-- GRANTs
+GRANT SELECT, INSERT, UPDATE, DELETE ON lava_corpus.people TO app_user1;
+GRANT SELECT, INSERT, UPDATE, DELETE ON lava_corpus.filing_index TO app_user1;
+GRANT SELECT ON lava_corpus.people TO ro_user1;
+GRANT SELECT ON lava_corpus.filing_index TO ro_user1;
+GRANT USAGE, SELECT ON SEQUENCE lava_corpus.people_id_seq TO app_user1;
+
+COMMIT;

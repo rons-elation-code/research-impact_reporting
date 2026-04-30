@@ -43,7 +43,6 @@ class ProcessStats:
     zips_downloaded: int = 0
     zips_cached: int = 0
     schedule_j_matched: int = 0
-    schedule_j_unmatched: int = 0
 
 
 ShutdownFlag = type("ShutdownFlag", (), {"is_set": lambda self: False})
@@ -129,11 +128,15 @@ def _upsert_people(
         INSERT INTO lava_corpus.people
             (ein, tax_period, object_id, person_name, title, person_type,
              avg_hours_per_week, reportable_comp, related_org_comp, other_comp,
+             base_comp, bonus, other_reportable, deferred_comp,
+             nontaxable_benefits, total_comp_sch_j,
              services_desc, is_officer, is_director, is_key_employee,
              is_highest_comp, is_former, run_id)
         VALUES
             (:ein, :tax_period, :object_id, :person_name, :title, :person_type,
              :avg_hours_per_week, :reportable_comp, :related_org_comp, :other_comp,
+             :base_comp, :bonus, :other_reportable, :deferred_comp,
+             :nontaxable_benefits, :total_comp_sch_j,
              :services_desc, :is_officer, :is_director, :is_key_employee,
              :is_highest_comp, :is_former, :run_id)
         ON CONFLICT (ein, object_id, person_name, person_type) DO UPDATE SET
@@ -142,6 +145,12 @@ def _upsert_people(
             reportable_comp = EXCLUDED.reportable_comp,
             related_org_comp = EXCLUDED.related_org_comp,
             other_comp = EXCLUDED.other_comp,
+            base_comp = EXCLUDED.base_comp,
+            bonus = EXCLUDED.bonus,
+            other_reportable = EXCLUDED.other_reportable,
+            deferred_comp = EXCLUDED.deferred_comp,
+            nontaxable_benefits = EXCLUDED.nontaxable_benefits,
+            total_comp_sch_j = EXCLUDED.total_comp_sch_j,
             services_desc = EXCLUDED.services_desc,
             is_officer = EXCLUDED.is_officer,
             is_director = EXCLUDED.is_director,
@@ -177,6 +186,12 @@ def _upsert_people(
             "reportable_comp": p.reportable_comp,
             "related_org_comp": p.related_org_comp,
             "other_comp": p.other_comp,
+            "base_comp": p.base_comp,
+            "bonus": p.bonus,
+            "other_reportable": p.other_reportable,
+            "deferred_comp": p.deferred_comp,
+            "nontaxable_benefits": p.nontaxable_benefits,
+            "total_comp_sch_j": p.total_comp_sch_j,
             "services_desc": p.services_desc,
             "is_officer": p.is_officer,
             "is_director": p.is_director,
@@ -222,12 +237,21 @@ def process_filings(
         _reset_for_reparse(engine, ein_set=ein_set, filing_years=filing_years)
 
     with engine.connect() as conn:
+        conditions = ["status IN ('indexed', 'downloaded')"]
+        params: dict = {}
+        if ein_set:
+            conditions.append("ein = ANY(:eins)")
+            params["eins"] = list(ein_set)
+        if filing_years:
+            conditions.append("filing_year = ANY(:years)")
+            params["years"] = filing_years
+        where = " AND ".join(conditions)
         rows = conn.execute(text(
-            "SELECT object_id, ein, tax_period, xml_batch_id, filing_year "
-            "FROM lava_corpus.filing_index "
-            "WHERE status IN ('indexed', 'downloaded') "
-            "ORDER BY filing_year, xml_batch_id, object_id"
-        )).fetchall()
+            f"SELECT object_id, ein, tax_period, xml_batch_id, filing_year "
+            f"FROM lava_corpus.filing_index "
+            f"WHERE {where} "
+            f"ORDER BY filing_year, xml_batch_id, object_id"
+        ), params).fetchall()
 
     batches: dict[tuple[int, str], list[dict]] = {}
     for r in rows:
