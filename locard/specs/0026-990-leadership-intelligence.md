@@ -20,10 +20,12 @@ Lavandula's pre-call briefings lack leadership context. We know the org's name, 
 
 5. **Pre-call briefing query support** — The `people` table schema supports leadership summary queries (CEO/ED tenure via multi-year history, board chair, development officer, board size, top contractors). Actual briefing generation UI/templates are a follow-up spec.
 
+6. **Schedule J compensation detail** — Parse `IRS990ScheduleJ` to capture the granular compensation breakdown (base salary, bonus, deferred comp, nontaxable benefits) per officer/key employee. Part VII reports a single `ReportableCompFromOrgAmt` total; Schedule J splits that into components. This reveals bonus structures and deferred comp — signals of organizational sophistication and budget flexibility.
+
 ## Non-Goals
 
 - Replacing ProPublica as the seed discovery source. ProPublica remains the source for org discovery (search by state, NTEE, revenue). IRS XML is for enrichment after discovery.
-- Parsing Schedule J (supplemental compensation detail), Schedule L (interested persons), or Schedule O (narrative). These are valuable but out of scope for v1.
+- Parsing Schedule L (interested persons) or Schedule O (narrative). These are valuable but out of scope for v1.
 - Real-time data. 990 filings lag 6-18 months. This is archival intelligence, not live data.
 - Parsing 990-EZ or 990-PF. Start with full 990 only (orgs >$200K revenue or >$500K assets — our ICP anyway).
 
@@ -63,6 +65,13 @@ CREATE TABLE lava_corpus.people (
     total_comp          BIGINT GENERATED ALWAYS AS (
         COALESCE(reportable_comp, 0) + COALESCE(related_org_comp, 0) + COALESCE(other_comp, 0)
     ) STORED,
+    -- Schedule J compensation breakdown (NULL if Schedule J not filed or person not listed)
+    base_comp           BIGINT,             -- BaseCompensationFilingOrgAmt (cents)
+    bonus               BIGINT,             -- BonusFilingOrganizationAmount (cents)
+    other_reportable    BIGINT,             -- OtherCompensationFilingOrgAmt (cents)
+    deferred_comp       BIGINT,             -- DeferredCompensationFlngOrgAmt (cents)
+    nontaxable_benefits BIGINT,             -- NontaxableBenefitsFilingOrgAmt (cents)
+    total_comp_sch_j    BIGINT,             -- TotalCompensationFilingOrgAmt (cents, from Schedule J)
     -- Contractor-specific fields (NULL for non-contractors)
     services_desc   TEXT,                   -- e.g., "Design services", "Fundraising consulting"
     -- Role flags (from 990 XML boolean indicators)
@@ -120,7 +129,7 @@ CREATE INDEX idx_filing_status ON lava_corpus.filing_index(status);
 **Status lifecycle:**
 - `indexed` — Row inserted from TEOS index CSV, XML not yet downloaded
 - `downloaded` — Zip downloaded and XML extracted to cache, not yet parsed
-- `parsed` — Part VII parsed, people rows upserted
+- `parsed` — Part VII (and Schedule J if present) parsed, people rows upserted
 - `skipped` — Valid 990 but no Part VII section present (not an error)
 - `error` — Download or parse failure, `error_message` populated
 
@@ -175,6 +184,44 @@ Map to `people` row:
 - `reportable_comp` = `<CompensationAmt>` × 100
 - All role flags = FALSE
 - `avg_hours_per_week` = NULL
+- All Schedule J fields = NULL (contractors are not in Schedule J)
+
+### Schedule J — Compensation Detail
+
+Schedule J is filed by orgs that answer "Yes" to Part IV line 23 (compensation >$150K). Not all 990s include it. When present, it provides per-person compensation breakdown for officers, directors, trustees, key employees, and highest compensated employees listed in Part VII Section A.
+
+```xml
+<IRS990ScheduleJ>
+  <RltdOrgOfficerTrstKeyEmplGrp>
+    <PersonNm>DAVID DIMMETT ED D</PersonNm>
+    <TitleTxt>PRESIDENT &amp; CEO</TitleTxt>
+    <BaseCompensationFilingOrgAmt>428443</BaseCompensationFilingOrgAmt>
+    <CompensationBasedOnRltdOrgsAmt>0</CompensationBasedOnRltdOrgsAmt>
+    <BonusFilingOrganizationAmount>71000</BonusFilingOrganizationAmount>
+    <BonusRelatedOrganizationsAmt>0</BonusRelatedOrganizationsAmt>
+    <OtherCompensationFilingOrgAmt>0</OtherCompensationFilingOrgAmt>
+    <OtherCompensationRltdOrgsAmt>0</OtherCompensationRltdOrgsAmt>
+    <DeferredCompensationFlngOrgAmt>46300</DeferredCompensationFlngOrgAmt>
+    <DeferredCompRltdOrgsAmt>0</DeferredCompRltdOrgsAmt>
+    <NontaxableBenefitsFilingOrgAmt>24207</NontaxableBenefitsFilingOrgAmt>
+    <NontaxableBenefitsRltdOrgsAmt>0</NontaxableBenefitsRltdOrgsAmt>
+    <TotalCompensationFilingOrgAmt>569950</TotalCompensationFilingOrgAmt>
+    <TotalCompensationRltdOrgsAmt>0</TotalCompensationRltdOrgsAmt>
+  </RltdOrgOfficerTrstKeyEmplGrp>
+</IRS990ScheduleJ>
+```
+
+**Merge strategy**: Schedule J entries are matched to existing `people` rows by `(person_name, object_id)`. After parsing Part VII Section A, iterate over `RltdOrgOfficerTrstKeyEmplGrp` entries in Schedule J and UPDATE the matching `people` row with the compensation breakdown fields. If no Part VII row matches (name mismatch), log a warning and skip — do not create a new `people` row from Schedule J alone, since Part VII is the authoritative person list.
+
+Map to `people` row (UPDATE existing Part VII row):
+- `base_comp` = `<BaseCompensationFilingOrgAmt>` × 100
+- `bonus` = `<BonusFilingOrganizationAmount>` × 100
+- `other_reportable` = `<OtherCompensationFilingOrgAmt>` × 100
+- `deferred_comp` = `<DeferredCompensationFlngOrgAmt>` × 100
+- `nontaxable_benefits` = `<NontaxableBenefitsFilingOrgAmt>` × 100
+- `total_comp_sch_j` = `<TotalCompensationFilingOrgAmt>` × 100
+
+**Note**: Schedule J `TotalCompensationFilingOrgAmt` may differ from Part VII's `total_comp` (which sums reportable + related + other). Schedule J includes deferred comp and nontaxable benefits that Part VII excludes. Both are stored — Part VII's `total_comp` is the IRS-reportable figure, Schedule J's `total_comp_sch_j` is total economic compensation.
 
 ## Pipeline
 
@@ -195,7 +242,8 @@ For each `filing_index` row with `status='indexed'`:
 4. Parse Part VII Section A and Section B.
 5. If Part VII is absent, set status to `'skipped'` and continue.
 6. Upsert rows into `people` table.
-7. Update `filing_index.status` to `'parsed'`, set `parsed_at`.
+7. Parse Schedule J if present — match entries to Part VII rows by name, update compensation breakdown fields.
+8. Update `filing_index.status` to `'parsed'`, set `parsed_at`.
 
 **Rate limiting**: Throttle zip downloads to 1 request per second against IRS TEOS. Cache zip files locally in a configurable directory (default: `~/.lavandula/990-cache/`). Log cache size at startup.
 
@@ -223,6 +271,10 @@ Out of scope for this spec but the intended consumer. A query like:
 -- Leadership snapshot for pre-call briefing
 SELECT person_name, title, person_type,
        total_comp / 100.0 AS total_comp_dollars,
+       base_comp / 100.0 AS base_salary,
+       bonus / 100.0 AS bonus,
+       deferred_comp / 100.0 AS deferred,
+       nontaxable_benefits / 100.0 AS benefits,
        services_desc,
        tax_period
 FROM lava_corpus.people
@@ -306,13 +358,20 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 - AC33: Unit test: person_type derivation from role flags
 - AC34: XML parsing rejects DTDs and external entities; zip extraction rejects path-traversing members
 - AC35: Unit test: contractor with `BusinessName` vs individual with `PersonNm` both parse correctly
-- AC36: Unit test: amended filing for same EIN+tax_period stores both, query picks latest by sub_date
+- AC36: Unit test: amended filing for same EIN+tax_period stores both, query picks latest by return_ts
 - AC37: Unit test: `is_former=TRUE` with `person_type='officer'` for former officers (not `person_type='former'`)
 - AC38: Zip members exceeding 50MB uncompressed size are rejected
 - AC39: HTML tags stripped from person_name, title, services_desc before storage
 - AC40: Atomic zip download (tmp + rename), truncated downloads detected and cleaned up
 - AC41: Retry with exponential backoff on 429/5xx, max 3 attempts
 - AC42: CLI validates --ein, --state, --years, --cache-dir inputs
+
+### Schedule J
+- AC43: Schedule J compensation breakdown fields (base_comp, bonus, deferred_comp, nontaxable_benefits, other_reportable, total_comp_sch_j) populated when Schedule J present
+- AC44: Schedule J entries matched to Part VII rows by person_name — unmatched entries logged as warning, not inserted
+- AC45: Filing without Schedule J leaves all Schedule J columns NULL (not zero)
+- AC46: Unit test: parse fixture XML with Schedule J → correct breakdown on matching Part VII row
+- AC47: Unit test: Schedule J name mismatch → warning logged, no orphan row created
 
 ## Traps to Avoid
 
