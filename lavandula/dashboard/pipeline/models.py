@@ -65,6 +65,7 @@ class Job(models.Model):
         ("resolve", "Resolve"),
         ("crawl", "Crawl"),
         ("classify", "Classify"),
+        ("990-enrich", "990 Enrich"),
     ]
     STATUS_CHOICES = [
         ("pending", "Pending"),

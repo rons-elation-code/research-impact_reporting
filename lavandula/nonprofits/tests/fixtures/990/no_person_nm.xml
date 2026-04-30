@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Return xmlns="http://www.irs.gov/efile" returnVersion="2023v4.0">
+  <ReturnHeader>
+    <ReturnTs>2024-01-15T10:00:00-05:00</ReturnTs>
+    <TaxPeriodEndDt>2023-12-31</TaxPeriodEndDt>
+    <ReturnTypeCd>990</ReturnTypeCd>
+    <Filer>
+      <EIN>999999998</EIN>
+      <BusinessName>
+        <BusinessNameLine1Txt>TEST ORG MISSING NAME</BusinessNameLine1Txt>
+      </BusinessName>
+    </Filer>
+  </ReturnHeader>
+  <ReturnData documentCnt="1">
+    <IRS990 documentId="IRS990">
+      <Form990PartVIISectionAGrp>
+        <TitleTxt>GHOST PERSON</TitleTxt>
+        <OfficerInd>X</OfficerInd>
+        <ReportableCompFromOrgAmt>50000</ReportableCompFromOrgAmt>
+      </Form990PartVIISectionAGrp>
+      <Form990PartVIISectionAGrp>
+        <PersonNm>VALID PERSON</PersonNm>
+        <TitleTxt>DIRECTOR</TitleTxt>
+        <IndividualTrusteeOrDirectorInd>X</IndividualTrusteeOrDirectorInd>
+        <ReportableCompFromOrgAmt>0</ReportableCompFromOrgAmt>
+      </Form990PartVIISectionAGrp>
+    </IRS990>
+  </ReturnData>
+</Return>
