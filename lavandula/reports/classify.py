@@ -524,6 +524,8 @@ def classify_first_page_v3(
         return _error_result(err, resp)
 
     et = tool_data.get("event_type")
+    if et in ("null", "None", ""):
+        et = None
     valid_ets = {e.id for e in definition.event_types}
     if et is not None and et not in valid_ets:
         err = f"event_type {et!r} not in definition"

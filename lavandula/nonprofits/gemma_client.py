@@ -229,6 +229,9 @@ class LLMClient:
         result["classification"] = material_type_to_legacy(mt)
 
         et = result.get("event_type")
+        if et in (None, "null", "None", ""):
+            result["event_type"] = None
+            et = None
         if et is not None:
             valid_ets = {e.id for e in defn.event_types}
             if et not in valid_ets:
