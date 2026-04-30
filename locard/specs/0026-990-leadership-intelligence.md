@@ -94,12 +94,12 @@ CREATE UNIQUE INDEX idx_people_dedup ON lava_corpus.people(ein, object_id, perso
 **Design decisions:**
 
 - **Compensation in cents** (BIGINT) not dollars — avoids floating-point issues, matches IRS precision.
-- **`person_type`** is derived from the role flags for quick filtering. Priority: officer > key_employee > highest_compensated > director. The `is_former` flag is orthogonal — a former officer gets `person_type='officer'` with `is_former=TRUE`. This preserves the role for tenure queries while marking departure.
+- **`person_type`** is derived from the role flags for quick filtering. Priority: officer > key_employee > highest_compensated > director. If none of these flags are set, use `person_type='listed'` (the person was listed in Part VII but had no recognized role flag — this can happen with trustees or unusual flag combinations). The `is_former` flag is orthogonal — a former officer gets `person_type='officer'` with `is_former=TRUE`. This preserves the role for tenure queries while marking departure.
 - **`object_id`** links back to the specific IRS filing for provenance.
-- **Dedup index** on `(ein, object_id, person_name, person_type)` prevents duplicate entries on re-runs. Keyed on `object_id` (not `tax_period`) so original and amended filings for the same tax period coexist. Queries that want "current" data use `DISTINCT ON (ein, tax_period, person_name) ORDER BY return_ts DESC NULLS LAST` via a join to `filing_index`.
+- **Dedup index** on `(ein, object_id, person_name, person_type)` prevents duplicate entries on re-runs. Keyed on `object_id` (not `tax_period`) so original and amended filings for the same tax period coexist. Queries that want "current" data use `DISTINCT ON (ein, tax_period, person_name) ORDER BY return_ts DESC NULLS LAST` via a join to `filing_index`. Note: a single person can have at most one row per `person_type` per filing. The role-priority derivation is deterministic (same XML always produces the same `person_type`), so the dedup key is stable across re-parses. Schedule J matching uses `(person_name, object_id)` — it updates the existing Part VII row regardless of `person_type`.
 - **No FK constraint** to `nonprofits_seed` — we may enrich EINs before they're fully seeded, and the single-operator pattern doesn't need referential integrity enforcement.
 - **Upsert behavior**: `ON CONFLICT (ein, object_id, person_name, person_type) DO UPDATE SET` all mutable fields (title, compensation, flags, services_desc, extracted_at, run_id). Same filing reparsed = deterministic overwrite with same values. Parser output for a given XML file must be fully deterministic.
-- **Name storage**: V1 stores `person_name` exactly as it appears in the IRS XML (after HTML tag stripping). No normalization. Tenure queries across years use exact string match, which will miss `Jane Smith` vs `Jane A. Smith`. This is a known limitation — name linkage/fuzzy matching is a follow-up enhancement, not a v1 requirement. Goal 2 is "supports tenure tracking" at best-effort quality, not guaranteed accuracy.
+- **Name storage**: V1 stores `person_name` exactly as it appears in the IRS XML after: (1) XML entity decoding (handled by the parser — `&amp;` → `&`), (2) HTML tag stripping, (3) whitespace collapse (strip leading/trailing, collapse internal runs to single space). No case normalization — names stored in whatever case the IRS XML uses (typically uppercase). Tenure queries across years use exact string match, which will miss `Jane Smith` vs `Jane A. Smith`. This is a known limitation — name linkage/fuzzy matching is a follow-up enhancement, not a v1 requirement. Goal 2 is "supports tenure tracking" at best-effort quality, not guaranteed accuracy. Schedule J matching uses the same normalized name for lookup.
 
 ### Table: `lava_corpus.filing_index`
 
@@ -116,6 +116,7 @@ CREATE TABLE lava_corpus.filing_index (
     is_amended      BOOLEAN DEFAULT FALSE,  -- AmendedReturnInd from XML header
     taxpayer_name   TEXT,
     xml_batch_id    TEXT,                   -- from index CSV, maps to zip filename
+    filing_year     INTEGER NOT NULL,       -- TEOS directory year (e.g., 2024) — needed to construct zip URL
     status          TEXT DEFAULT 'indexed',  -- 'indexed', 'downloaded', 'parsed', 'skipped', 'error'
     error_message   TEXT,
     parsed_at       TIMESTAMPTZ,
@@ -303,10 +304,12 @@ python3 -m lavandula.nonprofits.tools.enrich_990 \
 
 ## Dashboard Integration
 
-Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
-- `state` — state filter dropdown
-- `years` — text input (comma-separated years)
-- `limit` — integer input
+Add `990-enrich` as a phase in the pipeline orchestrator `COMMAND_MAP` with parameters:
+- `state` — state filter dropdown (required)
+- `years` — text input, comma-separated years (default: last 5 years, pre-populated)
+- `limit` — integer input (optional, empty = no limit)
+
+The dashboard form does NOT expose `--ein`, `--skip-download`, or `--reparse` — those are operator CLI-only flags for debugging. Default `--cache-dir` is used. Years input is validated server-side (same rules as CLI: comma-separated 4-digit years). Invalid input returns a form error, does not create a job.
 
 ## Acceptance Criteria
 
@@ -354,7 +357,7 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 - AC29: Unit test: parse XML missing Part VII → empty result, no error
 - AC30: Unit test: dedup on re-parse (same filing twice → same row count)
 - AC31: Unit test: compensation cents conversion
-- AC32: Integration test: download real TEOS index CSV, verify schema
+- AC32: Integration test (manual/CI-optional, not unit): download real TEOS index CSV, verify schema
 - AC33: Unit test: person_type derivation from role flags
 - AC34: XML parsing rejects DTDs and external entities; zip extraction rejects path-traversing members
 - AC35: Unit test: contractor with `BusinessName` vs individual with `PersonNm` both parse correctly
@@ -372,6 +375,8 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 - AC45: Filing without Schedule J leaves all Schedule J columns NULL (not zero)
 - AC46: Unit test: parse fixture XML with Schedule J → correct breakdown on matching Part VII row
 - AC47: Unit test: Schedule J name mismatch → warning logged, no orphan row created
+- AC48: Expected XML member (`{OBJECT_ID}_public.xml`) absent from a valid zip → filing_index.status='error', error_message set, pipeline continues
+- AC49: Unit test: Part VII entry with no role flags → person_type='listed'
 
 ## Traps to Avoid
 
@@ -444,3 +449,19 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 7. **[HIGH] Error messages leak detail** — Fixed: sanitized summaries only, no raw XML or stack traces.
 8. **[HIGH] `--skip-download` trusts cache** — Accepted risk: single-operator system, cache directory is under operator control. Documented.
 9. **[HIGH] No certificate pinning** — Accepted risk: HTTPS to apps.irs.gov is sufficient for a single-operator enrichment tool. Certificate pinning would add complexity for minimal threat reduction.
+
+### Round 3: Schedule J Addition + Spec Review (2026-04-30)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+7 findings, all addressed in v5:
+
+1. **`filing_year` column missing** — Fixed: added `filing_year INTEGER NOT NULL` to `filing_index`. Needed to construct zip download URL `{YEAR}_TEOS_XML_{batch}.zip`.
+2. **Dedup key vs Schedule J matching ambiguity** — Fixed: clarified that role-priority derivation is deterministic (same XML → same `person_type`), so dedup key is stable. Schedule J matches by `(person_name, object_id)` and updates regardless of `person_type`.
+3. **No-flag Part VII entries** — Fixed: entries with no recognized role flags get `person_type='listed'`.
+4. **Name normalization boundary** — Fixed: specified 3-step normalization (XML entity decode, HTML strip, whitespace collapse). No case normalization. Schedule J matching uses same normalization.
+5. **AC32 live download brittle for CI** — Fixed: marked as integration-only, CI-optional.
+6. **Dashboard requirements too thin** — Fixed: expanded dashboard section with validation rules, default years, which flags are CLI-only.
+7. **Missing XML member in valid zip** — Fixed: AC48 added. Mark filing as error, continue pipeline.
+
+**Gemini** — Quota exhausted, no response.
