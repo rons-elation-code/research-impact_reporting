@@ -438,7 +438,7 @@ projects:
   - id: "0026"
     title: "990 Leadership & Contractor Intelligence"
     summary: "Extract named individuals (officers, directors, key employees, top contractors) from IRS 990 XML filings (TEOS bulk download) into a people table keyed by EIN+object_id. Enables pre-call briefings with CEO tenure, board composition, compensation levels, and existing vendor relationships."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0026-990-leadership-intelligence.md
@@ -446,7 +446,7 @@ projects:
       review: null
     dependencies: ["0001"]
     tags: [data-acquisition, enrichment, nonprofit, lavandula-sales, 990]
-    notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. Source: IRS TEOS bulk XML (not frozen AWS S3 bucket). Table name: people. Spec completed 2026-04-30 after 2 consultation rounds (spec-review + red-team, both Codex + Claude). 42 ACs."
+    notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. Source: IRS TEOS bulk XML (not frozen AWS S3 bucket). Table name: people. Spec completed 2026-04-30 after 2 consultation rounds (spec-review + red-team, both Codex + Claude). 54 ACs. PR #22 merged 2026-04-30. Awaiting operator: migration 010 via PGAdmin + live validation."
 
 ## Next Available Number
 
