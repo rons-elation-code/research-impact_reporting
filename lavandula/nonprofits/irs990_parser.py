@@ -203,10 +203,13 @@ def _parse_metadata(root: ET.Element) -> FilingMetadata:
 def _parse_part_vii_a(irs990: ET.Element, warnings: list[str]) -> list[Person]:
     people = []
     for grp in _find_all(irs990, "Form990PartVIISectionAGrp"):
-        name_el = _find(grp, "PersonNm")
-        raw_name = _text(name_el)
+        raw_name = _text(_find(grp, "PersonNm"))
         if raw_name is None:
-            warnings.append("Part VII entry missing PersonNm — skipped")
+            biz = _find(grp, "BusinessName")
+            if biz is not None:
+                raw_name = _text(_find(biz, "BusinessNameLine1Txt"))
+        if raw_name is None:
+            warnings.append("Part VII entry missing PersonNm and BusinessName — skipped")
             continue
 
         person_name = _clean_text(raw_name) or ""
@@ -301,7 +304,11 @@ def _merge_schedule_j(
     for grp in schedule_j_groups:
         raw_name = _clean_text(_text(_find(grp, "PersonNm")))
         if raw_name is None:
-            warnings.append("Schedule J entry missing PersonNm — skipped")
+            biz = _find(grp, "BusinessName")
+            if biz is not None:
+                raw_name = _clean_text(_text(_find(biz, "BusinessNameLine1Txt")))
+        if raw_name is None:
+            warnings.append("Schedule J entry missing PersonNm and BusinessName — skipped")
             continue
 
         person = name_to_person.get(raw_name)

@@ -295,6 +295,61 @@ class TestCompensationCents:
         assert p.other_comp == 10000
 
 
+class TestBusinessNameFallback:
+    """Part VII A entries using BusinessName instead of PersonNm."""
+
+    def test_business_name_extracted(self):
+        xml = b"""<?xml version="1.0" encoding="utf-8"?>
+        <Return xmlns="http://www.irs.gov/efile" returnVersion="2023v4.0">
+          <ReturnHeader>
+            <ReturnTs>2024-01-15T10:00:00-05:00</ReturnTs>
+            <TaxPeriodEndDt>2023-12-31</TaxPeriodEndDt>
+            <Filer><EIN>111111111</EIN></Filer>
+          </ReturnHeader>
+          <ReturnData>
+            <IRS990>
+              <Form990PartVIISectionAGrp>
+                <BusinessName>
+                  <BusinessNameLine1Txt>JANE SMITH ED D</BusinessNameLine1Txt>
+                </BusinessName>
+                <TitleTxt>CEO</TitleTxt>
+                <OfficerInd>X</OfficerInd>
+                <ReportableCompFromOrgAmt>500000</ReportableCompFromOrgAmt>
+              </Form990PartVIISectionAGrp>
+            </IRS990>
+          </ReturnData>
+        </Return>"""
+        result = parse_990_xml(xml)
+        assert len(result.people) == 1
+        assert result.people[0].person_name == "JANE SMITH ED D"
+        assert result.people[0].person_type == "officer"
+        assert len(result.warnings) == 0
+
+    def test_person_nm_preferred_over_business_name(self):
+        xml = b"""<?xml version="1.0" encoding="utf-8"?>
+        <Return xmlns="http://www.irs.gov/efile" returnVersion="2023v4.0">
+          <ReturnHeader>
+            <ReturnTs>2024-01-15T10:00:00-05:00</ReturnTs>
+            <TaxPeriodEndDt>2023-12-31</TaxPeriodEndDt>
+            <Filer><EIN>111111111</EIN></Filer>
+          </ReturnHeader>
+          <ReturnData>
+            <IRS990>
+              <Form990PartVIISectionAGrp>
+                <PersonNm>JOHN DOE</PersonNm>
+                <BusinessName>
+                  <BusinessNameLine1Txt>JOHN D DOE</BusinessNameLine1Txt>
+                </BusinessName>
+                <TitleTxt>CFO</TitleTxt>
+                <OfficerInd>X</OfficerInd>
+              </Form990PartVIISectionAGrp>
+            </IRS990>
+          </ReturnData>
+        </Return>"""
+        result = parse_990_xml(xml)
+        assert result.people[0].person_name == "JOHN DOE"
+
+
 class TestContractorNameVariants:
     """AC35: contractor with BusinessName vs PersonNm."""
 
