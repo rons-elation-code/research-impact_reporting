@@ -270,8 +270,9 @@ def classify_consumer(
                 )
             stats.classified += 1
             log.info(
-                "[%d] sha=%s  %s (%.2f)",
-                stats.classified, content_sha256[:10], classification, confidence,
+                "[%d] sha=%s  %s → %s (%.2f)",
+                stats.classified, content_sha256[:10],
+                result.get("material_type", "?"), classification, confidence,
             )
         except Exception:
             stats.errors += 1
