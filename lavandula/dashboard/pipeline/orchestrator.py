@@ -277,19 +277,24 @@ def create_crawl_job(config_overrides: dict, host: str) -> Job:
 
 
 def create_classify_job(config_overrides: dict, host: str) -> Job:
-    """Create a global classify job."""
+    """Create a classify job, scoped to a state if provided."""
+    state = config_overrides.get("state") or None
     with transaction.atomic():
-        existing = (
-            Job.objects.select_for_update()
-            .filter(state_code__isnull=True, phase="classify", status__in=["pending", "running"])
-            .first()
+        qs = Job.objects.select_for_update().filter(
+            phase="classify", status__in=["pending", "running"],
         )
+        if state:
+            qs = qs.filter(state_code=state)
+        else:
+            qs = qs.filter(state_code__isnull=True)
+        existing = qs.first()
         if existing:
-            raise DuplicateJobError(f"Active classify job already exists: Job #{existing.pk}")
+            label = state or "global"
+            raise DuplicateJobError(f"Active classify job already exists for {label}: Job #{existing.pk}")
 
         try:
             return Job.objects.create(
-                state_code=None,
+                state_code=state,
                 phase="classify",
                 status="pending",
                 host=host,
