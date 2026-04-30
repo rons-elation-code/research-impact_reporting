@@ -435,9 +435,22 @@ projects:
     tags: [classifier, taxonomy, data-quality, architecture]
     notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced. Builder spawned 2026-04-29."
 
+  - id: "0026"
+    title: "990 Leadership & Contractor Intelligence"
+    summary: "Extract named individuals (officers, directors, key employees, top contractors) from IRS 990 filings via ProPublica API into a leadership table keyed by EIN+tax_year. Enables pre-call briefings with CEO tenure, board composition, compensation levels, and existing vendor relationships."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0026-990-leadership-intelligence.md
+      plan: null
+      review: null
+    dependencies: ["0001"]
+    tags: [data-acquisition, enrichment, nonprofit, lavandula-sales, 990]
+    notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. ProPublica API first, IRS XML bulk later if multi-year trend analysis needed."
+
 ## Next Available Number
 
-**0026** - Reserve this number for your next project
+**0027** - Reserve this number for your next project
 
 ---
 
