@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Return xmlns="http://www.irs.gov/efile" returnVersion="2023v4.0">
+  <ReturnHeader>
+    <ReturnTs>2024-01-15T10:00:00-05:00</ReturnTs>
+    <TaxPeriodEndDt>2023-12-31</TaxPeriodEndDt>
+    <ReturnTypeCd>990</ReturnTypeCd>
+    <Filer>
+      <EIN>999999999</EIN>
+      <BusinessName>
+        <BusinessNameLine1Txt>TEST ORG NO PART VII</BusinessNameLine1Txt>
+      </BusinessName>
+    </Filer>
+  </ReturnHeader>
+  <ReturnData documentCnt="1">
+    <IRS990 documentId="IRS990">
+      <GrossReceiptsAmt>500000</GrossReceiptsAmt>
+    </IRS990>
+  </ReturnData>
+</Return>

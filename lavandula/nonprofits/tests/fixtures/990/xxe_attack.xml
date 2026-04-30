@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<Return xmlns="http://www.irs.gov/efile" returnVersion="2023v4.0">
+  <ReturnHeader>
+    <ReturnTs>2024-01-15T10:00:00-05:00</ReturnTs>
+    <Filer>
+      <EIN>&xxe;</EIN>
+    </Filer>
+  </ReturnHeader>
+  <ReturnData>
+    <IRS990>
+      <Form990PartVIISectionAGrp>
+        <PersonNm>&xxe;</PersonNm>
+      </Form990PartVIISectionAGrp>
+    </IRS990>
+  </ReturnData>
+</Return>

@@ -73,6 +73,14 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "re_classify_definition": {"type": "text", "pattern": r"^[a-z][a-z0-9_]*:v\d+$", "flag": "--re-classify-definition"},
         },
     },
+    "990-enrich": {
+        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990"],
+        "params": {
+            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
+            "years": {"type": "text", "pattern": r"^\d{4}(,\d{4})*$", "flag": "--years"},
+            "limit": {"type": "int", "min": 1, "max": 999999, "flag": "--limit"},
+        },
+    },
 }
 
 
