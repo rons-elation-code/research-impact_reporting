@@ -87,7 +87,7 @@ CREATE UNIQUE INDEX idx_people_dedup ON lava_corpus.people(ein, object_id, perso
 - **Compensation in cents** (BIGINT) not dollars — avoids floating-point issues, matches IRS precision.
 - **`person_type`** is derived from the role flags for quick filtering. Priority: officer > key_employee > highest_compensated > director. The `is_former` flag is orthogonal — a former officer gets `person_type='officer'` with `is_former=TRUE`. This preserves the role for tenure queries while marking departure.
 - **`object_id`** links back to the specific IRS filing for provenance.
-- **Dedup index** on `(ein, object_id, person_name, person_type)` prevents duplicate entries on re-runs. Keyed on `object_id` (not `tax_period`) so original and amended filings for the same tax period coexist. Queries that want "current" data use `DISTINCT ON (ein, tax_period, person_name) ORDER BY sub_date DESC` via a join to `filing_index`.
+- **Dedup index** on `(ein, object_id, person_name, person_type)` prevents duplicate entries on re-runs. Keyed on `object_id` (not `tax_period`) so original and amended filings for the same tax period coexist. Queries that want "current" data use `DISTINCT ON (ein, tax_period, person_name) ORDER BY return_ts DESC NULLS LAST` via a join to `filing_index`.
 - **No FK constraint** to `nonprofits_seed` — we may enrich EINs before they're fully seeded, and the single-operator pattern doesn't need referential integrity enforcement.
 - **Upsert behavior**: `ON CONFLICT (ein, object_id, person_name, person_type) DO UPDATE SET` all mutable fields (title, compensation, flags, services_desc, extracted_at, run_id). Same filing reparsed = deterministic overwrite with same values. Parser output for a given XML file must be fully deterministic.
 - **Name storage**: V1 stores `person_name` exactly as it appears in the IRS XML (after HTML tag stripping). No normalization. Tenure queries across years use exact string match, which will miss `Jane Smith` vs `Jane A. Smith`. This is a known limitation — name linkage/fuzzy matching is a follow-up enhancement, not a v1 requirement. Goal 2 is "supports tenure tracking" at best-effort quality, not guaranteed accuracy.
@@ -100,9 +100,11 @@ Track which filings we've processed to enable incremental runs.
 CREATE TABLE lava_corpus.filing_index (
     object_id       TEXT PRIMARY KEY,       -- IRS OBJECT_ID
     ein             TEXT NOT NULL,
-    tax_period      TEXT NOT NULL,
-    return_type     TEXT NOT NULL,           -- '990', '990EZ', '990PF'
-    sub_date        DATE,                   -- submission date, parsed from index CSV
+    tax_period      TEXT NOT NULL,           -- YYYYMM from index CSV (e.g., '202312')
+    return_type     TEXT NOT NULL,           -- '990', '990EZ', '990PF', '990T'
+    sub_date        TEXT,                    -- submission year from index CSV (e.g., '2024')
+    return_ts       TIMESTAMPTZ,            -- ReturnTs from XML header (full timestamp, for amendment ordering)
+    is_amended      BOOLEAN DEFAULT FALSE,  -- AmendedReturnInd from XML header
     taxpayer_name   TEXT,
     xml_batch_id    TEXT,                   -- from index CSV, maps to zip filename
     status          TEXT DEFAULT 'indexed',  -- 'indexed', 'downloaded', 'parsed', 'skipped', 'error'
@@ -324,7 +326,7 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 
 5. **Same person, multiple roles** — A person can be both officer AND director in the same filing. The XML has separate boolean indicators. Store all flags, derive `person_type` by priority.
 
-6. **Filing amendments** — An org may file an amended 990 for the same tax period. The index CSV includes both original and amended. **Store all filings** — each has a unique `object_id`, so the dedup index `(ein, object_id, person_name, person_type)` handles this naturally. Queries that want "current" leadership join to `filing_index` and use `DISTINCT ON (ein, tax_period, person_name) ORDER BY sub_date DESC` to pick the latest amendment.
+6. **Filing amendments** — An org may file an amended 990 for the same tax period. The index CSV includes both original and amended. **Store all filings** — each has a unique `object_id`, so the dedup index `(ein, object_id, person_name, person_type)` handles this naturally. Queries that want "current" leadership join to `filing_index` and use `DISTINCT ON (ein, tax_period, person_name) ORDER BY return_ts DESC NULLS LAST` to pick the latest amendment.
 
 7. **EIN format** — IRS uses 9-digit EINs without dash. ProPublica/our seed uses the same format. No conversion needed, but validate.
 
@@ -337,7 +339,7 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 8 findings, all addressed in v2:
 
 1. **"Last 5 years" vs `--years` flag ambiguity** — Clarified: `--years` controls which years to process, default is last 5. No canonical selection rule needed beyond what the operator requests.
-2. **Amendment handling unresolved** — Fixed: store all filings (each has unique `object_id`), queries use `DISTINCT ON ... ORDER BY sub_date DESC` for latest.
+2. **Amendment handling unresolved** — Fixed: store all filings (each has unique `object_id`), queries use `DISTINCT ON ... ORDER BY return_ts DESC NULLS LAST` for latest.
 3. **`filing_index` lifecycle incomplete** — Added explicit status lifecycle documentation: indexed → downloaded → parsed/skipped/error.
 4. **Dedup semantics underspecified** — Fixed: dedup index now on `(ein, object_id, person_name, person_type)` instead of `(ein, tax_period, ...)`. Amendments coexist naturally.
 5. **Goal 5 vs "out of scope" conflict** — Reworded Goal 5 to "query support" — the table schema enables briefing queries, actual briefing UI is a follow-up spec.
@@ -367,7 +369,7 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 3. **[MEDIUM] "Last 5 years" vs `--years` ambiguity** — Fixed: Goal 2 reworded. System processes whatever years operator requests, default is current year minus 4.
 4. **[MEDIUM] Retry/backoff unspecified** — Fixed: added explicit retry policy (exponential backoff 2s/4s/8s, max 3 attempts, retryable error classes defined).
 5. **[MEDIUM] Cache integrity** — Fixed: atomic downloads (tmp + rename), Content-Length verification, truncation detection.
-6. **[MEDIUM] `sub_date` is TEXT but used for ordering** — Fixed: changed to DATE type, parsed from index CSV during Step 1.
+6. **[MEDIUM] `sub_date` is TEXT but used for ordering** — Investigated: index CSV `SUB_DATE` is just a year (e.g., '2024'), not a full date. Amendment ordering now uses `return_ts` (full timestamp parsed from XML `ReturnTs` header) instead. `sub_date` stays as TEXT.
 7. **[LOW] `return_type` allows unused values** — Acceptable: filing_index stores the raw value from the index CSV for provenance. Pipeline filters on `status`, not `return_type`.
 
 **Claude** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
