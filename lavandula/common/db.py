@@ -38,7 +38,7 @@ _REGION = "us-east-1"
 # start relying on the new objects. Every production CLI entrypoint
 # calls `assert_schema_at_least(engine)` at startup, hard-failing if
 # the DB schema is older.
-MIN_SCHEMA_VERSION: int = 2
+MIN_SCHEMA_VERSION: int = 3
 _SCHEMA_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 
 

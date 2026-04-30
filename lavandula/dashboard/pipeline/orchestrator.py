@@ -69,6 +69,8 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "limit": {"type": "int", "min": 0, "max": 999999, "flag": "--limit"},
             "state": {"type": "text", "pattern": r"^[A-Z]{2}$", "flag": "--state"},
             "re_classify": {"type": "bool", "flag": "--re-classify"},
+            "definition": {"type": "text", "pattern": r"^[a-z][a-z0-9_]*$", "flag": "--definition"},
+            "re_classify_definition": {"type": "text", "pattern": r"^[a-z][a-z0-9_]*:v\d+$", "flag": "--re-classify-definition"},
         },
     },
 }

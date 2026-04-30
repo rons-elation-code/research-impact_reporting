@@ -51,6 +51,8 @@ def classify_producer(
     method: str = "",
     state: str | None = None,
     re_classify: bool = False,
+    classifier_definition: str = "",
+    re_classify_definition: str | None = None,
 ) -> ClassifyProducerStats:
     """Keyset pagination over reports with NULL classification, enqueue for LLM."""
     stats = ClassifyProducerStats()
@@ -62,7 +64,12 @@ def classify_producer(
             if shutdown.is_set():
                 break
 
-            null_filter = "" if re_classify else " AND {p}classification IS NULL"
+            if re_classify_definition:
+                null_filter = " AND {p}classifier_definition IS DISTINCT FROM :target_def"
+            elif re_classify:
+                null_filter = ""
+            else:
+                null_filter = " AND {p}classification IS NULL"
             if state:
                 p = "c."
                 sql = (
@@ -89,6 +96,8 @@ def classify_producer(
             bind_params: dict = {"cursor": last_cursor, "page_size": page_size}
             if state:
                 bind_params["state"] = state
+            if re_classify_definition:
+                bind_params["target_def"] = re_classify_definition
 
             with engine.connect() as conn:
                 rows = conn.execute(
@@ -115,10 +124,19 @@ def classify_producer(
                                 text(
                                     f"UPDATE {_SCHEMA}.corpus SET "
                                     "classification='skipped', "
-                                    "classifier_model=:model "
+                                    "classifier_model=:model, "
+                                    "classifier_definition=:cdef, "
+                                    "material_type=NULL, "
+                                    "material_group=NULL, "
+                                    "event_type=NULL, "
+                                    "reasoning=NULL "
                                     "WHERE content_sha256=:csha"
                                 ),
-                                {"model": method, "csha": content_sha256},
+                                {
+                                    "model": method,
+                                    "cdef": classifier_definition,
+                                    "csha": content_sha256,
+                                },
                             )
                     except Exception:
                         log.exception("DB write error for content_sha256=%s", content_sha256)
@@ -149,6 +167,7 @@ def classify_consumer(
     gemma: LLMClient,
     engine: Engine,
     shutdown: ShutdownFlag,
+    classifier_definition: str = "",
 ) -> ClassifyConsumerStats:
     """Pull report packets from the queue, classify via LLM, write results."""
     stats = ClassifyConsumerStats()
@@ -201,10 +220,19 @@ def classify_consumer(
                         text(
                             f"UPDATE {_SCHEMA}.corpus SET "
                             "classification='parse_error', "
-                            "classifier_model=:model "
+                            "classifier_model=:model, "
+                            "classifier_definition=:cdef, "
+                            "material_type=NULL, "
+                            "material_group=NULL, "
+                            "event_type=NULL, "
+                            "reasoning=NULL "
                             "WHERE content_sha256=:csha"
                         ),
-                        {"model": method, "csha": content_sha256},
+                        {
+                            "model": method,
+                            "cdef": classifier_definition,
+                            "csha": content_sha256,
+                        },
                     )
             except Exception:
                 log.exception("DB write error for content_sha256=%s", content_sha256)
@@ -220,13 +248,23 @@ def classify_consumer(
                         f"UPDATE {_SCHEMA}.corpus SET "
                         "classification=:cls, "
                         "classification_confidence=:conf, "
-                        "classifier_model=:model "
+                        "classifier_model=:model, "
+                        "material_type=:mt, "
+                        "material_group=:mg, "
+                        "event_type=:et, "
+                        "reasoning=:reasoning, "
+                        "classifier_definition=:cdef "
                         "WHERE content_sha256=:csha"
                     ),
                     {
                         "cls": classification,
                         "conf": confidence,
                         "model": method,
+                        "mt": result.get("material_type"),
+                        "mg": result.get("material_group"),
+                        "et": result.get("event_type"),
+                        "reasoning": (result.get("reasoning") or "")[:500],
+                        "cdef": result.get("classifier_definition", classifier_definition),
                         "csha": content_sha256,
                     },
                 )

@@ -16,6 +16,8 @@ from uuid import uuid4
 
 import requests
 
+from lavandula.reports.taxonomy import material_type_to_legacy
+
 log = logging.getLogger(__name__)
 
 RESOLVER_METHOD = "gemma4-e4b-v1"  # default; overridden by resolver_method()
@@ -129,16 +131,33 @@ class LLMClient:
     """OpenAI-compatible client for any provider (Ollama, DeepSeek, etc.)."""
 
     def __init__(
-        self, *, base_url: str, model: str, api_key: str | None = None
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: str | None = None,
+        definition_name: str = "corpus_reports",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._model = model
         self._api_key = api_key
         self._method = resolver_method(model)
+        self._definition_name = definition_name
+        self._definition = None  # lazy-loaded on first classify()
 
     @property
     def method(self) -> str:
         return self._method
+
+    @property
+    def definition(self):
+        return self._get_definition()
+
+    def _get_definition(self):
+        if self._definition is None:
+            from .definition_loader import load_definition
+            self._definition = load_definition(self._definition_name)
+        return self._definition
 
     def health_check(self) -> bool:
         """Check if the endpoint is reachable."""
@@ -175,26 +194,55 @@ class LLMClient:
         return self._parse_tool_response(resp_data, "record_resolution")
 
     def classify(self, first_page_text: str) -> dict:
-        """Single LLM call for report classification.
+        """Definition-driven classification.
 
-        Returns dict with keys: classification, confidence, reasoning.
+        Returns dict with keys: material_type, material_group, event_type,
+        classification, confidence, reasoning, classifier_definition.
         Raises LLMParseError if response is malformed.
         """
-        user_content = (
-            "Classify the nonprofit PDF below into one of the five categories "
-            "{annual, impact, hybrid, other, not_a_report} by calling the "
-            "record_classification tool.\n"
-            "<untrusted_document>\n"
-            f"{first_page_text}\n"
-            "</untrusted_document>"
-        )
+        from .definition_loader import sanitize_document_text
+
+        defn = self._get_definition()
+        sanitized = sanitize_document_text(first_page_text)
         messages = [
-            {"role": "system", "content": CLASSIFIER_PROMPT_V1},
-            {"role": "user", "content": user_content},
+            {"role": "system", "content": defn.system_prompt},
+            {"role": "user", "content": (
+                "Classify the nonprofit PDF below by calling the "
+                "record_classification tool.\n"
+                "<untrusted_document>\n"
+                f"{sanitized}\n"
+                "</untrusted_document>"
+            )},
         ]
-        body = self._build_request_body(messages, CLASSIFIER_TOOL_V1)
+        body = self._build_request_body(messages, defn.tool_schema)
         resp_data = self._call(body)
-        return self._parse_tool_response(resp_data, "record_classification")
+        result = self._parse_tool_response(resp_data, "record_classification")
+
+        mt = result.get("material_type")
+        if not mt:
+            raise LLMParseError("LLM response missing material_type")
+        cat = defn.get_category(mt)
+        if cat is None:
+            log.warning("LLM returned unknown material_type=%r", mt)
+            raise LLMParseError(f"Unknown material_type from LLM: {mt}")
+        result["material_group"] = cat.group
+        result["classification"] = material_type_to_legacy(mt)
+
+        et = result.get("event_type")
+        if et is not None:
+            valid_ets = {e.id for e in defn.event_types}
+            if et not in valid_ets:
+                log.warning("LLM returned unknown event_type=%r", et)
+                raise LLMParseError(f"Unknown event_type from LLM: {et}")
+
+        conf = result.get("confidence")
+        if conf is None or not isinstance(conf, (int, float)):
+            raise LLMParseError(f"Missing or invalid confidence: {conf!r}")
+        if not (0.0 <= float(conf) <= 1.0):
+            raise LLMParseError(f"Confidence {conf} out of [0,1]")
+
+        result["classifier_definition"] = f"{defn.name}:v{defn.version}"
+        return result
 
     def _build_disambiguation_user(
         self, org: dict, candidates: list[dict]

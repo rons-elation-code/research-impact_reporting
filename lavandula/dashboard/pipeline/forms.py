@@ -1,3 +1,6 @@
+import re
+from pathlib import Path
+
 from django import forms
 
 from .orchestrator import US_STATES
@@ -140,6 +143,19 @@ class CrawlerForm(forms.Form):
     ))
 
 
+def _get_definition_choices():
+    """Scan definitions/ directory for available .md files."""
+    defn_dir = Path(__file__).resolve().parents[2] / "nonprofits" / "definitions"
+    choices = []
+    if defn_dir.is_dir():
+        for f in sorted(defn_dir.glob("*.md")):
+            if re.match(r"^[a-z][a-z0-9_]*$", f.stem):
+                choices.append((f.stem, f.stem))
+    if not choices:
+        choices = [("corpus_reports", "corpus_reports")]
+    return choices
+
+
 class ClassifierForm(forms.Form):
     state = forms.ChoiceField(
         choices=[("", "All states")] + STATE_CHOICES,
@@ -151,6 +167,12 @@ class ClassifierForm(forms.Form):
         initial="deepseek-v4-flash",
         widget=forms.Select(attrs={"class": _SELECT}),
         label="LLM",
+    )
+    definition = forms.ChoiceField(
+        choices=_get_definition_choices,
+        initial="corpus_reports",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="Definition",
     )
     limit = forms.IntegerField(required=False, min_value=0, max_value=999999, widget=forms.NumberInput(
         attrs={"class": _SELECT}
