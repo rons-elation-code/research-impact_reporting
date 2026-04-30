@@ -438,11 +438,11 @@ projects:
   - id: "0026"
     title: "990 Leadership & Contractor Intelligence"
     summary: "Extract named individuals (officers, directors, key employees, top contractors) from IRS 990 XML filings (TEOS bulk download) into a people table keyed by EIN+object_id. Enables pre-call briefings with CEO tenure, board composition, compensation levels, and existing vendor relationships."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0026-990-leadership-intelligence.md
-      plan: null
+      plan: locard/plans/0026-990-leadership-intelligence.md
       review: null
     dependencies: ["0001"]
     tags: [data-acquisition, enrichment, nonprofit, lavandula-sales, 990]
