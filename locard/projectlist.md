@@ -425,7 +425,7 @@ projects:
   - id: "0025"
     title: "Definition-Driven Classifier"
     summary: "Decouple classifier behavior from code via swappable definition files. Each definition file specifies categories, descriptions, examples, and counter-examples that the classifier prompt consumes at runtime. Enables PM-level taxonomy iteration without code changes and reuse of the classifier engine for different document types (corpus PDFs, scraped HTML, etc.)."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0025-definition-driven-classifier.md
@@ -433,11 +433,11 @@ projects:
       review: null
     dependencies: ["0023"]
     tags: [classifier, taxonomy, data-quality, architecture]
-    notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced. Builder spawned 2026-04-29."
+    notes: "Motivated by 2026-04-28 analysis: 30%+ junk rate in corpus, 'other' bucket contains misclassified real reports (endowment reports, financial statements, research reports). Current classifier prompt has zero category definitions — LLM guesses what 'annual' vs 'impact' vs 'other' means. Spec 0023 added material_type columns but the V1 prompt was never replaced. Builder spawned 2026-04-29. PR #21 merged 2026-04-29."
 
   - id: "0026"
     title: "990 Leadership & Contractor Intelligence"
-    summary: "Extract named individuals (officers, directors, key employees, top contractors) from IRS 990 filings via ProPublica API into a leadership table keyed by EIN+tax_year. Enables pre-call briefings with CEO tenure, board composition, compensation levels, and existing vendor relationships."
+    summary: "Extract named individuals (officers, directors, key employees, top contractors) from IRS 990 XML filings (TEOS bulk download) into a people table keyed by EIN+object_id. Enables pre-call briefings with CEO tenure, board composition, compensation levels, and existing vendor relationships."
     status: conceived
     priority: high
     files:
@@ -446,7 +446,7 @@ projects:
       review: null
     dependencies: ["0001"]
     tags: [data-acquisition, enrichment, nonprofit, lavandula-sales, 990]
-    notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. ProPublica API first, IRS XML bulk later if multi-year trend analysis needed."
+    notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. Source: IRS TEOS bulk XML (not frozen AWS S3 bucket). Table name: people. Spec completed 2026-04-30 after 2 consultation rounds (spec-review + red-team, both Codex + Claude). 42 ACs."
 
 ## Next Available Number
 

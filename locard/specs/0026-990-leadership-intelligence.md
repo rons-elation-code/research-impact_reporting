@@ -12,7 +12,7 @@ Lavandula's pre-call briefings lack leadership context. We know the org's name, 
 
 1. **Extract named individuals** from IRS 990 Part VII Section A (officers, directors, trustees, key employees, highest compensated employees) and Section B (top independent contractors) into a `people` table keyed by EIN + tax period.
 
-2. **Multi-year history** — Store the last 5 years of filings per org to enable tenure tracking and transition detection (new CDO = potential vendor opportunity).
+2. **Multi-year history** — Process whatever filing years the operator requests via `--years` (default: current year minus 4 through current year). The system stores all processed filings; there is no hard 5-year cap. Multi-year data enables tenure tracking and transition detection (new CDO = potential vendor opportunity).
 
 3. **Contractor intelligence** — Capture independent contractor names, service descriptions, and compensation. This reveals existing agency relationships (design firms, fundraising consultants) before the sales call.
 
@@ -89,6 +89,8 @@ CREATE UNIQUE INDEX idx_people_dedup ON lava_corpus.people(ein, object_id, perso
 - **`object_id`** links back to the specific IRS filing for provenance.
 - **Dedup index** on `(ein, object_id, person_name, person_type)` prevents duplicate entries on re-runs. Keyed on `object_id` (not `tax_period`) so original and amended filings for the same tax period coexist. Queries that want "current" data use `DISTINCT ON (ein, tax_period, person_name) ORDER BY sub_date DESC` via a join to `filing_index`.
 - **No FK constraint** to `nonprofits_seed` — we may enrich EINs before they're fully seeded, and the single-operator pattern doesn't need referential integrity enforcement.
+- **Upsert behavior**: `ON CONFLICT (ein, object_id, person_name, person_type) DO UPDATE SET` all mutable fields (title, compensation, flags, services_desc, extracted_at, run_id). Same filing reparsed = deterministic overwrite with same values. Parser output for a given XML file must be fully deterministic.
+- **Name storage**: V1 stores `person_name` exactly as it appears in the IRS XML (after HTML tag stripping). No normalization. Tenure queries across years use exact string match, which will miss `Jane Smith` vs `Jane A. Smith`. This is a known limitation — name linkage/fuzzy matching is a follow-up enhancement, not a v1 requirement. Goal 2 is "supports tenure tracking" at best-effort quality, not guaranteed accuracy.
 
 ### Table: `lava_corpus.filing_index`
 
@@ -100,7 +102,7 @@ CREATE TABLE lava_corpus.filing_index (
     ein             TEXT NOT NULL,
     tax_period      TEXT NOT NULL,
     return_type     TEXT NOT NULL,           -- '990', '990EZ', '990PF'
-    sub_date        TEXT,                   -- submission date from index CSV
+    sub_date        DATE,                   -- submission date, parsed from index CSV
     taxpayer_name   TEXT,
     xml_batch_id    TEXT,                   -- from index CSV, maps to zip filename
     status          TEXT DEFAULT 'indexed',  -- 'indexed', 'downloaded', 'parsed', 'skipped', 'error'
@@ -199,10 +201,17 @@ For each `filing_index` row with `status='indexed'`:
 
 **Error handling**: If XML parsing fails for a filing, set `filing_index.status='error'` with `error_message`, continue to next filing. Don't halt the pipeline for individual parse failures.
 
+**Download integrity**: Write zip files atomically (download to `.tmp` suffix, rename on success). Verify HTTP Content-Length matches downloaded size. On mismatch or truncation, delete the partial file and retry. A failed parse does NOT trigger automatic redownload — the operator uses `--reparse` to retry from cached files or manually deletes the corrupt zip.
+
+**Retry policy**: Retryable errors are HTTP 429, 5xx, and connection timeouts. Backoff: 2s, 4s, 8s (exponential, max 3 attempts). Non-retryable: 404 (mark filing as error), 403. Log each retry at WARNING.
+
 **Security:**
-- **XML parsing**: Use `defusedxml.ElementTree` (or `xml.etree.ElementTree` with DTD/external entity processing disabled). No XXE.
-- **Zip extraction**: Validate that extracted member filenames match expected `{OBJECT_ID}_public.xml` pattern. Reject names containing `..` or `/` path traversal.
-- **Cache directory**: Must be an existing directory. CLI validates at startup.
+- **XML parsing**: Use `defusedxml.ElementTree` exclusively. Do not use `lxml` or stdlib `xml.etree` — mandate `defusedxml` to prevent XXE by default.
+- **Zip extraction**: Before reading any member, check `ZipInfo.file_size` against a 50MB cap (real 990 XMLs are <2MB). Reject members exceeding the cap. Validate member filenames match `{OBJECT_ID}_public.xml` pattern — reject names containing `..`, `/`, or path traversal.
+- **Cache directory**: Must be an existing directory. CLI validates at startup. Reject symlinks.
+- **Input sanitization**: All text fields from 990 XML (`person_name`, `title`, `services_desc`) are stored as plain text. The dashboard already uses Django's auto-escaping for template rendering, which prevents XSS. Do not use `|safe` or `mark_safe()` on any field sourced from 990 data. Strip HTML tags from stored values as defense-in-depth: `re.sub(r'<[^>]+>', '', value)`.
+- **CLI input validation**: `--ein` validated as `^\d{9}$`. `--state` validated as `^[A-Z]{2}$`. `--years` validated as comma-separated 4-digit years. `--cache-dir` validated as existing directory, no symlinks. `run_id` is generated internally (UUID), never from user input.
+- **Error messages**: `error_message` in `filing_index` must not include raw XML content or stack traces — only a sanitized summary (e.g., "Part VII parse error: missing PersonNm element").
 
 ### Step 3: Briefing Generation (Future)
 
@@ -297,6 +306,11 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 - AC35: Unit test: contractor with `BusinessName` vs individual with `PersonNm` both parse correctly
 - AC36: Unit test: amended filing for same EIN+tax_period stores both, query picks latest by sub_date
 - AC37: Unit test: `is_former=TRUE` with `person_type='officer'` for former officers (not `person_type='former'`)
+- AC38: Zip members exceeding 50MB uncompressed size are rejected
+- AC39: HTML tags stripped from person_name, title, services_desc before storage
+- AC40: Atomic zip download (tmp + rename), truncated downloads detected and cleaned up
+- AC41: Retry with exponential backoff on 429/5xx, max 3 attempts
+- AC42: CLI validates --ein, --state, --years, --cache-dir inputs
 
 ## Traps to Avoid
 
@@ -341,3 +355,31 @@ Add `990-enrich` as a phase in the pipeline orchestrator with parameters:
 4. **OBJECT_ID → zip mapping unspecified** — Same as Codex #6. Fixed via `xml_batch_id` column.
 5. **`/tmp` default for large cache** — Changed default to `~/.lavandula/990-cache/`. Added cache size logging.
 6. **`run_id` and `status='downloaded'` undefined** — Added `downloaded` to lifecycle documentation. `run_id` follows the existing pattern from other pipeline tools (set at CLI startup, passed through).
+
+### Round 2: Red Team Security Review (2026-04-30)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+7 findings, all addressed in v3:
+
+1. **[HIGH] Upsert idempotency underspecified** — Fixed: explicit `ON CONFLICT DO UPDATE SET` for all mutable fields. Parser output for a given XML must be deterministic.
+2. **[HIGH] Name matching for tenure tracking unreliable** — Fixed: explicitly documented as v1 limitation. Names stored as-is from IRS XML. Fuzzy matching is a follow-up.
+3. **[MEDIUM] "Last 5 years" vs `--years` ambiguity** — Fixed: Goal 2 reworded. System processes whatever years operator requests, default is current year minus 4.
+4. **[MEDIUM] Retry/backoff unspecified** — Fixed: added explicit retry policy (exponential backoff 2s/4s/8s, max 3 attempts, retryable error classes defined).
+5. **[MEDIUM] Cache integrity** — Fixed: atomic downloads (tmp + rename), Content-Length verification, truncation detection.
+6. **[MEDIUM] `sub_date` is TEXT but used for ordering** — Fixed: changed to DATE type, parsed from index CSV during Step 1.
+7. **[LOW] `return_type` allows unused values** — Acceptable: filing_index stores the raw value from the index CSV for provenance. Pipeline filters on `status`, not `return_type`.
+
+**Claude** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+3 CRITICAL, 6 HIGH findings, addressed in v3:
+
+1. **[CRITICAL] Zip bomb DoS** — Fixed: check `ZipInfo.file_size` against 50MB cap before reading any member. AC38 added.
+2. **[CRITICAL] Dashboard XSS from 990 fields** — Fixed: strip HTML tags before storage as defense-in-depth. Dashboard uses Django auto-escaping. Never use `|safe` on 990 data. AC39 added.
+3. **[CRITICAL] XML parser choice** — Fixed: mandate `defusedxml` exclusively. Do not use `lxml` or stdlib `xml.etree`.
+4. **[HIGH] No download integrity verification** — Fixed: atomic downloads, Content-Length check. AC40 added.
+5. **[HIGH] CLI input validation missing** — Fixed: validation rules for --ein, --state, --years, --cache-dir. AC42 added.
+6. **[HIGH] Cache symlink attacks** — Fixed: reject symlinks in cache directory validation.
+7. **[HIGH] Error messages leak detail** — Fixed: sanitized summaries only, no raw XML or stack traces.
+8. **[HIGH] `--skip-download` trusts cache** — Accepted risk: single-operator system, cache directory is under operator control. Documented.
+9. **[HIGH] No certificate pinning** — Accepted risk: HTTPS to apps.irs.gov is sufficient for a single-operator enrichment tool. Certificate pinning would add complexity for minimal threat reduction.
