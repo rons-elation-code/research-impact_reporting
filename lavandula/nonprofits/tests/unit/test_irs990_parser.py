@@ -56,10 +56,10 @@ class TestParseOneontaCemetery:
         assert lawrence.is_officer is False
         assert lawrence.is_director is False
 
-    def test_compensation_cents(self, result: ParseResult):
-        """AC31: compensation stored in cents (IRS dollars × 100)."""
+    def test_compensation_dollars(self, result: ParseResult):
+        """AC31: compensation stored in whole dollars."""
         patricia = next(p for p in result.people if p.person_name == "PATRICIA L ODELL")
-        assert patricia.reportable_comp == 2030000  # $20,300 × 100
+        assert patricia.reportable_comp == 20300
 
     def test_hours(self, result: ParseResult):
         patricia = next(p for p in result.people if p.person_name == "PATRICIA L ODELL")
@@ -109,7 +109,7 @@ class TestParsePLTW:
         )
         assert ku.person_type == "contractor"
         assert ku.services_desc == "SUPPORT SERVICES"
-        assert ku.reportable_comp == 140069600  # $1,400,696 × 100
+        assert ku.reportable_comp == 1400696
         assert ku.is_officer is False
         assert ku.avg_hours_per_week is None
 
@@ -133,16 +133,16 @@ class TestParsePLTW:
     def test_schedule_j_merged(self, result: ParseResult):
         """AC43/46: Schedule J compensation breakdown populated."""
         dimmett = next(p for p in result.people if p.person_name == "DAVID DIMMETT ED D")
-        assert dimmett.base_comp == 42844300  # $428,443 × 100
-        assert dimmett.bonus == 7100000  # $71,000 × 100
-        assert dimmett.deferred_comp == 4630000  # $46,300 × 100
-        assert dimmett.nontaxable_benefits == 2420700  # $24,207 × 100
-        assert dimmett.total_comp_sch_j == 56995000  # $569,950 × 100
+        assert dimmett.base_comp == 428443
+        assert dimmett.bonus == 71000
+        assert dimmett.deferred_comp == 46300
+        assert dimmett.nontaxable_benefits == 24207
+        assert dimmett.total_comp_sch_j == 569950
 
     def test_schedule_j_former(self, result: ParseResult):
         vince = next(p for p in result.people if p.person_name == "VINCE BERTRAM ED D")
-        assert vince.base_comp == 39226500
-        assert vince.deferred_comp == 1800000
+        assert vince.base_comp == 392265
+        assert vince.deferred_comp == 18000
 
     def test_contractor_no_schedule_j(self, result: ParseResult):
         """AC45: Contractors don't get Schedule J data."""
@@ -290,9 +290,9 @@ class TestCompensationCents:
         </Return>"""
         result = parse_990_xml(xml)
         p = result.people[0]
-        assert p.reportable_comp == 15000000
-        assert p.related_org_comp == 2500000
-        assert p.other_comp == 1000000
+        assert p.reportable_comp == 150000
+        assert p.related_org_comp == 25000
+        assert p.other_comp == 10000
 
 
 class TestContractorNameVariants:
@@ -332,8 +332,8 @@ class TestContractorNameVariants:
         biz = next(p for p in result.people if p.person_name == "Acme Design LLC")
         assert biz.person_type == "contractor"
         assert biz.services_desc == "Design services"
-        assert biz.reportable_comp == 8000000
+        assert biz.reportable_comp == 80000
 
         individual = next(p for p in result.people if p.person_name == "Jane Doe")
         assert individual.person_type == "contractor"
-        assert individual.reportable_comp == 5000000
+        assert individual.reportable_comp == 50000

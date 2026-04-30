@@ -105,14 +105,15 @@ def _is_truthy(el: ET.Element | None) -> bool:
     return t in ("X", "TRUE", "1")
 
 
-def _cents(el: ET.Element | None) -> int | None:
+def _dollars(el: ET.Element | None) -> int | None:
+    """Parse IRS 990 amount field (whole dollars, no cents)."""
     if el is None or el.text is None:
         return None
     t = el.text.strip()
     if not t:
         return None
     try:
-        return int(t) * 100
+        return int(t)
     except ValueError:
         return None
 
@@ -227,9 +228,9 @@ def _parse_part_vii_a(irs990: ET.Element, warnings: list[str]) -> list[Person]:
             title=title,
             person_type=person_type,
             avg_hours_per_week=_decimal(_find(grp, "AverageHoursPerWeekRt")),
-            reportable_comp=_cents(_find(grp, "ReportableCompFromOrgAmt")),
-            related_org_comp=_cents(_find(grp, "ReportableCompFromRltdOrgAmt")),
-            other_comp=_cents(_find(grp, "OtherCompensationAmt")),
+            reportable_comp=_dollars(_find(grp, "ReportableCompFromOrgAmt")),
+            related_org_comp=_dollars(_find(grp, "ReportableCompFromRltdOrgAmt")),
+            other_comp=_dollars(_find(grp, "OtherCompensationAmt")),
             services_desc=None,
             is_officer=is_officer,
             is_director=is_director,
@@ -266,7 +267,7 @@ def _parse_part_vii_b(irs990: ET.Element, warnings: list[str]) -> list[Person]:
             title=None,
             person_type="contractor",
             avg_hours_per_week=None,
-            reportable_comp=_cents(_find(grp, "CompensationAmt")),
+            reportable_comp=_dollars(_find(grp, "CompensationAmt")),
             related_org_comp=None,
             other_comp=None,
             services_desc=_clean_text(_text(_find(grp, "ServicesDesc"))),
@@ -311,12 +312,12 @@ def _merge_schedule_j(
             continue
 
         matched += 1
-        person.base_comp = _cents(_find(grp, "BaseCompensationFilingOrgAmt"))
-        person.bonus = _cents(_find(grp, "BonusFilingOrganizationAmount"))
-        person.other_reportable = _cents(_find(grp, "OtherCompensationFilingOrgAmt"))
-        person.deferred_comp = _cents(_find(grp, "DeferredCompensationFlngOrgAmt"))
-        person.nontaxable_benefits = _cents(_find(grp, "NontaxableBenefitsFilingOrgAmt"))
-        person.total_comp_sch_j = _cents(_find(grp, "TotalCompensationFilingOrgAmt"))
+        person.base_comp = _dollars(_find(grp, "BaseCompensationFilingOrgAmt"))
+        person.bonus = _dollars(_find(grp, "BonusFilingOrganizationAmount"))
+        person.other_reportable = _dollars(_find(grp, "OtherCompensationFilingOrgAmt"))
+        person.deferred_comp = _dollars(_find(grp, "DeferredCompensationFlngOrgAmt"))
+        person.nontaxable_benefits = _dollars(_find(grp, "NontaxableBenefitsFilingOrgAmt"))
+        person.total_comp_sch_j = _dollars(_find(grp, "TotalCompensationFilingOrgAmt"))
 
     if total > 0 and matched == 0:
         log.error(

@@ -37,9 +37,8 @@ def _make_csv_response(rows: list[str]) -> MagicMock:
     header = "RETURN_ID,FILING_TYPE,EIN,TAX_PERIOD,SUB_DATE,TAXPAYER_NAME,RETURN_TYPE,DLN,OBJECT_ID,XML_BATCH_ID"
     content = (header + "\n" + "\n".join(rows)).encode("utf-8")
 
-    from io import BytesIO
     resp = MagicMock()
-    resp.raw = BytesIO(content)
+    resp.content = content
     resp.raise_for_status = MagicMock()
     return resp
 

@@ -91,7 +91,7 @@ def download_and_filter_index(
     )
 
     url = TEOS_INDEX_URL.format(year=year)
-    resp = requests.get(url, stream=True, timeout=120)
+    resp = requests.get(url, timeout=120)
     resp.raise_for_status()
 
     _INSERT_SQL = text("""
@@ -105,7 +105,7 @@ def download_and_filter_index(
     """)
 
     reader = csv.reader(
-        io.TextIOWrapper(resp.raw, encoding="utf-8", errors="replace")
+        io.StringIO(resp.content.decode("utf-8", errors="replace"))
     )
 
     header = next(reader, None)

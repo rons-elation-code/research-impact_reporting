@@ -82,7 +82,7 @@ class TestZipBombRejection:
     def test_large_member_rejected(self, tmp_path):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
-            info = zipfile.ZipInfo("OBJ001_public.xml")
+            info = zipfile.ZipInfo("2024_TEOS_XML_01A/OBJ001_public.xml")
             info.file_size = 60 * 1024 * 1024  # 60MB
             zf.writestr(info, b"x" * 100)
         buf.seek(0)
@@ -98,6 +98,7 @@ class TestZipBombRejection:
                 engine=engine,
                 zf=zf,
                 filing={"object_id": "OBJ001", "ein": "111111111", "tax_period": "202312"},
+                xml_batch_id="2024_TEOS_XML_01A",
                 run_id="test",
                 stats=stats,
             )
@@ -109,7 +110,7 @@ class TestMissingMember:
     """AC48: expected XML member absent from zip → error."""
 
     def test_missing_member(self, tmp_path):
-        zip_data = _make_zip_with_members({"OTHER_public.xml": b"<x/>"})
+        zip_data = _make_zip_with_members({"2024_TEOS_XML_01A/OTHER_public.xml": b"<x/>"})
         zip_path = tmp_path / "test.zip"
         zip_path.write_bytes(zip_data)
 
@@ -121,6 +122,7 @@ class TestMissingMember:
                 engine=engine,
                 zf=zf,
                 filing={"object_id": "OBJ001", "ein": "111111111", "tax_period": "202312"},
+                xml_batch_id="2024_TEOS_XML_01A",
                 run_id="test",
                 stats=stats,
             )

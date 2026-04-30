@@ -26,7 +26,7 @@ TEOS_ZIP_URL = (
 )
 
 _MAX_MEMBER_SIZE = 50 * 1024 * 1024  # 50 MB
-_MEMBER_NAME_RE = re.compile(r"^\d+_public\.xml$")
+_MEMBER_NAME_RE = re.compile(r"^[\w]+/\d+_public\.xml$")
 _MAX_RETRIES = 3
 _RETRY_DELAYS = [2, 4, 8]
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -336,6 +336,7 @@ def process_filings(
                     engine=engine,
                     zf=zf,
                     filing=filing,
+                    xml_batch_id=xml_batch_id,
                     run_id=run_id,
                     stats=stats,
                 )
@@ -348,11 +349,12 @@ def _process_single_filing(
     engine: Engine,
     zf: zipfile.ZipFile,
     filing: dict,
+    xml_batch_id: str,
     run_id: str,
     stats: ProcessStats,
 ) -> None:
     object_id = filing["object_id"]
-    member_name = f"{object_id}_public.xml"
+    member_name = f"{xml_batch_id}/{object_id}_public.xml"
 
     try:
         info = zf.getinfo(member_name)
@@ -373,7 +375,7 @@ def _process_single_filing(
         stats.filings_error += 1
         return
 
-    if ".." in info.filename or "/" in info.filename:
+    if ".." in info.filename:
         _mark_filing_error(
             engine, object_id,
             f"Path traversal in member name: {info.filename[:100]}", run_id,
