@@ -206,6 +206,16 @@ def _parse_frontmatter(fm_text: str, expected_name: str) -> dict:
         if field_name not in meta:
             raise DefinitionLoadError(f"Missing required frontmatter field: {field_name}")
 
+    name = meta["name"]
+    if not _NAME_RE.match(str(name)):
+        raise DefinitionLoadError(
+            f"Frontmatter name {name!r} must match {_NAME_RE.pattern}"
+        )
+    if str(name) != expected_name:
+        raise DefinitionLoadError(
+            f"Frontmatter name {name!r} does not match filename {expected_name!r}"
+        )
+
     if not isinstance(meta["version"], int) or meta["version"] < 1:
         raise DefinitionLoadError(
             f"version must be a positive integer, got {meta['version']!r}"

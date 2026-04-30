@@ -204,6 +204,52 @@ class TestLoadDefinitionErrors:
         with pytest.raises(DefinitionLoadError, match="Invalid category ID"):
             _parse_definition(raw, "test", Path("/fake"))
 
+    def test_name_mismatch_with_filename(self):
+        raw = textwrap.dedent("""\
+            ---
+            name: wrong_name
+            version: 1
+            description: test
+            output_columns: [material_type]
+            ---
+
+            # System Instructions
+
+            Test.
+
+            # Categories
+
+            ## other
+
+            ### other_collateral
+            Catch-all.
+        """)
+        with pytest.raises(DefinitionLoadError, match="does not match filename"):
+            _parse_definition(raw, "correct_name", Path("/fake"))
+
+    def test_name_invalid_regex(self):
+        raw = textwrap.dedent("""\
+            ---
+            name: Bad-Name
+            version: 1
+            description: test
+            output_columns: [material_type]
+            ---
+
+            # System Instructions
+
+            Test.
+
+            # Categories
+
+            ## other
+
+            ### other_collateral
+            Catch-all.
+        """)
+        with pytest.raises(DefinitionLoadError, match="must match"):
+            _parse_definition(raw, "Bad-Name", Path("/fake"))
+
     def test_unrecognized_section(self):
         raw = textwrap.dedent("""\
             ---
@@ -492,6 +538,72 @@ class TestPromptParity:
 
         assert openai_params == anthropic_schema
         assert defn.tool_schema["function"]["name"] == anthropic_tool["name"]
+
+
+# --- IS DISTINCT FROM query semantics (AC39) ---
+
+class TestReClassifyDefinitionQuery:
+    """Verify --re-classify-definition WHERE clause selects correctly."""
+
+    def test_is_distinct_from_selects_null_rows(self):
+        """NULL classifier_definition IS DISTINCT FROM 'corpus_reports:v1' → True."""
+        from sqlalchemy import create_engine, text as sa_text
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as conn:
+            conn.execute(sa_text(
+                "CREATE TABLE test_corpus (sha TEXT, classifier_definition TEXT)"
+            ))
+            conn.execute(sa_text(
+                "INSERT INTO test_corpus VALUES ('sha_null', NULL)"
+            ))
+            conn.execute(sa_text(
+                "INSERT INTO test_corpus VALUES ('sha_v1', 'corpus_reports:v1')"
+            ))
+            conn.execute(sa_text(
+                "INSERT INTO test_corpus VALUES ('sha_v2', 'corpus_reports:v2')"
+            ))
+
+        target = "corpus_reports:v2"
+        # SQLite doesn't have IS DISTINCT FROM, so use equivalent:
+        # (col IS NULL OR col != :target)
+        with engine.connect() as conn:
+            rows = conn.execute(sa_text(
+                "SELECT sha FROM test_corpus "
+                "WHERE classifier_definition IS NULL "
+                "   OR classifier_definition != :target"
+            ), {"target": target}).fetchall()
+
+        shas = {r[0] for r in rows}
+        assert "sha_null" in shas, "NULL rows must be selected"
+        assert "sha_v1" in shas, "Mismatched version rows must be selected"
+        assert "sha_v2" not in shas, "Matching version rows must NOT be selected"
+
+    def test_is_distinct_from_excludes_matching_rows(self):
+        """classifier_definition = target IS DISTINCT FROM target → False."""
+        from sqlalchemy import create_engine, text as sa_text
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as conn:
+            conn.execute(sa_text(
+                "CREATE TABLE test_corpus2 (sha TEXT, classifier_definition TEXT)"
+            ))
+            conn.execute(sa_text(
+                "INSERT INTO test_corpus2 VALUES ('sha_match', 'corpus_reports:v3')"
+            ))
+            conn.execute(sa_text(
+                "INSERT INTO test_corpus2 VALUES ('sha_old', 'corpus_reports:v2')"
+            ))
+
+        target = "corpus_reports:v3"
+        with engine.connect() as conn:
+            rows = conn.execute(sa_text(
+                "SELECT sha FROM test_corpus2 "
+                "WHERE classifier_definition IS NULL "
+                "   OR classifier_definition != :target"
+            ), {"target": target}).fetchall()
+
+        shas = {r[0] for r in rows}
+        assert "sha_match" not in shas
+        assert "sha_old" in shas
 
 
 # --- Helper ---

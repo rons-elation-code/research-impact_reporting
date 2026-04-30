@@ -233,6 +233,8 @@ def main() -> int:
         ap.error("--max-workers must be between 1 and 32")
 
     if args.re_classify_definition:
+        if args.backfill_material_type:
+            ap.error("--re-classify-definition and --backfill-material-type are mutually exclusive")
         args.re_classify = True
 
     _ensure_taxonomy()
@@ -405,6 +407,10 @@ def main() -> int:
                     "  classifier_model = :model, "
                     "  classifier_definition = :cdef, "
                     "  classifier_version = :cver, "
+                    "  material_type = NULL, "
+                    "  material_group = NULL, "
+                    "  event_type = NULL, "
+                    "  reasoning = NULL, "
                     "  classified_at = :ts, "
                     "  run_id = COALESCE(:run_id, run_id) "
                     "WHERE content_sha256 = :sha"

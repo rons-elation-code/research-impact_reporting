@@ -125,7 +125,11 @@ def classify_producer(
                                     f"UPDATE {_SCHEMA}.corpus SET "
                                     "classification='skipped', "
                                     "classifier_model=:model, "
-                                    "classifier_definition=:cdef "
+                                    "classifier_definition=:cdef, "
+                                    "material_type=NULL, "
+                                    "material_group=NULL, "
+                                    "event_type=NULL, "
+                                    "reasoning=NULL "
                                     "WHERE content_sha256=:csha"
                                 ),
                                 {
@@ -217,7 +221,11 @@ def classify_consumer(
                             f"UPDATE {_SCHEMA}.corpus SET "
                             "classification='parse_error', "
                             "classifier_model=:model, "
-                            "classifier_definition=:cdef "
+                            "classifier_definition=:cdef, "
+                            "material_type=NULL, "
+                            "material_group=NULL, "
+                            "event_type=NULL, "
+                            "reasoning=NULL "
                             "WHERE content_sha256=:csha"
                         ),
                         {
