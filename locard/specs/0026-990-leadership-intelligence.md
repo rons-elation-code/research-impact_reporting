@@ -100,6 +100,10 @@ CREATE UNIQUE INDEX idx_people_dedup ON lava_corpus.people(ein, object_id, perso
 - **No FK constraint** to `nonprofits_seed` — we may enrich EINs before they're fully seeded, and the single-operator pattern doesn't need referential integrity enforcement.
 - **Upsert behavior**: `ON CONFLICT (ein, object_id, person_name, person_type) DO UPDATE SET` all mutable fields (title, compensation, flags, services_desc, extracted_at, run_id). Same filing reparsed = deterministic overwrite with same values. Parser output for a given XML file must be fully deterministic.
 - **Name storage**: V1 stores `person_name` exactly as it appears in the IRS XML after: (1) XML entity decoding (handled by the parser — `&amp;` → `&`), (2) HTML tag stripping, (3) whitespace collapse (strip leading/trailing, collapse internal runs to single space). No case normalization — names stored in whatever case the IRS XML uses (typically uppercase). Tenure queries across years use exact string match, which will miss `Jane Smith` vs `Jane A. Smith`. This is a known limitation — name linkage/fuzzy matching is a follow-up enhancement, not a v1 requirement. Goal 2 is "supports tenure tracking" at best-effort quality, not guaranteed accuracy. Schedule J matching uses the same normalized name for lookup.
+- **Mixed "party" table**: The `people` table intentionally stores both natural persons (officers, directors, employees) and business entities (contractors) in v1. Consumers must check `person_type='contractor'` to distinguish — `person_name` may hold a company name, and compensation fields have different semantics (contractors have only `reportable_comp` from `CompensationAmt`, no Schedule J breakdown). This is a pragmatic choice for v1; a separate `contractors` table is a possible follow-up if query patterns diverge significantly.
+- **Current-snapshot queries are best-effort**: The `DISTINCT ON (ein, tax_period, person_name) ORDER BY return_ts DESC NULLS LAST` pattern is approximate analytics, not audit-grade identity continuity. Two distinct people with the same name in the same filing period will collapse to one row. Contractor rows are not deduplicated across amendments by name (they may change between filings). Downstream consumers should treat these queries as "good enough for pre-call briefings" not authoritative.
+- **Malformed row handling**: A Part VII entry missing `PersonNm` is skipped (log WARNING, continue to next entry). A contractor entry with neither `BusinessNameLine1Txt` nor `PersonNm` is skipped. Missing optional fields (compensation, hours, title) become NULL. The filing is still marked `parsed` — individual row skips are not filing-level errors. Only XML parse failures (malformed XML, missing root element) set `status='error'`.
+- **Boolean indicator parsing**: Role flag indicators (`OfficerInd`, `IndividualTrusteeOrDirectorInd`, etc.) are parsed case-insensitively after whitespace trimming. Values `"X"`, `"x"`, `"true"`, `"TRUE"`, `"1"` all count as TRUE. Absent element = FALSE.
 
 ### Table: `lava_corpus.filing_index`
 
@@ -133,6 +137,11 @@ CREATE INDEX idx_filing_status ON lava_corpus.filing_index(status);
 - `parsed` — Part VII (and Schedule J if present) parsed, people rows upserted
 - `skipped` — Valid 990 but no Part VII section present (not an error)
 - `error` — Download or parse failure, `error_message` populated
+
+**Status transition rules:**
+- If a zip is already cached on disk when processing begins, the filing transitions directly from `indexed` → `downloaded` (no re-download). The zip is considered valid if it exists and is a readable zip file.
+- `--reparse` resets `parsed` and `skipped` rows back to `downloaded`, clears `error_message` and `parsed_at`, then re-runs the parse step. `error` rows are also re-processed by `--reparse`.
+- Re-parsing overwrites `people` rows via the upsert — deterministic output means same result.
 
 ## XML Parsing
 
@@ -212,7 +221,7 @@ Schedule J is filed by orgs that answer "Yes" to Part IV line 23 (compensation >
 </IRS990ScheduleJ>
 ```
 
-**Merge strategy**: Schedule J entries are matched to existing `people` rows by `(person_name, object_id)`. After parsing Part VII Section A, iterate over `RltdOrgOfficerTrstKeyEmplGrp` entries in Schedule J and UPDATE the matching `people` row with the compensation breakdown fields. If no Part VII row matches (name mismatch), log a warning and skip — do not create a new `people` row from Schedule J alone, since Part VII is the authoritative person list.
+**Merge strategy**: Schedule J entries are matched to existing `people` rows by `(person_name, object_id)`. After parsing Part VII Section A, iterate over `RltdOrgOfficerTrstKeyEmplGrp` entries in Schedule J and UPDATE the matching `people` row with the compensation breakdown fields. If no Part VII row matches (name mismatch), log a warning and skip — do not create a new `people` row from Schedule J alone, since Part VII is the authoritative person list. If ALL Schedule J entries fail to match (100% mismatch), log at ERROR level — this likely indicates a parser bug or normalization drift rather than benign name variance. The filing still gets `status='parsed'` (the Part VII data is valid), but the error-level log alerts the operator to investigate.
 
 Map to `people` row (UPDATE existing Part VII row):
 - `base_comp` = `<BaseCompensationFilingOrgAmt>` × 100
@@ -245,6 +254,8 @@ For each `filing_index` row with `status='indexed'`:
 6. Upsert rows into `people` table.
 7. Parse Schedule J if present — match entries to Part VII rows by name, update compensation breakdown fields.
 8. Update `filing_index.status` to `'parsed'`, set `parsed_at`.
+
+**Batch grouping**: Step 2 MUST group `filing_index` rows by `(filing_year, xml_batch_id)` before processing. Open each zip once, extract all matching `{OBJECT_ID}_public.xml` members in a single pass, then close. This avoids reopening multi-GB zips repeatedly. Processing order: group by batch → download zip → extract all members → parse each → upsert.
 
 **Rate limiting**: Throttle zip downloads to 1 request per second against IRS TEOS. Cache zip files locally in a configurable directory (default: `~/.lavandula/990-cache/`). Log cache size at startup.
 
@@ -377,6 +388,11 @@ The dashboard form does NOT expose `--ein`, `--skip-download`, or `--reparse` �
 - AC47: Unit test: Schedule J name mismatch → warning logged, no orphan row created
 - AC48: Expected XML member (`{OBJECT_ID}_public.xml`) absent from a valid zip → filing_index.status='error', error_message set, pipeline continues
 - AC49: Unit test: Part VII entry with no role flags → person_type='listed'
+- AC50: Unit test: --skip-download with missing cache file → filing remains `indexed`, warning logged, pipeline continues
+- AC51: Unit test: --reparse re-processes `error` rows (clears error_message, re-parses)
+- AC52: Unit test: idempotent index insertion (running same year twice doesn't duplicate filing_index rows)
+- AC53: Unit test: Part VII entry missing PersonNm → row skipped with WARNING, filing still parsed
+- AC54: Filings grouped by (filing_year, xml_batch_id) — each zip opened at most once per run
 
 ## Traps to Avoid
 
@@ -463,5 +479,22 @@ The dashboard form does NOT expose `--ein`, `--skip-download`, or `--reparse` �
 5. **AC32 live download brittle for CI** — Fixed: marked as integration-only, CI-optional.
 6. **Dashboard requirements too thin** — Fixed: expanded dashboard section with validation rules, default years, which flags are CLI-only.
 7. **Missing XML member in valid zip** — Fixed: AC48 added. Mark filing as error, continue pipeline.
+
+**Gemini** — Quota exhausted, no response.
+
+### Round 4: Red Team Security Review (2026-04-30)
+
+**Codex** — **Verdict**: REQUEST_CHANGES (HIGH confidence)
+
+8 findings, all addressed in v6:
+
+1. **[HIGH] Current-snapshot queries underspecified for contractors/duplicate names** — Fixed: documented as best-effort analytics, not audit-grade. Consumers must check `person_type` to distinguish natural persons from contractors.
+2. **[HIGH] Malformed/partial Part VII row handling undefined** — Fixed: missing `PersonNm` → skip row (WARNING). Missing optional fields → NULL. Individual row skips don't affect filing status.
+3. **[MEDIUM] Zip batch grouping not required** — Fixed: Step 2 now mandates grouping by `(filing_year, xml_batch_id)`. Each zip opened once per run. AC54 added.
+4. **[MEDIUM] Status transitions for cache reuse and --reparse ambiguous** — Fixed: added explicit status transition rules. Cached zip → skip download. --reparse resets parsed/skipped/error → downloaded.
+5. **[MEDIUM] Boolean parsing not normalized** — Fixed: case-insensitive, whitespace-trimmed. "X", "x", "true", "TRUE", "1" all = TRUE.
+6. **[MEDIUM] Schedule J mismatch threshold undefined** — Fixed: 100% mismatch logs at ERROR level (possible parser bug). Filing still `parsed`.
+7. **[LOW] Mixed party table undocumented** — Fixed: explicit design decision noting `people` is intentionally mixed for v1.
+8. **[LOW] Missing state-transition tests** — Fixed: AC50-AC54 added for --skip-download, --reparse, idempotent index, missing PersonNm, batch grouping.
 
 **Gemini** — Quota exhausted, no response.
