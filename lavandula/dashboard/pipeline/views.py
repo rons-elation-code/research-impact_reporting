@@ -22,8 +22,10 @@ class HtmxLoginRequiredMixin(LoginRequiredMixin):
 
 from .models import (
     CrawledOrg,
+    FilingIndex,
     Job,
     NonprofitSeed,
+    Person,
     PipelineAuditLog,
     PipelineProcess,
     Report,
@@ -32,6 +34,8 @@ from .orchestrator import (
     DuplicateJobError,
     InvalidParameterError,
     cancel_job,
+    create_990_index_job,
+    create_990_parse_job,
     create_classify_job,
     create_crawl_job,
     create_resolve_job,
@@ -493,6 +497,226 @@ class OrgDetailView(LoginRequiredMixin, DetailView):
     model = NonprofitSeed
     template_name = "pipeline/org_detail.html"
     context_object_name = "org"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ein = self.object.ein
+
+        filings = FilingIndex.objects.using("pipeline").filter(
+            ein=ein
+        ).order_by("-tax_period", "-object_id")
+        ctx["filings"] = filings
+
+        selected_oid = self.request.GET.get("filing")
+        selected = None
+        if selected_oid:
+            selected = filings.filter(object_id=selected_oid).first()
+        if selected is None:
+            selected = filings.first()
+        ctx["selected_filing"] = selected
+
+        if selected:
+            people_qs = Person.objects.using("pipeline").filter(
+                ein=ein, object_id=selected.object_id
+            )
+            ctx["officers"] = people_qs.exclude(
+                person_type="contractor"
+            ).order_by("-reportable_comp", "person_name")
+            ctx["contractors"] = people_qs.filter(
+                person_type="contractor"
+            ).order_by("-reportable_comp")
+            ctx["schedule_j"] = people_qs.filter(
+                total_comp_sch_j__isnull=False
+            ).order_by("-total_comp_sch_j")
+
+        if filings.count() > 1:
+            all_people = Person.objects.using("pipeline").filter(ein=ein)
+            comparison = {}
+            for p in all_people:
+                row = comparison.setdefault(p.person_name, {})
+                existing = row.get(p.object_id)
+                if existing is None or (p.reportable_comp or 0) > (existing or 0):
+                    row[p.object_id] = p.reportable_comp
+            ctx["comparison"] = comparison
+            tp_counts = {}
+            for f in filings:
+                tp_counts[f.tax_period] = tp_counts.get(f.tax_period, 0) + 1
+            ctx["filing_headers"] = [
+                {
+                    "object_id": f.object_id,
+                    "label": f.tax_period + (
+                        " (amended)" if f.is_amended or tp_counts[f.tax_period] > 1
+                        else ""
+                    ),
+                }
+                for f in filings
+            ]
+
+        return ctx
+
+
+# ---------------------------------------------------------------------------
+# 990 Pipeline Controls
+# ---------------------------------------------------------------------------
+
+def _build_990_status_qs(request, form_cls):
+    """Build scoped filing_index queryset from GET params, validated via form."""
+    scope_form = form_cls(request.GET)
+    if scope_form.is_valid():
+        state = scope_form.cleaned_data.get("state") or None
+        ein = scope_form.cleaned_data.get("ein") or None
+        years_param = scope_form.cleaned_data.get("years") or None
+    else:
+        state = ein = years_param = None
+
+    qs = FilingIndex.objects.using("pipeline").all()
+    scoped = bool(state or ein or years_param)
+
+    if scoped:
+        if ein:
+            qs = qs.filter(ein=ein)
+        elif state:
+            ein_list = list(
+                NonprofitSeed.objects.filter(state=state)
+                .values_list("ein", flat=True)[:10000]
+            )
+            qs = qs.filter(ein__in=ein_list)
+        if years_param:
+            year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
+            qs = qs.filter(filing_year__in=year_list)
+
+    return qs, scoped
+
+
+class EnrichIndexView(LoginRequiredMixin, TemplateView):
+    template_name = "pipeline/990_index.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["running_job"] = Job.objects.filter(phase="990-index", status="running").first()
+        ctx["pending_job"] = Job.objects.filter(phase="990-index", status="pending").first()
+        from .forms import EnrichIndexForm
+        ctx["form"] = EnrichIndexForm()
+
+        qs, scoped = _build_990_status_qs(self.request, EnrichIndexForm)
+        ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
+        ctx["total_filings"] = qs.count()
+        ctx["scoped"] = scoped
+        return ctx
+
+
+class EnrichIndexJobCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        from .forms import EnrichIndexForm
+        form = EnrichIndexForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, f"Invalid form: {form.errors.as_text()}")
+            return redirect("enrich_index")
+
+        config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        try:
+            job = create_990_index_job(config, _get_hostname())
+            _log_audit(request, "job_create", "990-index", {"job_id": job.pk})
+            messages.success(request, f"Created 990 index job #{job.pk}")
+        except DuplicateJobError as e:
+            messages.error(request, str(e))
+
+        params = {}
+        if config.get("ein"):
+            params["ein"] = config["ein"]
+        elif config.get("state"):
+            params["state"] = config["state"]
+        if config.get("years"):
+            params["years"] = config["years"]
+        if params:
+            from urllib.parse import urlencode
+            return redirect(f"{reverse('enrich_index')}?{urlencode(params)}")
+        return redirect("enrich_index")
+
+
+class EnrichParseView(LoginRequiredMixin, TemplateView):
+    template_name = "pipeline/990_parse.html"
+
+    def get_context_data(self, **kwargs):
+        from pathlib import Path
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["running_job"] = Job.objects.filter(phase="990-parse", status="running").first()
+        ctx["pending_job"] = Job.objects.filter(phase="990-parse", status="pending").first()
+        from .forms import EnrichParseForm
+        ctx["form"] = EnrichParseForm()
+
+        qs, scoped = _build_990_status_qs(self.request, EnrichParseForm)
+        ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
+        ctx["total_filings"] = qs.count()
+        ctx["scoped"] = scoped
+
+        # People count (scoped same way)
+        people_qs = Person.objects.using("pipeline").all()
+        scope_form = EnrichParseForm(self.request.GET)
+        if scope_form.is_valid():
+            ein = scope_form.cleaned_data.get("ein") or None
+            state = scope_form.cleaned_data.get("state") or None
+            years_param = scope_form.cleaned_data.get("years") or None
+        else:
+            ein = state = years_param = None
+
+        if ein:
+            people_qs = people_qs.filter(ein=ein)
+        elif state:
+            ein_list = list(
+                NonprofitSeed.objects.filter(state=state)
+                .values_list("ein", flat=True)[:10000]
+            )
+            people_qs = people_qs.filter(ein__in=ein_list)
+        if years_param:
+            year_list = [y.strip() for y in years_param.split(",") if y.strip().isdigit()]
+            year_q = Q()
+            for y in year_list:
+                year_q |= Q(tax_period__startswith=y)
+            if year_q:
+                people_qs = people_qs.filter(year_q)
+        ctx["people_count"] = people_qs.count()
+
+        # Cache status
+        cache_dir = Path.home() / ".lavandula" / "990-cache"
+        try:
+            zips = list(cache_dir.glob("*.zip"))
+            ctx["cache_count"] = len(zips)
+            ctx["cache_size_gb"] = sum(f.stat().st_size for f in zips) / (1024 ** 3)
+        except (OSError, PermissionError):
+            ctx["cache_count"] = None
+
+        return ctx
+
+
+class EnrichParseJobCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        from .forms import EnrichParseForm
+        form = EnrichParseForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, f"Invalid form: {form.errors.as_text()}")
+            return redirect("enrich_parse")
+
+        config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        try:
+            job = create_990_parse_job(config, _get_hostname())
+            _log_audit(request, "job_create", "990-parse", {"job_id": job.pk})
+            messages.success(request, f"Created 990 parse job #{job.pk}")
+        except DuplicateJobError as e:
+            messages.error(request, str(e))
+
+        params = {}
+        if config.get("ein"):
+            params["ein"] = config["ein"]
+        elif config.get("state"):
+            params["state"] = config["state"]
+        if config.get("years"):
+            params["years"] = config["years"]
+        if params:
+            from urllib.parse import urlencode
+            return redirect(f"{reverse('enrich_parse')}?{urlencode(params)}")
+        return redirect("enrich_parse")
 
 
 # ---------------------------------------------------------------------------

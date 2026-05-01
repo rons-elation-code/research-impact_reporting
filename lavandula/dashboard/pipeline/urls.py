@@ -26,6 +26,13 @@ urlpatterns = [
     path("crawler/queue/", views.CrawlJobCreateView.as_view(), name="crawl_job_create"),
     path("classifier/", views.ClassifierView.as_view(), name="classifier"),
     path("classifier/queue/", views.ClassifyJobCreateView.as_view(), name="classify_job_create"),
+
+    # 990 Pipeline Controls
+    path("990-index/", views.EnrichIndexView.as_view(), name="enrich_index"),
+    path("990-index/queue/", views.EnrichIndexJobCreateView.as_view(), name="enrich_index_job_create"),
+    path("990-parse/", views.EnrichParseView.as_view(), name="enrich_parse"),
+    path("990-parse/queue/", views.EnrichParseJobCreateView.as_view(), name="enrich_parse_job_create"),
+
     path("process/<str:phase>/start/", views.ProcessStartView.as_view(), name="process_start"),
     path("process/<str:phase>/stop/", views.ProcessStopView.as_view(), name="process_stop"),
 

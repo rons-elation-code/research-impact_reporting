@@ -55,6 +55,66 @@ class CrawledOrg(models.Model):
         db_table = "crawled_orgs"
 
 
+class FilingIndex(models.Model):
+    object_id = models.CharField(primary_key=True, max_length=30)
+    ein = models.CharField(max_length=9)
+    tax_period = models.CharField(max_length=6)
+    return_type = models.CharField(max_length=10)
+    sub_date = models.CharField(max_length=20, null=True)
+    return_ts = models.DateTimeField(null=True)
+    is_amended = models.BooleanField(default=False)
+    taxpayer_name = models.TextField(null=True)
+    xml_batch_id = models.CharField(max_length=30, null=True)
+    filing_year = models.IntegerField()
+    status = models.CharField(max_length=20)
+    error_message = models.TextField(null=True)
+    parsed_at = models.DateTimeField(null=True)
+    run_id = models.CharField(max_length=50, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "filing_index"
+
+    def __str__(self):
+        return f"{self.object_id} ({self.ein} {self.tax_period})"
+
+
+class Person(models.Model):
+    id = models.AutoField(primary_key=True)
+    ein = models.CharField(max_length=9)
+    tax_period = models.CharField(max_length=6)
+    object_id = models.CharField(max_length=30)
+    person_name = models.CharField(max_length=200)
+    title = models.TextField(null=True)
+    person_type = models.CharField(max_length=30)
+    avg_hours_per_week = models.DecimalField(max_digits=5, decimal_places=1, null=True)
+    reportable_comp = models.BigIntegerField(null=True)
+    related_org_comp = models.BigIntegerField(null=True)
+    other_comp = models.BigIntegerField(null=True)
+    total_comp = models.BigIntegerField(null=True)
+    base_comp = models.BigIntegerField(null=True)
+    bonus = models.BigIntegerField(null=True)
+    other_reportable = models.BigIntegerField(null=True)
+    deferred_comp = models.BigIntegerField(null=True)
+    nontaxable_benefits = models.BigIntegerField(null=True)
+    total_comp_sch_j = models.BigIntegerField(null=True)
+    services_desc = models.TextField(null=True)
+    is_officer = models.BooleanField(default=False)
+    is_director = models.BooleanField(default=False)
+    is_key_employee = models.BooleanField(default=False)
+    is_highest_comp = models.BooleanField(default=False)
+    is_former = models.BooleanField(default=False)
+    extracted_at = models.DateTimeField(null=True)
+    run_id = models.CharField(max_length=50, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "people"
+
+    def __str__(self):
+        return f"{self.person_name} ({self.ein} {self.person_type})"
+
+
 # ---------------------------------------------------------------------------
 # Managed models — Django-managed tables in lava_dashboard schema
 # ---------------------------------------------------------------------------
@@ -66,6 +126,8 @@ class Job(models.Model):
         ("crawl", "Crawl"),
         ("classify", "Classify"),
         ("990-enrich", "990 Enrich"),
+        ("990-index", "990 Index"),
+        ("990-parse", "990 Parse"),
     ]
     STATUS_CHOICES = [
         ("pending", "Pending"),

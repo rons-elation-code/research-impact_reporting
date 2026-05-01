@@ -71,3 +71,43 @@ def elapsed_since(start_time):
         return ""
     td = timezone.now() - start_time
     return duration(td)
+
+
+@register.filter
+def currency(value):
+    if value is None:
+        return "—"
+    return f"${value:,}"
+
+
+PERSON_TYPE_BADGES = {
+    "officer": "bg-blue-100 text-blue-800",
+    "director": "bg-gray-100 text-gray-800",
+    "key_employee": "bg-green-100 text-green-800",
+    "highest_compensated": "bg-amber-100 text-amber-800",
+    "listed": "bg-purple-100 text-purple-800",
+}
+
+FILING_STATUS_BADGES = {
+    "parsed": "bg-green-100 text-green-800",
+    "error": "bg-red-100 text-red-800",
+    "downloaded": "bg-blue-100 text-blue-800",
+    "indexed": "bg-gray-100 text-gray-800",
+}
+
+
+@register.filter
+def person_badge(person_type):
+    return PERSON_TYPE_BADGES.get(person_type, "bg-gray-100 text-gray-800")
+
+
+@register.filter
+def filing_badge(status):
+    return FILING_STATUS_BADGES.get(status, "bg-gray-100 text-gray-800")
+
+
+@register.filter
+def dictget(d, key):
+    if not isinstance(d, dict):
+        return None
+    return d.get(key)
