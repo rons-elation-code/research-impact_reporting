@@ -571,6 +571,7 @@ def _build_990_status_qs(request, form_cls):
 
     qs = FilingIndex.objects.using("pipeline").all()
     scoped = bool(state or ein or years_param)
+    scope_truncated = False
 
     if scoped:
         if ein:
@@ -580,12 +581,14 @@ def _build_990_status_qs(request, form_cls):
                 NonprofitSeed.objects.filter(state=state)
                 .values_list("ein", flat=True)[:10000]
             )
+            if len(ein_list) >= 10000:
+                scope_truncated = True
             qs = qs.filter(ein__in=ein_list)
         if years_param:
             year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
             qs = qs.filter(filing_year__in=year_list)
 
-    return qs, scoped
+    return qs, scoped, scope_truncated
 
 
 class EnrichIndexView(LoginRequiredMixin, TemplateView):
@@ -598,10 +601,11 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
         from .forms import EnrichIndexForm
         ctx["form"] = EnrichIndexForm()
 
-        qs, scoped = _build_990_status_qs(self.request, EnrichIndexForm)
+        qs, scoped, scope_truncated = _build_990_status_qs(self.request, EnrichIndexForm)
         ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
         ctx["total_filings"] = qs.count()
         ctx["scoped"] = scoped
+        ctx["scope_truncated"] = scope_truncated
         return ctx
 
 
@@ -646,10 +650,11 @@ class EnrichParseView(LoginRequiredMixin, TemplateView):
         from .forms import EnrichParseForm
         ctx["form"] = EnrichParseForm()
 
-        qs, scoped = _build_990_status_qs(self.request, EnrichParseForm)
+        qs, scoped, scope_truncated = _build_990_status_qs(self.request, EnrichParseForm)
         ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
         ctx["total_filings"] = qs.count()
         ctx["scoped"] = scoped
+        ctx["scope_truncated"] = scope_truncated
 
         # People count (scoped same way)
         people_qs = Person.objects.using("pipeline").all()
@@ -668,6 +673,8 @@ class EnrichParseView(LoginRequiredMixin, TemplateView):
                 NonprofitSeed.objects.filter(state=state)
                 .values_list("ein", flat=True)[:10000]
             )
+            if len(ein_list) >= 10000:
+                ctx["scope_truncated"] = True
             people_qs = people_qs.filter(ein__in=ein_list)
         if years_param:
             year_list = [y.strip() for y in years_param.split(",") if y.strip().isdigit()]

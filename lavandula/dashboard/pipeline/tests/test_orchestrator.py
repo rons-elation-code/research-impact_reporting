@@ -247,7 +247,8 @@ class Create990IndexJobTest(TestCase):
 
     def test_ein_mode(self):
         job = create_990_index_job({"ein": "123456789", "years": "2024"}, "localhost")
-        self.assertEqual(job.state_code, "123456789")
+        self.assertIsNone(job.state_code)
+        self.assertEqual(job.config_json["ein"], "123456789")
 
 
 class Create990ParseJobTest(TestCase):

@@ -360,7 +360,7 @@ def create_990_index_job(config_overrides: dict, host: str) -> Job:
 
         try:
             return Job.objects.create(
-                state_code=state or ein,
+                state_code=state,
                 phase="990-index",
                 status="pending",
                 host=host,
@@ -387,7 +387,7 @@ def create_990_parse_job(config_overrides: dict, host: str) -> Job:
 
         try:
             return Job.objects.create(
-                state_code=state or ein,
+                state_code=state,
                 phase="990-parse",
                 status="pending",
                 host=host,
