@@ -487,9 +487,22 @@ projects:
     tags: [classifier, cleanup, data-quality, dashboard]
     notes: "Identified 2026-05-01: gemma_client.py line 229 overwrites result['classification'] with material_type_to_legacy(mt), collapsing granular labels to 5 buckets. material_type column preserves the real data. Dashboard reports page already uses material_type; crawler/classifier views still show classification. Surfaces to clean: gemma_client.py, pipeline_classify.py log line, crawler.html, classifier.html, report_detail.html, taxonomy.py _MATERIAL_TYPE_TO_LEGACY dict."
 
+  - id: "0030"
+    title: "990 Filing Index Automation & S3 Archive"
+    summary: "Bulk-load the complete IRS TEOS 990 index (2017-2026, ~2.6M rows), store batch zips and per-org XMLs in S3 instead of EBS, and automatically maintain 990 data for all orgs in nonprofits_seed via nightly refresh and auto-process worker."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0030-990-index-automation.md
+      plan: null
+      review: null
+    dependencies: ["0026", "0027"]
+    tags: [990, infrastructure, s3, automation, pipeline]
+    notes: "Motivated by 2026-05-01 investigation: 2017-2023 index CSVs silently dropped (9-col vs 10-col bug), 70-90 MB CSV re-downloaded on every manual request, zip cache on expensive EBS. Full index is trivially small for Postgres. S3 bucket: lavandula-990-corpus (separate from collaterals)."
+
 ## Next Available Number
 
-**0030** - Reserve this number for your next project
+**0031** - Reserve this number for your next project
 
 ---
 
