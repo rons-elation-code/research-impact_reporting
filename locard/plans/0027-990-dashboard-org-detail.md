@@ -73,6 +73,12 @@ _990_PHASES = {"990-enrich", "990-index", "990-parse"}
 
 def create_990_index_job(config_overrides, host):
     with transaction.atomic():
+        # Advisory lock prevents TOCTOU race — select_for_update doesn't lock
+        # empty result sets, so two concurrent POSTs could both see "no existing job"
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext('990-family'))")
+
         existing = Job.objects.select_for_update().filter(
             phase__in=_990_PHASES, status__in=["pending", "running"]
         ).first()
@@ -108,6 +114,8 @@ Add to `PHASE_CHOICES`:
 ("990-parse", "990 Parse"),
 ```
 
+After modifying `PHASE_CHOICES`, run `python manage.py makemigrations pipeline` to generate a Django migration for the choices change. This is required because Django tracks choice changes in migration history.
+
 **ACs**: 23, 24, 32, 33, 40, 28, 39
 
 ### Phase 3: Unmanaged Models
@@ -137,7 +145,7 @@ class FilingIndex(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"lava_corpus"."filing_index"'
+        db_table = "filing_index"
 
 
 class Person(models.Model):
@@ -170,10 +178,13 @@ class Person(models.Model):
 
     class Meta:
         managed = False
-        db_table = '"lava_corpus"."people"'
+        db_table = "people"
 ```
 
-**Router verification**: The existing `PipelineRouter` in `routers.py` uses `model._meta.managed == False` — no changes needed. Both new models have `managed = False` and will route to the `pipeline` DB alias automatically. Merge this verification into Phase 3 (not a separate phase).
+**Router verification**: The existing `PipelineRouter` in `routers.py` (lines 1-21) uses `model._meta.managed == False` for routing. Specifically:
+- `db_for_read`: returns `"pipeline"` for unmanaged models — correct
+- `db_for_write`: raises `RuntimeError` for unmanaged models (line 11-14) — this **enforces** write-blocking at runtime, not just by convention
+- Both new models have `managed = False` and will route correctly. No changes needed. Merge verification into Phase 3.
 
 **ACs**: 41, 42
 
@@ -210,6 +221,9 @@ class EnrichIndexForm(forms.Form):
             raise forms.ValidationError("Years must be comma-separated 4-digit years")
         year_list = [int(y.strip()) for y in years_str.split(",")]
         current_year = datetime.date.today().year
+        # Range check per spec Security section. The CLI/IRS handles out-of-range
+        # gracefully (404 → warning → continue), but dashboard validates as
+        # defense-in-depth to prevent wasted jobs.
         for y in year_list:
             if y < 2019 or y > current_year:
                 raise forms.ValidationError(f"Year {y} outside valid range [2019, {current_year}]")
@@ -257,9 +271,16 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
         ctx["form"] = EnrichIndexForm()
 
         # Status: global or scoped by state/ein + years
-        state = self.request.GET.get("state")
-        ein = self.request.GET.get("ein")
-        years_param = self.request.GET.get("years")
+        # Validate GET params via form to prevent malformed values from
+        # reaching ORM filters or being reflected in template context.
+        scope_form = EnrichIndexForm(self.request.GET)
+        if scope_form.is_valid():
+            state = scope_form.cleaned_data.get("state") or None
+            ein = scope_form.cleaned_data.get("ein") or None
+            years_param = scope_form.cleaned_data.get("years") or None
+        else:
+            # Invalid GET params → fall back to global (unscoped) view
+            state = ein = years_param = None
         qs = FilingIndex.objects.using("pipeline").all()
         scoped = bool(state or ein or years_param)
         if scoped:
@@ -268,7 +289,14 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
             elif state:
                 # Materialize EINs into a Python list to avoid cross-DB subquery
                 # (NonprofitSeed is on "default" DB, FilingIndex on "pipeline")
-                ein_list = list(NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+                # Cap at 10K EINs — larger states should use raw SQL join or
+                # a denormalized state column on filing_index (future work).
+                ein_list = list(
+                    NonprofitSeed.objects.filter(state=state)
+                    .values_list("ein", flat=True)[:10000]
+                )
+                if len(ein_list) >= 10000:
+                    ctx["scope_truncated"] = True
                 qs = qs.filter(ein__in=ein_list)
             if years_param:
                 year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
@@ -333,8 +361,11 @@ people_qs = Person.objects.using("pipeline").all()
 if ein:
     people_qs = people_qs.filter(ein=ein)
 elif state:
-    # Materialize to avoid cross-DB subquery (same pattern as index view)
-    ein_list = list(NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+    # Materialize to avoid cross-DB subquery (same pattern as index view, capped at 10K)
+    ein_list = list(
+        NonprofitSeed.objects.filter(state=state)
+        .values_list("ein", flat=True)[:10000]
+    )
     people_qs = people_qs.filter(ein__in=ein_list)
 # Years filter: tax_period is YYYYMM, use __startswith via Q objects
 if years_param:
@@ -403,13 +434,17 @@ class OrgDetailView(LoginRequiredMixin, DetailView):
                     row[p.object_id] = p.reportable_comp
             ctx["comparison"] = comparison
             # Build filing headers with amended badge
+            # Use is_amended column OR duplicate tax_period count as signals
             tp_counts = {}
             for f in filings:
                 tp_counts[f.tax_period] = tp_counts.get(f.tax_period, 0) + 1
             ctx["filing_headers"] = [
                 {
                     "object_id": f.object_id,
-                    "label": f.tax_period + (" (amended)" if tp_counts[f.tax_period] > 1 else ""),
+                    "label": f.tax_period + (
+                        " (amended)" if f.is_amended or tp_counts[f.tax_period] > 1
+                        else ""
+                    ),
                 }
                 for f in filings
             ]
@@ -471,6 +506,8 @@ Extend the existing template. Below the current org info section, add:
 5. **Schedule J detail** — `<details>` element (collapsed by default) with full compensation breakdown
 6. **Cross-filing comparison** — `<details>` toggle, matrix table with person names × filing columns
 7. **Empty states** — "No 990 filings found" / "No leadership data extracted"
+
+**Auto-escape rule**: All person/filing string fields (`person_name`, `title`, `services_desc`, `taxpayer_name`, `error_message`) MUST be rendered via Django's default auto-escape. Do NOT use `|safe`, `mark_safe`, or `{% autoescape off %}` on any field originating from `lava_corpus.people` or `lava_corpus.filing_index`. IRS XML is public but parsed from external content. Add a template test confirming a name containing `<script>` renders as escaped text.
 
 Person type color mapping (Tailwind classes):
 ```
@@ -548,6 +585,7 @@ Active link detection: match `'enrich_index'` and `'enrich_parse'` in `url_name`
    - `currency(123456)` → `"$123,456"`
    - `currency(0)` → `"$0"`
    - `currency(None)` → `"—"`
+   - XSS escape test: seed a Person with `person_name="<script>alert(1)</script>"`, render org_detail, assert response contains `&lt;script&gt;` (escaped), not `<script>` (raw)
 
 4. **CLI tests** (`lavandula/nonprofits/tests/unit/test_enrich_990.py`):
    - `--index-only` runs index loop, skips process_filings
@@ -605,8 +643,12 @@ Active link detection: match `'enrich_index'` and `'enrich_parse'` in `url_name`
 
 1. **Don't forget `.using("pipeline")`** on every FilingIndex/Person query. The default DB alias won't have these tables.
 
-2. **Cross-filing comparison "amended" badge**: count tax_periods across filings first, then apply badge to any filing whose tax_period appears more than once. Don't compare adjacent filings — multiple amendments for the same period are possible.
+2. **Cross-filing comparison "amended" badge**: Use the `is_amended` column from `filing_index` (set by the parser from the XML) as the primary signal. If `is_amended` is true, always show the badge. As a fallback, also show the badge when multiple filings share the same `tax_period` (covers cases where the original filing was superseded but neither is marked amended). Don't compare adjacent filings — multiple amendments for the same period are possible.
 
 3. **Filing picker fallback**: if `?filing=X` references a valid object_id but for a different EIN, it must still fall back. Filter by both `object_id=X` AND the current EIN's filings queryset.
 
 4. **Job phase strings must match exactly**: `"990-index"` and `"990-parse"` (with hyphens). The Job model allows max_length=20, which is sufficient.
+
+5. **GET param validation**: Status scoping views must validate GET params via the same form class used for POST. Don't read `request.GET` directly into ORM filters — malformed values should fall back to global (unscoped) view, not produce unexpected queries.
+
+6. **No `|safe` on IRS-derived fields**: Django auto-escape is the defense against XSS in person names, titles, and error messages. Never use `|safe`, `mark_safe`, or `{% autoescape off %}` on fields from `lava_corpus.people` or `lava_corpus.filing_index`.
