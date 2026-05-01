@@ -335,14 +335,20 @@ def create_classify_job(config_overrides: dict, host: str) -> Job:
 _990_PHASES = {"990-enrich", "990-index", "990-parse"}
 
 
+def _990_advisory_lock():
+    """Acquire advisory lock for 990-family concurrency. No-op on non-PostgreSQL."""
+    from django.db import connection
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext('990-family'))")
+
+
 def create_990_index_job(config_overrides: dict, host: str) -> Job:
     """Create a 990-index job. Blocks if any 990-family job is active."""
     state = config_overrides.get("state") or None
     ein = config_overrides.get("ein") or None
     with transaction.atomic():
-        from django.db import connection
-        with connection.cursor() as cur:
-            cur.execute("SELECT pg_advisory_xact_lock(hashtext('990-family'))")
+        _990_advisory_lock()
 
         existing = Job.objects.select_for_update().filter(
             phase__in=_990_PHASES, status__in=["pending", "running"]
@@ -369,9 +375,7 @@ def create_990_parse_job(config_overrides: dict, host: str) -> Job:
     state = config_overrides.get("state") or None
     ein = config_overrides.get("ein") or None
     with transaction.atomic():
-        from django.db import connection
-        with connection.cursor() as cur:
-            cur.execute("SELECT pg_advisory_xact_lock(hashtext('990-family'))")
+        _990_advisory_lock()
 
         existing = Job.objects.select_for_update().filter(
             phase__in=_990_PHASES, status__in=["pending", "running"]

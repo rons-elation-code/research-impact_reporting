@@ -60,6 +60,16 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": ":memory:",
+        "TEST": {
+            "NAME": "file:memorydb_default?mode=memory&cache=shared",
+        },
+    },
+    "pipeline": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": ":memory:",
+        "TEST": {
+            "MIRROR": "default",
+        },
     },
 }
 

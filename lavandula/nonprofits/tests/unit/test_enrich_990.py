@@ -1,7 +1,9 @@
-"""Unit tests for enrich_990.py CLI (Spec 0026)."""
+"""Unit tests for enrich_990.py CLI (Spec 0026 + 0027)."""
 from __future__ import annotations
 
 import argparse
+import subprocess
+import sys
 
 import pytest
 
@@ -82,3 +84,32 @@ class TestValidateCacheDir:
         link.symlink_to(target)
         with pytest.raises(argparse.ArgumentTypeError, match="symlink"):
             _validate_cache_dir(str(link))
+
+
+class TestMutuallyExclusiveFlags:
+    """Spec 0027 AC47: --index-only and --parse-only are mutually exclusive."""
+
+    def test_both_flags_errors(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "lavandula.nonprofits.tools.enrich_990",
+             "--state", "NY", "--index-only", "--parse-only"],
+            capture_output=True, text=True,
+        )
+        assert result.returncode != 0
+        assert "not allowed with argument" in result.stderr
+
+    def test_index_only_accepted(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "lavandula.nonprofits.tools.enrich_990",
+             "--state", "NY", "--index-only", "--help"],
+            capture_output=True, text=True,
+        )
+        assert "--index-only" in result.stdout
+
+    def test_parse_only_accepted(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "lavandula.nonprofits.tools.enrich_990",
+             "--state", "NY", "--parse-only", "--help"],
+            capture_output=True, text=True,
+        )
+        assert "--parse-only" in result.stdout
