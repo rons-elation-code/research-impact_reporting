@@ -451,15 +451,15 @@ projects:
   - id: "0027"
     title: "990 Dashboard: Org Detail View & Pipeline Controls"
     summary: "Enhance the dashboard org detail page with 990 leadership data (officers, directors, compensation, Schedule J) and add two pipeline control forms for TEOS Index Download and 990 XML Parse/Import."
-    status: conceived
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0027-990-dashboard-org-detail.md
-      plan: null
+      plan: locard/plans/0027-990-dashboard-org-detail.md
       review: null
     dependencies: ["0019", "0026"]
     tags: [dashboard, django, ui, 990, pipeline-controls]
-    notes: "Motivated by Spec 0026 live validation 2026-04-30. Two pipeline controls (index download + parse/import) plus org detail enhancement."
+    notes: "Spec approved 2026-05-01 after Codex spec-review + red-team. Plan approved 2026-05-01 after Codex plan-review + red-team + Claude plan-review + red-team (0 CRITICAL, 0 HIGH). 47 ACs, 8 phases, 17 files."
 
   - id: "0028"
     title: "Contractor Intelligence Resolver"
