@@ -56,6 +56,8 @@ The dashboard 990 Index and 990 Parse forms stay available for ad-hoc use (e.g.,
 indexed → downloaded → parsed
     ↘        ↘          ↘
     error    error      error
+
+indexed → batch_unresolvable  (terminal: no batch zip found for 2017–2023 filing)
 ```
 
 **States:**
@@ -63,14 +65,20 @@ indexed → downloaded → parsed
 - `downloaded` — XML extracted from batch zip and uploaded to S3. Ready for parsing.
 - `parsed` — XML parsed, people/compensation data written to `people` table.
 - `error` — Processing failed at any stage. `error_message` column has details.
+- `batch_unresolvable` — Filing from 2017–2023 where no batch zip contains this `object_id`. Terminal state — visible in dashboard as "known but unavailable."
 
 **Transition rules:**
 - `indexed → downloaded`: Batch zip downloaded (or cached in S3), XML member extracted and uploaded to `s3://lavandula-990-corpus/xml/{ein}/{object_id}.xml`.
 - `downloaded → parsed`: XML parsed successfully, people rows inserted.
-- `Any → error`: Failure at any stage. `error_message` records the cause.
+- `Any → error`: Failure at any stage. `error_message` records the cause (structured error code, not raw exception string, to avoid leaking environment details).
 - `error → indexed`: Manual reset (via Django admin or management command) to retry from scratch.
+- `indexed → batch_unresolvable`: Batch resolution scanned all batch zips for the filing year and this `object_id` was not found in any.
 
 **Idempotency:** Each transition checks current status before acting. A filing already at `parsed` is skipped. A filing at `error` is skipped unless `--reparse` is passed. Re-running `process_990_auto` on an already-processed corpus inserts 0 rows.
+
+**Parsed-data idempotency:** The `people` table uses `(ein, object_id, person_name, person_type)` as the natural key. Re-parsing the same filing uses `ON CONFLICT DO NOTHING` — no duplicate people rows.
+
+**S3/DB consistency:** The download step uploads XML to S3 first, then updates `filing_index.status` to `downloaded` and sets `s3_xml_key`. If the DB update fails, the filing stays at `indexed`; the next run re-uploads (S3 PUT is idempotent) and retries the DB update. If a filing is at `downloaded` but the S3 object is missing (corruption/manual deletion), the parse step detects the missing object and transitions to `error` with message "S3 object missing".
 
 ## Data Source Analysis
 
@@ -134,10 +142,10 @@ python3 manage.py load_990_index --current-year
 
 Behavior:
 - Downloads each year's index CSV
-- Inserts all `RETURN_TYPE = '990'` rows into `filing_index` via `ON CONFLICT (object_id) DO NOTHING`
+- Inserts all `RETURN_TYPE = '990'` rows into `filing_index` via `ON CONFLICT (object_id) DO UPDATE SET indexed_at = now()` — this updates `indexed_at` on re-runs so the incremental window stays accurate even if an existing filing re-appears in a refreshed index.
 - For 9-column years, `xml_batch_id` = NULL
 - Reports: rows scanned, matched (990), inserted, skipped per year
-- Idempotent — safe to re-run
+- Idempotent — safe to re-run (data columns unchanged, only `indexed_at` refreshed)
 
 ### Phase 3: Resolve Missing Batch IDs
 
@@ -322,6 +330,18 @@ CREATE TABLE lava_corpus.index_refresh_log (
 - **Failure recovery**: Simulate interrupted zip download, verify filing stays at `indexed` and is picked up on retry.
 - **Manual + auto interaction**: Queue a manual parse job, run auto worker concurrently, verify advisory lock prevents collision.
 
+### Security Tests
+- **XXE prevention**: Feed an XML with external entity declarations, verify parser rejects it.
+- **Oversized XML member**: Zip with a 60 MB member, verify extraction is blocked by `_MAX_MEMBER_SIZE`.
+- **Malicious zip member name**: Zip with path traversal (`../../etc/passwd`), verify `_MEMBER_NAME_RE` rejects it.
+
+### Edge Case Tests
+- **Parsed-data idempotency**: Parse the same filing twice, verify no duplicate `people` rows.
+- **Missing S3 object at parse time**: Filing at `downloaded` but S3 object deleted — verify transition to `error`.
+- **Batch resolution with absent member**: Batch zip exists but `object_id` not in any zip — verify `batch_unresolvable` status.
+- **Manual + auto collision**: Queue a manual parse job while auto worker is running — verify advisory lock serializes them.
+- **IRS metadata correction**: Re-run index loader after IRS updates a filing's metadata — verify `indexed_at` refreshed, data columns unchanged.
+
 ### Live Validation
 - **Bulk load smoke test**: Run `load_990_index --years 2024` on a single year, verify row count matches expected ~363K 990 filings.
 - **End-to-end for one EIN**: Run full pipeline for a known EIN (e.g., 131624241 UNCF), verify filings from 2017–2025 are indexed, downloaded, and parsed.
@@ -349,6 +369,14 @@ Steps 1–3 can ship independently. Steps 4–6 are the main body. Step 7 is pol
 | 50-80 GB S3 storage cost | Low | Low | ~$1-2/month at S3 standard; zips can move to Glacier after extraction |
 | Backfill takes too long | Low | Medium | Process in priority order (recent years first); can run over multiple nights |
 
+## Security Requirements
+
+1. **Safe XML parsing**: Use `defusedxml` or `lxml` with `resolve_entities=False`, `no_network=True`. No external entity resolution. No DTD loading.
+2. **Zip extraction by exact name only**: Only extract members matching `{object_id}_public.xml` pattern. Never extract arbitrary members or trust archive paths. Validate member name against `_MEMBER_NAME_RE` before extraction (already implemented in `teos_download.py`).
+3. **Size limits**: Max 50 MB per extracted XML member (already enforced by `_MAX_MEMBER_SIZE`). Max 3 GB per batch zip download. Reject oversized responses before buffering.
+4. **S3 bucket**: All four `BlockPublicAccess` settings enabled. ACLs disabled (bucket-owner-enforced). IAM scoped to this bucket only.
+5. **Error messages**: Use structured error codes in `error_message` (e.g., `ZIP_MEMBER_MISSING`, `XML_PARSE_FAILED`, `S3_UPLOAD_FAILED`), not raw exception strings that could leak environment details.
+
 ## Traps to Avoid
 
 1. **Don't filter by EIN at index time** — load all 990s, filter at query time. The full index is tiny for Postgres.
@@ -356,3 +384,4 @@ Steps 1–3 can ship independently. Steps 4–6 are the main body. Step 7 is pol
 3. **Don't download full zips for batch ID resolution** — use HTTP Range to read zip central directories first.
 4. **Don't store extracted XMLs on EBS** — S3 only. EBS is for hot data (DB, code, logs).
 5. **Zip member paths vary** — 2024 uses nested `{batch}/{oid}_public.xml`, 2025 uses flat `{oid}_public.xml`. Already fixed in commit c092ce8.
+6. **Don't trust zip member paths blindly** — validate against expected pattern before extraction. Never extract to filesystem; read into memory only.
