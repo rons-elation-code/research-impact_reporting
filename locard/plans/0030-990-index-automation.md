@@ -29,7 +29,7 @@ ALTER TABLE lava_corpus.filing_index
   ADD COLUMN IF NOT EXISTS first_indexed_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS s3_xml_key TEXT,
-  ADD COLUMN IF NOT EXISTS zip_etag TEXT;
+  ADD COLUMN IF NOT EXISTS zip_checksum TEXT;
 
 -- Backfill: set first_indexed_at = NULL for existing rows so the first
 -- bulk load will set it properly. Don't default to now() on migration —
@@ -37,6 +37,12 @@ ALTER TABLE lava_corpus.filing_index
 -- window would process them all on the first nightly run.
 -- The bulk loader's INSERT...ON CONFLICT will set first_indexed_at = now()
 -- for genuinely new rows.
+--
+-- NOTE: The spec shows DEFAULT now() for these columns. This plan intentionally
+-- deviates: columns are added WITHOUT defaults so existing rows get NULL.
+-- The loader explicitly sets first_indexed_at = now() on INSERT, and
+-- last_seen_at = now() on both INSERT and UPDATE. This is safer for
+-- the incremental processing window. Update spec to match if approved.
 
 -- If filing_index.status has a CHECK constraint, extend it:
 -- (Check with: SELECT conname, consrc FROM pg_constraint
@@ -83,7 +89,7 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
 - `lavandula/dashboard/pipeline/management/commands/load_990_index.py`
 
 **Implementation:**
-- Arguments: `--years` (comma-separated), `--current-year` (flag), `--ein` (single EIN for ad-hoc)
+- Arguments: `--years` (comma-separated), `--current-year` (flag), `--ein` (single EIN for ad-hoc — still downloads and streams the full CSV, but only inserts/updates rows matching this EIN; this preserves the bulk-load architecture while allowing targeted refreshes from the dashboard)
 - Default years: 2017 through current year (detect available years by probing HEAD on index URL)
 - For each year:
   1. Download CSV via `requests.get()` with streaming, byte counter capped at 200 MB
@@ -92,7 +98,7 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
   4. For each `RETURN_TYPE == '990'` row, validate fields (EIN, OBJECT_ID, XML_BATCH_ID patterns)
   5. Bulk insert via `ON CONFLICT (object_id) DO UPDATE SET last_seen_at = now()`
   6. Record stats in `index_refresh_log`
-- Concurrency: acquire `pg_advisory_xact_lock(hashtext('990-family'))` for the duration
+- Concurrency: acquire session-level `pg_advisory_lock(hashtext('990-family'))` at command start, release at command end. Session-level (not transaction-scoped) because the command uses multiple transactions for batch inserts — a transaction-scoped lock would release between batches and fail to serialize against concurrent runs.
 
 **Key design decisions:**
 - Use SQLAlchemy engine (same as `teos_index.py`) for bulk inserts, not Django ORM — batch performance matters for 2.6M rows
@@ -106,6 +112,8 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
 - Run twice → verify 0 new inserts on second run (idempotent)
 - `--current-year` → verify only fetches one year
 - `index_refresh_log` populated after run
+- `--ein` with specific EIN → verify only that EIN's rows inserted (full CSV still streamed)
+- Session-level advisory lock: start two concurrent `load_990_index` runs → verify second waits for first to complete
 
 ---
 
@@ -126,8 +134,7 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
      c. Extract `object_id` from each `{oid}_public.xml` member name
    - Bulk UPDATE `filing_index SET xml_batch_id = :batch_id WHERE object_id IN (:oids) AND xml_batch_id IS NULL`
 3. If Range NOT supported:
-   - Download full zips to S3 (Phase 4 prerequisite anyway)
-   - Read manifests from S3-cached zips
+   - Download full zips to a local temp directory (`/tmp/990-batch-resolve/`), read central directories, then delete the temp files. This avoids a dependency on Phase 4 (S3) and preserves Phase 3's ability to ship independently of Phase 4. The zips will be re-downloaded to S3 later in Phase 5 — this is acceptable since it's a one-time operation.
 4. After scanning all batches for a year, mark remaining NULL `xml_batch_id` rows as `batch_unresolvable`
 
 **Batch zip enumeration:**
@@ -167,10 +174,10 @@ class S3990Archive:
         """HEAD check for zips/{year}/{batch_id}.zip"""
 
     def upload_zip(self, year: int, batch_id: str, stream: IO[bytes]) -> str:
-        """Multipart upload IRS zip to S3. Returns ETag for integrity storage."""
+        """Multipart upload IRS zip to S3 with ChecksumAlgorithm='SHA256'. Returns ChecksumSHA256 for integrity storage."""
 
-    def verify_zip_integrity(self, year: int, batch_id: str, expected_etag: str) -> bool:
-        """HEAD request, compare ETag. Mismatch → return False (caller re-downloads)."""
+    def verify_zip_integrity(self, year: int, batch_id: str, expected_checksum: str) -> bool:
+        """HEAD request, compare ChecksumSHA256. Mismatch → return False (caller re-downloads)."""
 
     def open_zip(self, year: int, batch_id: str) -> IO[bytes]:
         """Stream zip from S3 for extraction. For large zips (>500 MB), download to
@@ -187,10 +194,10 @@ class S3990Archive:
         """HEAD check for xml/{ein}/{object_id}.xml"""
 ```
 
-**ETag integrity storage:**
-- Store the upload ETag in `filing_index` alongside batch data: add column `zip_etag TEXT` to migration 011
-- Before reusing a cached zip, call `verify_zip_integrity()`. On mismatch, re-download from IRS.
-- Flow: `upload_zip()` returns ETag → store in DB → `verify_zip_integrity()` reads DB + HEAD → compare
+**Integrity storage:**
+- Multipart-upload ETags are NOT plain MD5 — they include a part suffix (e.g., `"abc123-5"`). Don't treat them as content checksums. Instead, use **S3 `ChecksumSHA256`**: pass `ChecksumAlgorithm='SHA256'` on `put_object`/`create_multipart_upload`, and S3 computes + stores a SHA-256 checksum. Store this in `filing_index.zip_checksum TEXT` (rename from `zip_checksum`).
+- Before reusing a cached zip, call `verify_zip_integrity()` which does a HEAD request and compares the stored `ChecksumSHA256` value. On mismatch, re-download from IRS.
+- Flow: `upload_zip()` returns `ChecksumSHA256` → store in DB → `verify_zip_integrity()` reads DB + HEAD → compare
 
 **Large zip handling:**
 - Zips up to 500 MB: hold in `BytesIO` (memory)
@@ -222,7 +229,7 @@ class S3990Archive:
 - `lavandula/nonprofits/teos_download.py` — refactor `_process_single_filing()` to accept XML bytes from S3 instead of local zip. Extract the parsing logic into a reusable function.
 
 **Implementation:**
-1. Acquire advisory lock (`pg_advisory_xact_lock(hashtext('990-family'))`)
+1. Acquire session-level advisory lock (`pg_advisory_lock(hashtext('990-family'))`) — session-level for the same reason as Phase 2: the command spans multiple transactions.
 2. Query filings to process (two passes):
    - **Pass 1 — Download**: `status = 'indexed' AND xml_batch_id IS NOT NULL` (need zip download + extraction)
    - **Pass 2 — Parse**: `status = 'downloaded'` (already extracted to S3, need parsing — catches prior failures)
@@ -245,7 +252,7 @@ class S3990Archive:
       - Update `filing_index.status = 'downloaded'`, set `s3_xml_key`
    c. Parse each downloaded filing:
       - Read XML from S3 (or use in-memory bytes from step b if still available)
-      - Parse with `defusedxml.ElementTree.fromstring()` which defends against XXE, entity expansion (billion-laughs), and quadratic blowup out of the box. For the 30-second timeout: wrap the parse call in `signal.alarm(30)` on Linux (SIGALRM). If timeout fires, mark filing as `error` with `XML_PARSE_TIMEOUT`.
+      - Parse with `defusedxml.ElementTree.fromstring()` which defends against XXE, entity expansion (billion-laughs), and quadratic blowup out of the box. For the 30-second timeout: isolate XML parsing in a `concurrent.futures.ProcessPoolExecutor` worker with `timeout=30`. This avoids `signal.alarm` pitfalls (main-thread-only, Unix-specific, interferes with surrounding code). If the subprocess times out, `TimeoutError` is caught, the worker is killed, and the filing is marked `error` with `XML_PARSE_TIMEOUT`.
       - Extract people/compensation → insert into `people` table with `ON CONFLICT DO NOTHING`
       - Update `filing_index.status = 'parsed'`
    d. On error: mark filing as `error` with structured error code, continue to next filing
@@ -288,8 +295,10 @@ python3 manage.py reset_990_status --ein 030440761          # all filings for EI
 python3 manage.py reset_990_status --object-id 20242319...  # specific filing
 python3 manage.py reset_990_status --status error           # all errored filings
 ```
+- **Allowed source states:** `error`, `downloaded`, `parsed`, `batch_unresolvable`. Refuses to reset `indexed` filings (already at target state).
 - Resets `status` to `indexed`, clears `error_message`, clears `s3_xml_key`
-- Requires confirmation prompt unless `--yes` flag passed
+- **S3 cleanup:** Does NOT delete cached XML from S3. The XML may be valid; the re-process step will re-upload (S3 PUT is idempotent) or reuse the existing object. Deleting would force unnecessary re-extraction from batch zips.
+- Requires confirmation prompt showing affected filing count unless `--yes` flag passed
 
 **Systemd timer:**
 ```ini
@@ -314,11 +323,10 @@ Description=990 index refresh and auto-process
 Type=oneshot
 User=ubuntu
 WorkingDirectory=/home/ubuntu/research/lavandula/dashboard
-# Two ExecStart lines: systemd runs them sequentially, but the second runs
-# even if the first fails (unlike shell &&). Index refresh failure should
-# not block processing of already-indexed filings.
-ExecStart=/usr/bin/python3 manage.py load_990_index --current-year
-ExecStart=/usr/bin/python3 manage.py process_990_auto
+# Use a shell wrapper to run both commands independently.
+# systemd Type=oneshot with multiple ExecStart= lines actually STOPS on first
+# failure, which is not what we want. Use a shell script instead.
+ExecStart=/bin/bash -c '/usr/bin/python3 manage.py load_990_index --current-year 2>&1 | logger -t 990-index; /usr/bin/python3 manage.py process_990_auto 2>&1 | logger -t 990-auto'
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=990-nightly
@@ -329,7 +337,9 @@ SyslogIdentifier=990-nightly
 **Tests:**
 - `reset_990_status --ein X` → verify status reset to `indexed`
 - `reset_990_status --object-id X` → verify single filing reset
+- `reset_990_status` on `indexed` filing → verify refusal (already at target state)
 - Timer unit file validates with `systemd-analyze verify`
+- Systemd failure semantics: simulate `load_990_index` failure → verify `process_990_auto` still runs (shell `;` separator, not `&&`)
 
 ---
 
@@ -371,10 +381,10 @@ SyslogIdentifier=990-nightly
 - Show banner: "Last refreshed: {date} — {total} filings indexed"
 - Filing count breakdown by status
 
-**Index Maintenance admin view** (new URL: `/dashboard/990/maintenance/`):
+**Index Maintenance admin view** (new URL: `/dashboard/990/maintenance/`, `LoginRequiredMixin`):
 - Per-year table: year, last refresh date, total filings, filings by status (indexed/downloaded/parsed/error/batch_unresolvable)
 - Unresolved batch IDs count (NULL `xml_batch_id` rows)
-- Button to trigger manual refresh for a specific year
+- Button to trigger manual refresh for a specific year (authenticated operator-only action, consistent with Spec Security Requirement 11)
 
 **ACs covered:** AC23, AC24, AC25
 
