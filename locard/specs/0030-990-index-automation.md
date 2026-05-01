@@ -34,7 +34,7 @@ A background worker that keeps 990 data current for every org in `nonprofits_see
 
 1. **Reconciliation-based trigger** — `process_990_auto` runs a JOIN query: `filing_index.ein IN (SELECT ein FROM nonprofits_seed) AND status = 'indexed' AND xml_batch_id IS NOT NULL`. This catches both new orgs and new filings in one pass — no DB triggers or app-layer hooks needed.
 2. **Nightly schedule** — Runs after index refresh. The reconciliation query naturally picks up: (a) new filings added by the index refresh, (b) filings for orgs added to the seed list since the last run.
-3. **Backfill** — On first run with `--backfill`, processes all existing `nonprofits_seed` EINs that have indexed but unprocessed filings. Without `--backfill`, limits to filings with `indexed_at` within the last 7 days (recent index additions only).
+3. **Backfill** — On first run with `--backfill`, processes all existing `nonprofits_seed` EINs that have indexed but unprocessed filings. Without `--backfill`, limits to filings with `first_indexed_at` within the last 7 days (recent index additions only).
 
 ### Goal 4: Manual Controls Remain
 
@@ -47,6 +47,7 @@ The dashboard 990 Index and 990 Parse forms stay available for ad-hoc use (e.g.,
 - Deleting the dashboard manual controls. They remain for ad-hoc use.
 - Migrating existing parsed data. Already-parsed filings (`status = 'parsed'`) are untouched.
 - SSE-KMS encryption. SSE-S3 (AES-256) is sufficient — this is public IRS data, not PII. KMS adds cost and complexity for no security benefit here.
+- Pre-2017 filing data. IRS TEOS indexes return 404 for years before 2017. If older e-file data becomes available in the future, add those years to the loader.
 
 ## Filing Status Lifecycle
 
@@ -142,10 +143,11 @@ python3 manage.py load_990_index --current-year
 
 Behavior:
 - Downloads each year's index CSV
-- Inserts all `RETURN_TYPE = '990'` rows into `filing_index` via `ON CONFLICT (object_id) DO UPDATE SET indexed_at = now()` — this updates `indexed_at` on re-runs so the incremental window stays accurate even if an existing filing re-appears in a refreshed index.
+- Inserts all `RETURN_TYPE = '990'` rows into `filing_index` via `ON CONFLICT (object_id) DO UPDATE SET last_seen_at = now()` — `first_indexed_at` is immutable (set on insert only), `last_seen_at` refreshes on every re-run. The incremental window in Phase 5 uses `first_indexed_at` so re-runs don't re-trigger processing of old filings.
 - For 9-column years, `xml_batch_id` = NULL
 - Reports: rows scanned, matched (990), inserted, skipped per year
-- Idempotent — safe to re-run (data columns unchanged, only `indexed_at` refreshed)
+- Idempotent — safe to re-run (data columns unchanged, only `last_seen_at` refreshed)
+- **Concurrency:** Acquires `pg_advisory_xact_lock` (same lock family as 990 jobs) to prevent concurrent loader runs. If a manual index job is running, the loader waits.
 
 ### Phase 3: Resolve Missing Batch IDs
 
@@ -164,7 +166,7 @@ Implementation note: Python's `zipfile` module can read the central directory fr
 
 **Feasibility strategy:**
 1. First, issue a HEAD + Range probe on a single 2022 batch zip.
-2. If Range is supported: read central directories only (~50 MB total across all old batches).
+2. If Range is supported: read central directories only (~50 MB total across all old batches). **Zip64 handling required** — the 2025 batches (2.5 GB) almost certainly use Zip64 format, which has a different End-of-Central-Directory (EOCD64) structure. The implementation must: (a) fetch the last 64 KB to find the EOCD, (b) detect the Zip64 EOCD locator if present, (c) fetch the Zip64 EOCD to get the true central directory offset. Python's `zipfile` module handles Zip64 natively when reading from a file-like object.
 3. If Range is NOT supported: download full zips to S3 and read manifests locally. This costs 10-20 GB of one-time transfer for 2017–2023 (the zips we'd download eventually anyway for parsing). Since S3 caches them, this is not wasted work.
 4. **Stop condition**: If any year has zero resolvable batch zips (404s for all batch patterns), log a warning and mark those year's filings as `batch_unresolvable`. They won't block the rest of the pipeline.
 
@@ -176,7 +178,7 @@ New S3 bucket: `lavandula-990-corpus` (us-east-1, SSE-S3, versioned, private)
 - `BlockPublicAccess`: all four settings enabled (BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, RestrictPublicBuckets)
 - IAM: same `cloud2_lavandulagroup` role used by the existing `lavandula-nonprofit-collaterals` bucket. Scoped to `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`, `s3:HeadObject` on this bucket only.
 - Encryption: SSE-S3 (AES-256). Not SSE-KMS — this is public IRS data, KMS adds cost for no benefit.
-- Lifecycle: `zips/` prefix transitions to Glacier after 30 days (one-time downloads, re-downloadable from IRS). `xml/` prefix stays Standard (active working set).
+- Lifecycle: `zips/` prefix transitions to Standard-IA after 30 days (cheaper than Standard, but no retrieval delay — Glacier would block new-org backfills for hours). `xml/` prefix stays Standard (active working set).
 - Object keys contain EINs — these are public identifiers (IRS publishes them), not PII.
 
 Prefix structure:
@@ -209,7 +211,7 @@ Behavior:
 
 Run modes:
 - **Backfill**: `manage.py process_990_auto --backfill` — process all unprocessed filings for tracked orgs (no time filter)
-- **Incremental** (default): `manage.py process_990_auto` — process filings with `indexed_at` within the last 7 days AND `status = 'indexed'`. The 7-day window provides overlap to catch filings that were indexed but not yet batch-resolved during the previous run. Safe to run repeatedly — already-processed filings are skipped.
+- **Incremental** (default): `manage.py process_990_auto` — process filings with `first_indexed_at` within the last 7 days AND `status = 'indexed'`. Uses `first_indexed_at` (immutable, set on initial insert) so nightly index refreshes don't re-trigger old filings. The 7-day window provides overlap to catch filings that were indexed but not yet batch-resolved during the previous run. Safe to run repeatedly — already-processed filings are skipped.
 - **Single EIN**: `manage.py process_990_auto --ein 030440761` — process one org (useful for testing)
 
 **Failure handling:**
@@ -255,13 +257,18 @@ Schedule: nightly at 03:00 UTC. Logs to journald via `logger` (queryable with `j
 ALTER TABLE lava_corpus.filing_index
   ALTER COLUMN xml_batch_id DROP NOT NULL;
 
--- Add column to track when filing was indexed
+-- Track when filing was first indexed (immutable) and last seen in IRS index
 ALTER TABLE lava_corpus.filing_index
-  ADD COLUMN indexed_at TIMESTAMPTZ DEFAULT now();
+  ADD COLUMN first_indexed_at TIMESTAMPTZ DEFAULT now(),
+  ADD COLUMN last_seen_at TIMESTAMPTZ DEFAULT now();
 
 -- Add column for S3 XML location (set after extraction)
 ALTER TABLE lava_corpus.filing_index
   ADD COLUMN s3_xml_key TEXT;
+
+-- error_message column already exists (migration 010, Spec 0026)
+-- Verify: SELECT column_name FROM information_schema.columns
+--         WHERE table_name = 'filing_index' AND column_name = 'error_message';
 ```
 
 ### New table: index_refresh_log
@@ -306,8 +313,8 @@ CREATE TABLE lava_corpus.index_refresh_log (
 - AC19: After nightly cron, new IRS filings for tracked orgs are automatically parsed
 
 ### Goal 4: Batch ID Resolution
-- AC20: Filings from 2017–2023 have `xml_batch_id` resolved via batch manifest scan
-- AC21: HTTP Range requests used if supported by IRS server; full download fallback otherwise
+- AC20: Filings from 2017–2023 have `xml_batch_id` resolved OR status set to `batch_unresolvable`
+- AC21: HTTP Range requests used if supported by IRS server; full download fallback otherwise. Zip64 central directories handled for large (>2 GB) archives.
 - AC22: Resolution is idempotent and only targets `xml_batch_id IS NULL` rows
 
 ### Goal 5: Dashboard
@@ -315,13 +322,22 @@ CREATE TABLE lava_corpus.index_refresh_log (
 - AC24: Manual index/parse forms still work for ad-hoc use
 - AC25: Org Detail filing list is pre-populated for tracked orgs
 
+### Goal 6: Security
+- AC26: CSV fields validated against allowlist patterns before use in URLs or S3 keys
+- AC27: XML parser defends against XXE, billion-laughs, quadratic blowup, and depth attacks
+- AC28: Zip extraction checks compression ratio (reject >100:1) and total extracted size (cap 10 GB)
+- AC29: All IRS downloads use HTTPS with TLS verification; hostname restricted to `apps.irs.gov`
+- AC30: `--ein` flag processes a single EIN (for testing and ad-hoc use)
+- AC31: `--reparse` flag re-processes filings in `error` state
+- AC32: `manage.py reset_990_status` command resets `error` → `indexed` for specified EINs or object_ids
+
 ## Testing Strategy
 
 ### Unit Tests
 - **9-column vs 10-column CSV parsing**: Synthetic CSV fixtures with 9 and 10 columns. Verify both produce correct `filing_index` rows (9-col has `xml_batch_id=NULL`).
 - **Idempotent re-run**: Insert rows, re-run loader, assert 0 new inserts.
 - **Batch ID resolution logic**: Mock zip central directory responses, verify `object_id → batch_id` mapping.
-- **Status transitions**: Verify each transition (`indexed → downloaded → parsed`, `any → error`, `error �� indexed` reset).
+- **Status transitions**: Verify each transition (`indexed → downloaded → parsed`, `any → error`, `error → indexed` reset).
 - **Incremental selection**: Verify 7-day window filter, verify `--backfill` ignores the window.
 
 ### Integration Tests
@@ -332,8 +348,12 @@ CREATE TABLE lava_corpus.index_refresh_log (
 
 ### Security Tests
 - **XXE prevention**: Feed an XML with external entity declarations, verify parser rejects it.
+- **Billion-laughs defense**: Feed an XML with exponentially expanding entities, verify parser rejects or times out.
 - **Oversized XML member**: Zip with a 60 MB member, verify extraction is blocked by `_MAX_MEMBER_SIZE`.
+- **Zip bomb**: Zip with 1000:1 compression ratio, verify rejected before full decompression.
 - **Malicious zip member name**: Zip with path traversal (`../../etc/passwd`), verify `_MEMBER_NAME_RE` rejects it.
+- **CSV field injection**: CSV row with EIN containing path-traversal characters (`../`), verify row rejected by validation.
+- **TLS verification**: Mock a non-IRS redirect, verify download aborted.
 
 ### Edge Case Tests
 - **Parsed-data idempotency**: Parse the same filing twice, verify no duplicate `people` rows.
@@ -359,6 +379,8 @@ CREATE TABLE lava_corpus.index_refresh_log (
 
 Steps 1–3 can ship independently. Steps 4–6 are the main body. Step 7 is polish.
 
+**Backfill time estimate:** ~100–200K filings across ~120 batch zips. Each batch zip download takes 1–5 minutes (100 MB–2.5 GB). XML extraction + parse is ~10ms per filing. Bottleneck is zip downloads. With 5-second delay between downloads: ~120 zips × 3 min avg = ~6 hours. Can run overnight; if split across 2 nights, process recent years (2024–2026) first for immediate value.
+
 ## Risks & Mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -366,16 +388,22 @@ Steps 1–3 can ship independently. Steps 4–6 are the main body. Step 7 is pol
 | IRS changes CSV format again | Low | Medium | Column count detection already handles 9 vs 10; header parsing would be more robust |
 | IRS rate-limits bulk zip downloads | Medium | Medium | Download one zip at a time with 5s delay; cache in S3 so we only download once |
 | HTTP Range not supported for batch manifest scan | Medium | Low | Fall back to full zip download; still one-time cost |
-| 50-80 GB S3 storage cost | Low | Low | ~$1-2/month at S3 standard; zips can move to Glacier after extraction |
+| 50-80 GB S3 storage cost | Low | Low | ~$1-2/month at Standard-IA; PUT/GET for 200K objects ~$1 one-time |
 | Backfill takes too long | Low | Medium | Process in priority order (recent years first); can run over multiple nights |
 
 ## Security Requirements
 
-1. **Safe XML parsing**: Use `defusedxml` or `lxml` with `resolve_entities=False`, `no_network=True`. No external entity resolution. No DTD loading.
+1. **Safe XML parsing**: Use `defusedxml` or `lxml` with `resolve_entities=False`, `no_network=True`. Defend against XXE, billion-laughs, quadratic blowup, and excessive depth. Set parse timeout of 30 seconds per filing. No DTD loading.
 2. **Zip extraction by exact name only**: Only extract members matching `{object_id}_public.xml` pattern. Never extract arbitrary members or trust archive paths. Validate member name against `_MEMBER_NAME_RE` before extraction (already implemented in `teos_download.py`).
-3. **Size limits**: Max 50 MB per extracted XML member (already enforced by `_MAX_MEMBER_SIZE`). Max 3 GB per batch zip download. Reject oversized responses before buffering.
-4. **S3 bucket**: All four `BlockPublicAccess` settings enabled. ACLs disabled (bucket-owner-enforced). IAM scoped to this bucket only.
-5. **Error messages**: Use structured error codes in `error_message` (e.g., `ZIP_MEMBER_MISSING`, `XML_PARSE_FAILED`, `S3_UPLOAD_FAILED`), not raw exception strings that could leak environment details.
+3. **Zip-bomb protection**: Check `compress_size` vs `file_size` ratio (reject if ratio > 100:1). Cap total extracted size per batch at 10 GB. Cap member count at 200K per zip. These bounds are well above normal IRS batches (~75K members, ~2.5 GB compressed).
+4. **Size limits**: Max 50 MB per extracted XML member (already enforced by `_MAX_MEMBER_SIZE`). Max 5 GB per batch zip download (2025 batches are already 2.5 GB; allows headroom). Max 200 MB per index CSV download. Reject oversized responses via streaming with byte counter, not Content-Length alone.
+5. **CSV field validation**: Before interpolating CSV-derived values into URLs or S3 keys, validate: `EIN` matches `^\d{9}$`, `OBJECT_ID` matches `^\d+$`, `XML_BATCH_ID` matches `^\d{4}_TEOS_XML_\w+$`. Reject rows with non-conforming values. This prevents SSRF via crafted URLs and S3 key traversal via crafted batch IDs.
+6. **TLS and hostname allowlist**: All IRS downloads use HTTPS with TLS verification enabled (default `requests` behavior — never set `verify=False`). Hostname allowlist: `apps.irs.gov` only. Reject redirects to other hosts.
+7. **S3 integrity**: After uploading a zip to S3, store the `ETag` (MD5) returned by PutObject. Before reading from the cached zip, compare the stored ETag with a HeadObject call. Mismatch → re-download from IRS.
+8. **S3 bucket**: All four `BlockPublicAccess` settings enabled. ACLs disabled (bucket-owner-enforced). IAM scoped to this bucket only.
+9. **Error messages**: Use structured error codes in `error_message` (e.g., `ZIP_MEMBER_MISSING`, `XML_PARSE_FAILED`, `S3_UPLOAD_FAILED`), not raw exception strings that could leak environment details.
+10. **Dashboard auto-escape**: All CSV-sourced fields (`taxpayer_name`, `ein`, etc.) rendered in templates via Django's default auto-escape. No `|safe` filter on IRS-derived data. Already enforced by Spec 0027 convention.
+11. **Authorization**: The `--reparse` flag and `error → indexed` status reset are operator-only actions. Dashboard exposes them only to authenticated (`LoginRequiredMixin`) users. No public API for status manipulation.
 
 ## Traps to Avoid
 
