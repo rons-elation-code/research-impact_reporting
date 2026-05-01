@@ -490,7 +490,7 @@ projects:
   - id: "0030"
     title: "990 Filing Index Automation & S3 Archive"
     summary: "Bulk-load the complete IRS TEOS 990 index (2017-2026, ~2.6M rows), store batch zips and per-org XMLs in S3 instead of EBS, and automatically maintain 990 data for all orgs in nonprofits_seed via nightly refresh and auto-process worker."
-    status: specified
+    status: implementing
     priority: high
     files:
       spec: locard/specs/0030-990-index-automation.md
@@ -498,7 +498,7 @@ projects:
       review: null
     dependencies: ["0026", "0027"]
     tags: [990, infrastructure, s3, automation, pipeline]
-    notes: "Spec approved 2026-05-01 after 4 review rounds (Codex spec + red-team, Claude spec + red-team). 32 ACs, 7 phases. S3 bucket: lavandula-990-corpus. Unified codebase — manual controls reuse new infrastructure."
+    notes: "Spec approved 2026-05-01 after 4 review rounds (Codex spec + red-team, Claude spec + red-team). Plan approved 2026-05-01 after 4 review rounds (Codex plan + red-team, Claude plan + red-team). 32 ACs, 8 phases. S3 bucket: lavandula-990-corpus. Unified codebase — manual controls reuse new infrastructure. Builder spawned 2026-05-01."
 
 ## Next Available Number
 
