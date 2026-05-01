@@ -6,7 +6,10 @@ from pipeline.models import Job, PipelineProcess
 from pipeline.orchestrator import (
     DuplicateJobError,
     InvalidParameterError,
+    build_argv,
     cancel_job,
+    create_990_index_job,
+    create_990_parse_job,
     create_crawl_job,
     create_state_jobs,
     get_eligible_jobs,
@@ -212,3 +215,85 @@ class GetEligibleJobsTest(TestCase):
         )
         eligible = get_eligible_jobs("localhost")
         self.assertEqual(eligible.count(), 0)
+
+
+class Create990IndexJobTest(TestCase):
+
+    def test_creates_index_job(self):
+        job = create_990_index_job({"state": "NY", "years": "2024"}, "localhost")
+        self.assertEqual(job.phase, "990-index")
+        self.assertEqual(job.status, "pending")
+        self.assertEqual(job.config_json["state"], "NY")
+
+    def test_duplicate_index_rejected(self):
+        create_990_index_job({"state": "NY", "years": "2024"}, "localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_index_job({"state": "MA", "years": "2024"}, "localhost")
+
+    def test_990_enrich_blocks_index(self):
+        Job.objects.create(phase="990-enrich", status="running", host="localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_index_job({"state": "NY", "years": "2024"}, "localhost")
+
+    def test_990_parse_blocks_index(self):
+        Job.objects.create(phase="990-parse", status="pending", host="localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_index_job({"state": "NY", "years": "2024"}, "localhost")
+
+    def test_completed_does_not_block(self):
+        Job.objects.create(phase="990-index", status="completed", host="localhost")
+        job = create_990_index_job({"state": "NY", "years": "2024"}, "localhost")
+        self.assertEqual(job.phase, "990-index")
+
+    def test_ein_mode(self):
+        job = create_990_index_job({"ein": "123456789", "years": "2024"}, "localhost")
+        self.assertIsNone(job.state_code)
+        self.assertEqual(job.config_json["ein"], "123456789")
+
+
+class Create990ParseJobTest(TestCase):
+
+    def test_creates_parse_job(self):
+        job = create_990_parse_job({"state": "NY", "years": "2024"}, "localhost")
+        self.assertEqual(job.phase, "990-parse")
+        self.assertEqual(job.status, "pending")
+
+    def test_duplicate_parse_rejected(self):
+        create_990_parse_job({"state": "NY", "years": "2024"}, "localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_parse_job({"state": "MA", "years": "2024"}, "localhost")
+
+    def test_990_enrich_blocks_parse(self):
+        Job.objects.create(phase="990-enrich", status="running", host="localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_parse_job({"state": "NY", "years": "2024"}, "localhost")
+
+    def test_990_index_blocks_parse(self):
+        Job.objects.create(phase="990-index", status="pending", host="localhost")
+        with self.assertRaises(DuplicateJobError):
+            create_990_parse_job({"state": "NY", "years": "2024"}, "localhost")
+
+
+class BuildArgv990Test(TestCase):
+
+    def test_990_index_state(self):
+        argv = build_argv("990-index", {"state": "NY", "years": "2024"})
+        self.assertIn("--index-only", argv)
+        self.assertIn("--state", argv)
+        self.assertIn("NY", argv)
+        self.assertIn("--years", argv)
+        self.assertIn("2024", argv)
+
+    def test_990_parse_state_with_flags(self):
+        argv = build_argv("990-parse", {
+            "state": "NY", "years": "2024",
+            "skip_download": True, "reparse": True,
+        })
+        self.assertIn("--parse-only", argv)
+        self.assertIn("--skip-download", argv)
+        self.assertIn("--reparse", argv)
+
+    def test_990_index_ein(self):
+        argv = build_argv("990-index", {"ein": "123456789", "years": "2024"})
+        self.assertIn("--ein", argv)
+        self.assertIn("123456789", argv)

@@ -1,9 +1,9 @@
 {% extends "pipeline/base.html" %}
-{% load tz %}
+{% load tz pipeline_tags %}
 {% block title %}{{ org.ein }} — Lavandula Pipeline{% endblock %}
 {% block content %}
 <div class="flex items-center gap-4 mb-6">
-  <a href="{% url 'org_list' %}" class="text-blue-600 hover:underline text-sm">← Orgs</a>
+  <a href="{% url 'org_list' %}" class="text-blue-600 hover:underline text-sm">&larr; Orgs</a>
   <h1 class="text-2xl font-bold text-gray-900">{{ org.ein }}</h1>
 </div>
 
@@ -37,5 +37,163 @@
       <pre class="text-xs bg-gray-50 p-3 rounded whitespace-pre-wrap overflow-auto max-h-96">{{ org.website_candidates_json|default:"No candidates data." }}</pre>
     </div>
   </div>
+</div>
+
+<!-- 990 Filings Section -->
+<div class="mt-8">
+  <h2 class="text-xl font-bold text-gray-900 mb-4">990 Filings</h2>
+
+  {% if filings %}
+  <!-- Filing Summary Table -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">All Filings</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Tax Period</th><th class="pb-2">Return Type</th><th class="pb-2">Filing Year</th><th class="pb-2">Status</th><th class="pb-2">Amended</th><th class="pb-2">Object ID</th>
+        </tr></thead>
+        <tbody>
+          {% for f in filings %}
+          <tr class="border-b hover:bg-gray-50{% if selected_filing and f.object_id == selected_filing.object_id %} bg-blue-50{% endif %}">
+            <td class="py-2">{{ f.tax_period }}</td>
+            <td class="py-2">{{ f.return_type }}</td>
+            <td class="py-2">{{ f.filing_year }}</td>
+            <td class="py-2"><span class="inline-block px-2 py-0.5 rounded text-xs font-medium {{ f.status|filing_badge }}">{{ f.status }}</span></td>
+            <td class="py-2">{% if f.is_amended %}Yes{% else %}—{% endif %}</td>
+            <td class="py-2 text-xs text-gray-400">{{ f.object_id }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Filing Picker -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Select Filing</h3>
+    <select onchange="if(this.value) window.location='?filing='+this.value; else window.location='{{ request.path }}';"
+            class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+      {% for f in filings %}
+      <option value="{{ f.object_id }}" {% if selected_filing and f.object_id == selected_filing.object_id %}selected{% endif %}>
+        {{ f.tax_period }} — {{ f.return_type }} ({{ f.object_id }}){% if f.is_amended %} (amended){% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% if selected_filing %}
+  <!-- Officers & Directors -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Officers &amp; Directors</h3>
+    {% if officers %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Name</th><th class="pb-2">Title</th><th class="pb-2">Type</th><th class="pb-2 text-right">Reportable Comp</th><th class="pb-2 text-right">Schedule J Total</th>
+        </tr></thead>
+        <tbody>
+          {% for p in officers %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2">{{ p.person_name }}</td>
+            <td class="py-2 text-gray-600">{{ p.title|default:"—" }}</td>
+            <td class="py-2"><span class="inline-block px-2 py-0.5 rounded text-xs font-medium {{ p.person_type|person_badge }}">{{ p.person_type }}</span></td>
+            <td class="py-2 text-right">{{ p.reportable_comp|currency }}</td>
+            <td class="py-2 text-right">{{ p.total_comp_sch_j|currency }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No leadership data extracted.</p>
+    {% endif %}
+  </div>
+
+  <!-- Top Contractors -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Top Contractors</h3>
+    {% if contractors %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Name</th><th class="pb-2">Services</th><th class="pb-2 text-right">Compensation</th>
+        </tr></thead>
+        <tbody>
+          {% for c in contractors %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2">{{ c.person_name }}</td>
+            <td class="py-2 text-gray-600">{{ c.services_desc|default:"—" }}</td>
+            <td class="py-2 text-right">{{ c.reportable_comp|currency }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm">No contractors listed.</p>
+    {% endif %}
+  </div>
+
+  <!-- Schedule J Detail (collapsed by default) -->
+  {% if schedule_j %}
+  <details class="bg-white rounded-lg shadow p-5 mb-6">
+    <summary class="text-sm font-semibold text-gray-500 uppercase cursor-pointer">Schedule J Compensation Detail</summary>
+    <div class="overflow-x-auto mt-3">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Name</th><th class="pb-2 text-right">Base</th><th class="pb-2 text-right">Bonus</th><th class="pb-2 text-right">Other Reportable</th><th class="pb-2 text-right">Deferred</th><th class="pb-2 text-right">Nontaxable</th><th class="pb-2 text-right">Total</th>
+        </tr></thead>
+        <tbody>
+          {% for p in schedule_j %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2">{{ p.person_name }}</td>
+            <td class="py-2 text-right">{{ p.base_comp|currency }}</td>
+            <td class="py-2 text-right">{{ p.bonus|currency }}</td>
+            <td class="py-2 text-right">{{ p.other_reportable|currency }}</td>
+            <td class="py-2 text-right">{{ p.deferred_comp|currency }}</td>
+            <td class="py-2 text-right">{{ p.nontaxable_benefits|currency }}</td>
+            <td class="py-2 text-right font-medium">{{ p.total_comp_sch_j|currency }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
+  {% endif %}{# end selected_filing #}
+
+  <!-- Cross-Filing Comparison -->
+  {% if comparison %}
+  <details class="bg-white rounded-lg shadow p-5 mb-6">
+    <summary class="text-sm font-semibold text-gray-500 uppercase cursor-pointer">Compare Across Filings</summary>
+    <div class="overflow-x-auto mt-3">
+      <table class="w-full text-sm">
+        <thead><tr class="text-left text-gray-500 border-b">
+          <th class="pb-2">Person</th>
+          {% for h in filing_headers %}
+          <th class="pb-2 text-right">{{ h.label }}</th>
+          {% endfor %}
+        </tr></thead>
+        <tbody>
+          {% for name, row in comparison.items %}
+          <tr class="border-b hover:bg-gray-50">
+            <td class="py-2">{{ name }}</td>
+            {% for h in filing_headers %}
+            <td class="py-2 text-right">{{ row|dictget:h.object_id|currency }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+
+  {% else %}
+  <div class="bg-white rounded-lg shadow p-5">
+    <p class="text-gray-500 text-sm">No 990 filings found.</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

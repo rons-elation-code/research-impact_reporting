@@ -120,6 +120,16 @@ def main(argv: list[str] | None = None) -> None:
         help="Re-parse previously parsed filings",
     )
 
+    mode_group = ap.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--index-only", action="store_true",
+        help="Run only index download, skip parse/import",
+    )
+    mode_group.add_argument(
+        "--parse-only", action="store_true",
+        help="Skip index download, run only parse/import",
+    )
+
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -156,43 +166,45 @@ def main(argv: list[str] | None = None) -> None:
         ein_set = _load_ein_set(engine, state=args.state, limit=args.limit)
         log.info("Loaded %d EINs for state %s", len(ein_set), args.state)
 
-    for year in years:
-        try:
-            stats = download_and_filter_index(
-                engine=engine,
-                year=year,
-                state=args.state if not args.ein else None,
-                ein=args.ein,
-                limit=args.limit,
-            )
-            log.info(
-                "Index %d: inserted=%d matched=%d",
-                year, stats.rows_inserted, stats.rows_matched,
-            )
-        except Exception:
-            log.exception("Failed to process index for year %d", year)
+    if not args.parse_only:
+        for year in years:
+            try:
+                stats = download_and_filter_index(
+                    engine=engine,
+                    year=year,
+                    state=args.state if not args.ein else None,
+                    ein=args.ein,
+                    limit=args.limit,
+                )
+                log.info(
+                    "Index %d: inserted=%d matched=%d",
+                    year, stats.rows_inserted, stats.rows_matched,
+                )
+            except Exception:
+                log.exception("Failed to process index for year %d", year)
 
-    proc_stats = process_filings(
-        engine=engine,
-        cache_dir=cache_dir,
-        skip_download=args.skip_download,
-        reparse=args.reparse,
-        run_id=run_id,
-        ein_set=ein_set,
-        filing_years=years,
-    )
+    if not args.index_only:
+        proc_stats = process_filings(
+            engine=engine,
+            cache_dir=cache_dir,
+            skip_download=args.skip_download,
+            reparse=args.reparse,
+            run_id=run_id,
+            ein_set=ein_set,
+            filing_years=years,
+        )
 
-    log.info(
-        "Done: processed=%d parsed=%d skipped=%d errors=%d people=%d "
-        "zips_downloaded=%d zips_cached=%d",
-        proc_stats.filings_processed,
-        proc_stats.filings_parsed,
-        proc_stats.filings_skipped,
-        proc_stats.filings_error,
-        proc_stats.people_upserted,
-        proc_stats.zips_downloaded,
-        proc_stats.zips_cached,
-    )
+        log.info(
+            "Done: processed=%d parsed=%d skipped=%d errors=%d people=%d "
+            "zips_downloaded=%d zips_cached=%d",
+            proc_stats.filings_processed,
+            proc_stats.filings_parsed,
+            proc_stats.filings_skipped,
+            proc_stats.filings_error,
+            proc_stats.people_upserted,
+            proc_stats.zips_downloaded,
+            proc_stats.zips_cached,
+        )
 
 
 if __name__ == "__main__":

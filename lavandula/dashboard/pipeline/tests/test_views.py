@@ -168,6 +168,231 @@ class AuditLogTest(TestCase):
         self.assertTrue(PipelineAuditLog.objects.filter(action="job_retry").exists())
 
 
+class EnrichIndexViewTest(TestCase):
+    databases = {"default", "pipeline"}
+
+    def setUp(self):
+        self.user = User.objects.create_user("testuser", password="testpassword1234")
+        self.client = Client()
+        self.client.login(username="testuser", password="testpassword1234")
+
+    def test_requires_login(self):
+        client = Client()
+        resp = client.get(reverse("enrich_index"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_renders(self):
+        resp = self.client.get(reverse("enrich_index"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "990 Index Controls")
+
+    def test_context_keys(self):
+        resp = self.client.get(reverse("enrich_index"))
+        self.assertIn("form", resp.context)
+        self.assertIn("status_counts", resp.context)
+        self.assertIn("total_filings", resp.context)
+        self.assertIn("scoped", resp.context)
+
+    def test_unscoped_by_default(self):
+        resp = self.client.get(reverse("enrich_index"))
+        self.assertFalse(resp.context["scoped"])
+
+    def test_job_create_post_only(self):
+        resp = self.client.get(reverse("enrich_index_job_create"))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_job_create_valid(self):
+        resp = self.client.post(
+            reverse("enrich_index_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Job.objects.filter(phase="990-index").count(), 1)
+
+    def test_job_create_duplicate(self):
+        Job.objects.create(phase="990-index", status="pending", host="localhost")
+        resp = self.client.post(
+            reverse("enrich_index_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Job.objects.filter(phase="990-index").count(), 1)
+
+    def test_job_create_logs_audit(self):
+        self.client.post(
+            reverse("enrich_index_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertTrue(
+            PipelineAuditLog.objects.filter(
+                action="job_create", process_name="990-index"
+            ).exists()
+        )
+
+
+class EnrichParseViewTest(TestCase):
+    databases = {"default", "pipeline"}
+
+    def setUp(self):
+        self.user = User.objects.create_user("testuser", password="testpassword1234")
+        self.client = Client()
+        self.client.login(username="testuser", password="testpassword1234")
+
+    def test_requires_login(self):
+        client = Client()
+        resp = client.get(reverse("enrich_parse"))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_renders(self):
+        resp = self.client.get(reverse("enrich_parse"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "990 Parse Controls")
+
+    def test_context_keys(self):
+        resp = self.client.get(reverse("enrich_parse"))
+        self.assertIn("form", resp.context)
+        self.assertIn("people_count", resp.context)
+        self.assertIn("cache_count", resp.context)
+
+    def test_job_create_post_only(self):
+        resp = self.client.get(reverse("enrich_parse_job_create"))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_job_create_valid(self):
+        resp = self.client.post(
+            reverse("enrich_parse_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Job.objects.filter(phase="990-parse").count(), 1)
+
+    def test_job_create_duplicate(self):
+        Job.objects.create(phase="990-parse", status="pending", host="localhost")
+        resp = self.client.post(
+            reverse("enrich_parse_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(Job.objects.filter(phase="990-parse").count(), 1)
+
+    def test_990_enrich_blocks_990_parse(self):
+        Job.objects.create(phase="990-enrich", status="running", host="localhost")
+        resp = self.client.post(
+            reverse("enrich_parse_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Job.objects.filter(phase="990-parse").exists())
+
+
+class OrgDetail990Test(TestCase):
+    databases = {"default", "pipeline"}
+
+    def setUp(self):
+        from pipeline.models import NonprofitSeed
+        self.user = User.objects.create_user("testuser", password="testpassword1234")
+        self.client = Client()
+        self.client.login(username="testuser", password="testpassword1234")
+        NonprofitSeed.objects.create(ein="123456789", name="Test Org")
+
+    def test_org_detail_zero_filings(self):
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "No 990 filings found")
+
+    def _create_filing(self, **kwargs):
+        from pipeline.models import FilingIndex
+        return FilingIndex.objects.using("pipeline").create(**kwargs)
+
+    def _create_person(self, **kwargs):
+        from pipeline.models import Person
+        return Person.objects.using("pipeline").create(**kwargs)
+
+    def test_org_detail_with_filings(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("selected_filing", resp.context)
+        self.assertEqual(resp.context["selected_filing"].object_id, "OBJ001")
+
+    def test_org_detail_filing_picker_default(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202212",
+            return_type="990", filing_year=2022, status="parsed",
+        )
+        self._create_filing(
+            object_id="OBJ002", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertEqual(resp.context["selected_filing"].object_id, "OBJ002")
+
+    def test_org_detail_filing_picker_param(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202212",
+            return_type="990", filing_year=2022, status="parsed",
+        )
+        self._create_filing(
+            object_id="OBJ002", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]) + "?filing=OBJ001")
+        self.assertEqual(resp.context["selected_filing"].object_id, "OBJ001")
+
+    def test_org_detail_invalid_filing_fallback(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]) + "?filing=INVALID")
+        self.assertEqual(resp.context["selected_filing"].object_id, "OBJ001")
+
+    def test_org_detail_wrong_ein_filing_fallback(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        self._create_filing(
+            object_id="OBJ999", ein="999999999", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]) + "?filing=OBJ999")
+        self.assertEqual(resp.context["selected_filing"].object_id, "OBJ001")
+
+    def test_org_detail_zero_people(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "No leadership data extracted")
+
+    def test_org_detail_comparison_multiple_filings(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202212",
+            return_type="990", filing_year=2022, status="parsed",
+        )
+        self._create_filing(
+            object_id="OBJ002", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertIn("comparison", resp.context)
+        self.assertIn("filing_headers", resp.context)
+
+    def test_org_detail_no_comparison_single_filing(self):
+        self._create_filing(
+            object_id="OBJ001", ein="123456789", tax_period="202312",
+            return_type="990", filing_year=2023, status="parsed",
+        )
+        resp = self.client.get(reverse("org_detail", args=["123456789"]))
+        self.assertNotIn("comparison", resp.context)
+
+
 class CSRFTest(TestCase):
     def setUp(self):
         self.user = User.objects.create_user("testuser", password="testpassword1234")
@@ -178,5 +403,19 @@ class CSRFTest(TestCase):
         resp = self.client.post(
             reverse("job_create"),
             {"state_codes": ["NY"], "phases": ["seed"]},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_990_index_csrf(self):
+        resp = self.client.post(
+            reverse("enrich_index_job_create"),
+            {"state": "NY", "years": "2024"},
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_990_parse_csrf(self):
+        resp = self.client.post(
+            reverse("enrich_parse_job_create"),
+            {"state": "NY", "years": "2024"},
         )
         self.assertEqual(resp.status_code, 403)

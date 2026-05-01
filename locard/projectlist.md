@@ -448,9 +448,48 @@ projects:
     tags: [data-acquisition, enrichment, nonprofit, lavandula-sales, 990]
     notes: "Motivated by 2026-04-30 conversation about 990 Part VII data for prospect intelligence. Source: IRS TEOS bulk XML (not frozen AWS S3 bucket). Table name: people. Spec completed 2026-04-30 after 2 consultation rounds (spec-review + red-team, both Codex + Claude). 54 ACs. PR #22 merged 2026-04-30. Awaiting operator: migration 010 via PGAdmin + live validation."
 
+  - id: "0027"
+    title: "990 Dashboard: Org Detail View & Pipeline Controls"
+    summary: "Enhance the dashboard org detail page with 990 leadership data (officers, directors, compensation, Schedule J) and add two pipeline control forms for TEOS Index Download and 990 XML Parse/Import."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0027-990-dashboard-org-detail.md
+      plan: locard/plans/0027-990-dashboard-org-detail.md
+      review: null
+    dependencies: ["0019", "0026"]
+    tags: [dashboard, django, ui, 990, pipeline-controls]
+    notes: "Spec approved 2026-05-01 after Codex spec-review + red-team. Plan approved 2026-05-01 after Codex plan-review + red-team + Claude plan-review + red-team (0 CRITICAL, 0 HIGH). 47 ACs, 8 phases, 17 files."
+
+  - id: "0028"
+    title: "Contractor Intelligence Resolver"
+    summary: "AI-powered enrichment pipeline that researches contractor names from the people table, generates structured descriptions (what the company does, size, relevance), and writes back to a contractor_description column. Same producer-consumer pattern as Spec 0018."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0028-contractor-intelligence-resolver.md
+      plan: null
+      review: null
+    dependencies: ["0026"]
+    tags: [enrichment, ai, resolver, contractor, lavandula-sales]
+    notes: "Follow-on to Spec 0026. Enhances contractor entries in people table with AI-researched descriptions for sales intelligence."
+
+  - id: "0029"
+    title: "Retire Legacy Classification Column"
+    summary: "Stop writing the lossy 5-value 'classification' column (derived from material_type_to_legacy mapping). Migrate all dashboard and pipeline references from 'classification' to 'material_type'/'material_group'. The classification column currently overwrites the LLM's granular material_type with a coarse bucket (e.g. financial_report → annual)."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0029-retire-legacy-classification.md
+      plan: null
+      review: null
+    dependencies: ["0025"]
+    tags: [classifier, cleanup, data-quality, dashboard]
+    notes: "Identified 2026-05-01: gemma_client.py line 229 overwrites result['classification'] with material_type_to_legacy(mt), collapsing granular labels to 5 buckets. material_type column preserves the real data. Dashboard reports page already uses material_type; crawler/classifier views still show classification. Surfaces to clean: gemma_client.py, pipeline_classify.py log line, crawler.html, classifier.html, report_detail.html, taxonomy.py _MATERIAL_TYPE_TO_LEGACY dict."
+
 ## Next Available Number
 
-**0027** - Reserve this number for your next project
+**0030** - Reserve this number for your next project
 
 ---
 

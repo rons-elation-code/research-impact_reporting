@@ -73,12 +73,32 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "re_classify_definition": {"type": "text", "pattern": r"^[a-z][a-z0-9_]*:v\d+$", "flag": "--re-classify-definition"},
         },
     },
+    # Legacy: kept for historical job display only. No dashboard UI creates 990-enrich jobs.
     "990-enrich": {
         "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990"],
         "params": {
             "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
             "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
             "limit": {"type": "int", "min": 1, "max": 999999, "flag": "--limit"},
+        },
+    },
+    "990-index": {
+        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990", "--index-only"],
+        "params": {
+            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
+            "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
+            "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
+        },
+    },
+    "990-parse": {
+        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990", "--parse-only"],
+        "params": {
+            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
+            "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
+            "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
+            "limit": {"type": "int", "min": 1, "max": 999999, "flag": "--limit"},
+            "skip_download": {"type": "bool", "flag": "--skip-download"},
+            "reparse": {"type": "bool", "flag": "--reparse"},
         },
     },
 }
@@ -310,6 +330,71 @@ def create_classify_job(config_overrides: dict, host: str) -> Job:
             )
         except IntegrityError:
             raise DuplicateJobError("Duplicate classify job (constraint violation)")
+
+
+_990_PHASES = {"990-enrich", "990-index", "990-parse"}
+
+
+def _990_advisory_lock():
+    """Acquire advisory lock for 990-family concurrency. No-op on non-PostgreSQL."""
+    from django.db import connection
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext('990-family'))")
+
+
+def create_990_index_job(config_overrides: dict, host: str) -> Job:
+    """Create a 990-index job. Blocks if any 990-family job is active."""
+    state = config_overrides.get("state") or None
+    ein = config_overrides.get("ein") or None
+    with transaction.atomic():
+        _990_advisory_lock()
+
+        existing = Job.objects.select_for_update().filter(
+            phase__in=_990_PHASES, status__in=["pending", "running"]
+        ).first()
+        if existing:
+            raise DuplicateJobError(
+                f"Active {existing.phase} job already exists: Job #{existing.pk}"
+            )
+
+        try:
+            return Job.objects.create(
+                state_code=state,
+                phase="990-index",
+                status="pending",
+                host=host,
+                config_json=config_overrides,
+            )
+        except IntegrityError:
+            raise DuplicateJobError("Duplicate 990-index job (constraint violation)")
+
+
+def create_990_parse_job(config_overrides: dict, host: str) -> Job:
+    """Create a 990-parse job. Blocks if any 990-family job is active."""
+    state = config_overrides.get("state") or None
+    ein = config_overrides.get("ein") or None
+    with transaction.atomic():
+        _990_advisory_lock()
+
+        existing = Job.objects.select_for_update().filter(
+            phase__in=_990_PHASES, status__in=["pending", "running"]
+        ).first()
+        if existing:
+            raise DuplicateJobError(
+                f"Active {existing.phase} job already exists: Job #{existing.pk}"
+            )
+
+        try:
+            return Job.objects.create(
+                state_code=state,
+                phase="990-parse",
+                status="pending",
+                host=host,
+                config_json=config_overrides,
+            )
+        except IntegrityError:
+            raise DuplicateJobError("Duplicate 990-parse job (constraint violation)")
 
 
 def retry_job(job: Job) -> Job:

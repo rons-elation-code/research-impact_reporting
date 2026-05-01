@@ -1,0 +1,67 @@
+{% extends "pipeline/base.html" %}
+{% load pipeline_tags %}
+{% block title %}990 Index — Lavandula Pipeline{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">990 Index Controls</h1>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Status + Form -->
+  <div class="space-y-4">
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Status</h2>
+      {% if running_job %}
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span>
+        <span class="font-medium">Job #{{ running_job.pk }} running</span>
+      </div>
+      {% elif pending_job %}
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-3 h-3 rounded-full bg-yellow-500"></span>
+        <span class="font-medium">Job #{{ pending_job.pk }} pending</span>
+      </div>
+      {% else %}
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+        <span class="text-gray-600">Idle</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Queue Index Job</h2>
+      <form method="post" action="{% url 'enrich_index_job_create' %}">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="mb-3">
+          <label class="block text-xs font-medium text-gray-600 mb-1">{{ field.label }}</label>
+          {{ field }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700">Queue Index Job</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Filing Counts -->
+  <div class="lg:col-span-2 bg-white rounded-lg shadow p-5">
+    <h2 class="text-lg font-semibold text-gray-900 mb-3">
+      Filing Index Counts
+      {% if scoped %}<span class="text-sm font-normal text-gray-500">(filtered)</span>{% else %}<span class="text-sm font-normal text-gray-500">(global)</span>{% endif %}
+    </h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+      {% for sc in status_counts %}
+      <div class="border rounded p-3 text-center">
+        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium {{ sc.status|filing_badge }}">{{ sc.status }}</span>
+        <div class="text-2xl font-bold mt-1">{{ sc.count|default:"0" }}</div>
+      </div>
+      {% empty %}
+      <div class="col-span-4 text-gray-500 text-sm">No filings found.</div>
+      {% endfor %}
+    </div>
+    <p class="text-sm text-gray-500">Total filings: {{ total_filings }}</p>
+    {% if scope_truncated %}
+    <p class="text-sm text-amber-600 mt-2">Counts are approximate — state has more than 10,000 orgs; results are capped.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
