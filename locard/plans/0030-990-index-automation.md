@@ -20,13 +20,31 @@ This plan has 8 phases. Phases 1–3 ship independently (index fixes + bulk load
 
 **Migration SQL:**
 ```sql
+-- Allow NULL xml_batch_id for 2017-2023 filings
 ALTER TABLE lava_corpus.filing_index
   ALTER COLUMN xml_batch_id DROP NOT NULL;
 
+-- New columns for automation
 ALTER TABLE lava_corpus.filing_index
-  ADD COLUMN IF NOT EXISTS first_indexed_at TIMESTAMPTZ DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ DEFAULT now(),
-  ADD COLUMN IF NOT EXISTS s3_xml_key TEXT;
+  ADD COLUMN IF NOT EXISTS first_indexed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS s3_xml_key TEXT,
+  ADD COLUMN IF NOT EXISTS zip_etag TEXT;
+
+-- Backfill: set first_indexed_at = NULL for existing rows so the first
+-- bulk load will set it properly. Don't default to now() on migration —
+-- that would make all existing rows look "just indexed" and the incremental
+-- window would process them all on the first nightly run.
+-- The bulk loader's INSERT...ON CONFLICT will set first_indexed_at = now()
+-- for genuinely new rows.
+
+-- If filing_index.status has a CHECK constraint, extend it:
+-- (Check with: SELECT conname, consrc FROM pg_constraint
+--  WHERE conrelid = 'lava_corpus.filing_index'::regclass AND contype = 'c')
+-- If a CHECK exists, run:
+-- ALTER TABLE lava_corpus.filing_index DROP CONSTRAINT <name>;
+-- ALTER TABLE lava_corpus.filing_index ADD CONSTRAINT filing_index_status_check
+--   CHECK (status IN ('indexed','downloaded','parsed','error','batch_unresolvable'));
 
 CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
     id              SERIAL PRIMARY KEY,
@@ -149,13 +167,15 @@ class S3990Archive:
         """HEAD check for zips/{year}/{batch_id}.zip"""
 
     def upload_zip(self, year: int, batch_id: str, stream: IO[bytes]) -> str:
-        """Multipart upload IRS zip to S3. Returns ETag."""
+        """Multipart upload IRS zip to S3. Returns ETag for integrity storage."""
 
-    def zip_etag(self, year: int, batch_id: str) -> str | None:
-        """Get stored ETag for integrity check."""
+    def verify_zip_integrity(self, year: int, batch_id: str, expected_etag: str) -> bool:
+        """HEAD request, compare ETag. Mismatch → return False (caller re-downloads)."""
 
     def open_zip(self, year: int, batch_id: str) -> IO[bytes]:
-        """Stream zip from S3 for extraction."""
+        """Stream zip from S3 for extraction. For large zips (>500 MB), download to
+        a temp file first rather than holding in memory. Use tempfile.SpooledTemporaryFile
+        with max_size=500MB — small zips stay in memory, large ones spill to /tmp."""
 
     def upload_xml(self, ein: str, object_id: str, data: bytes) -> str:
         """PUT xml/{ein}/{object_id}.xml. Returns s3_xml_key."""
@@ -166,6 +186,15 @@ class S3990Archive:
     def xml_exists(self, ein: str, object_id: str) -> bool:
         """HEAD check for xml/{ein}/{object_id}.xml"""
 ```
+
+**ETag integrity storage:**
+- Store the upload ETag in `filing_index` alongside batch data: add column `zip_etag TEXT` to migration 011
+- Before reusing a cached zip, call `verify_zip_integrity()`. On mismatch, re-download from IRS.
+- Flow: `upload_zip()` returns ETag → store in DB → `verify_zip_integrity()` reads DB + HEAD → compare
+
+**Large zip handling:**
+- Zips up to 500 MB: hold in `BytesIO` (memory)
+- Zips > 500 MB (e.g., 2.5 GB 2025 batches): `SpooledTemporaryFile` spills to `/tmp` on EBS. This is transient — deleted after batch processing. The 2.5 GB temp file is acceptable because it's short-lived and EBS has capacity for one zip at a time.
 
 **Security:**
 - All S3 keys validated: EIN `^\d{9}$`, object_id `^\d+$`, batch_id `^\d{4}_TEOS_XML_\w+$`
@@ -194,22 +223,29 @@ class S3990Archive:
 
 **Implementation:**
 1. Acquire advisory lock (`pg_advisory_xact_lock(hashtext('990-family'))`)
-2. Query filings to process:
-   - `--backfill`: `SELECT * FROM filing_index WHERE ein IN (SELECT ein FROM nonprofits_seed) AND status = 'indexed' AND xml_batch_id IS NOT NULL`
-   - Default (incremental): same query + `AND first_indexed_at >= now() - interval '7 days'`
-   - `--ein X`: same query + `AND ein = :ein`
+2. Query filings to process (two passes):
+   - **Pass 1 — Download**: `status = 'indexed' AND xml_batch_id IS NOT NULL` (need zip download + extraction)
+   - **Pass 2 — Parse**: `status = 'downloaded'` (already extracted to S3, need parsing — catches prior failures)
+   - Both passes filter: `ein IN (SELECT ein FROM nonprofits_seed)`
+   - `--backfill`: no time filter
+   - Default (incremental): `AND first_indexed_at >= now() - interval '7 days'` (Pass 1 only; Pass 2 always runs without time filter to recover stalled `downloaded` rows)
+   - `--ein X`: additional `AND ein = :ein`
 3. Group results by `(filing_year, xml_batch_id)`
 4. For each batch group:
    a. Check S3 for cached zip → if missing, download from IRS to S3 (validate hostname, TLS, size cap 5 GB, ETag integrity)
-   b. Open zip from S3, iterate over target filings in the group:
+   b. Open zip from S3 (via `SpooledTemporaryFile` for large zips). Pre-validate:
+      - Check member count (`len(zf.namelist()) <= 200_000`)
+      - Track cumulative extracted bytes (cap at 10 GB per batch)
+      Iterate over target filings in the group:
       - Validate member name against `_MEMBER_NAME_RE`
-      - Check compression ratio (<100:1) and file size (<50 MB)
+      - Check compression ratio: `info.file_size / max(info.compress_size, 1) <= 100`
+      - Check file size: `info.file_size <= _MAX_MEMBER_SIZE` (50 MB)
       - Extract XML bytes into memory
       - Upload to `s3://lavandula-990-corpus/xml/{ein}/{object_id}.xml`
       - Update `filing_index.status = 'downloaded'`, set `s3_xml_key`
    c. Parse each downloaded filing:
       - Read XML from S3 (or use in-memory bytes from step b if still available)
-      - Parse with `defusedxml.ElementTree` (no XXE, no entities, 30s timeout)
+      - Parse with `defusedxml.ElementTree.fromstring()` which defends against XXE, entity expansion (billion-laughs), and quadratic blowup out of the box. For the 30-second timeout: wrap the parse call in `signal.alarm(30)` on Linux (SIGALRM). If timeout fires, mark filing as `error` with `XML_PARSE_TIMEOUT`.
       - Extract people/compensation → insert into `people` table with `ON CONFLICT DO NOTHING`
       - Update `filing_index.status = 'parsed'`
    d. On error: mark filing as `error` with structured error code, continue to next filing
@@ -278,7 +314,11 @@ Description=990 index refresh and auto-process
 Type=oneshot
 User=ubuntu
 WorkingDirectory=/home/ubuntu/research/lavandula/dashboard
-ExecStart=/bin/bash -c 'python3 manage.py load_990_index --current-year && python3 manage.py process_990_auto'
+# Two ExecStart lines: systemd runs them sequentially, but the second runs
+# even if the first fails (unlike shell &&). Index refresh failure should
+# not block processing of already-indexed filings.
+ExecStart=/usr/bin/python3 manage.py load_990_index --current-year
+ExecStart=/usr/bin/python3 manage.py process_990_auto
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=990-nightly
@@ -330,6 +370,11 @@ SyslogIdentifier=990-nightly
 - Query `IndexRefreshLog` for latest refresh per year
 - Show banner: "Last refreshed: {date} — {total} filings indexed"
 - Filing count breakdown by status
+
+**Index Maintenance admin view** (new URL: `/dashboard/990/maintenance/`):
+- Per-year table: year, last refresh date, total filings, filings by status (indexed/downloaded/parsed/error/batch_unresolvable)
+- Unresolved batch IDs count (NULL `xml_batch_id` rows)
+- Button to trigger manual refresh for a specific year
 
 **ACs covered:** AC23, AC24, AC25
 
