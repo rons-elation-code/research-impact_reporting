@@ -392,6 +392,19 @@ class Command(BaseCommand):
                         stats["errors"] += 1
                     continue
 
+                with engine.begin() as conn:
+                    conn.execute(text("""
+                        UPDATE lava_corpus.filing_index
+                        SET zip_checksum = :checksum
+                        WHERE filing_year = :year
+                          AND xml_batch_id = :batch_id
+                          AND zip_checksum IS NULL
+                    """), {
+                        "checksum": checksum,
+                        "year": year,
+                        "batch_id": batch_id,
+                    })
+
             self._extract_batch(
                 engine, archive, year, batch_id, batch_filings, stats
             )
