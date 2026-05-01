@@ -153,14 +153,22 @@ def _download_zip_to_s3(
     return None
 
 
+class _ParseError:
+    """Sentinel indicating a parse failure (not timeout)."""
+    def __init__(self, error_type: str):
+        self.error_type = error_type
+
+
 def _parse_xml_with_timeout(xml_bytes: bytes):
-    """Parse 990 XML with a process-level timeout."""
+    """Parse 990 XML with a process-level timeout. Returns result, None (timeout), or _ParseError."""
     with concurrent.futures.ProcessPoolExecutor(max_workers=1) as pool:
         future = pool.submit(parse_990_xml, xml_bytes)
         try:
             return future.result(timeout=_XML_PARSE_TIMEOUT)
         except concurrent.futures.TimeoutError:
             return None
+        except Exception as e:
+            return _ParseError(type(e).__name__)
 
 
 def _record_filing_error(
@@ -201,31 +209,31 @@ class Command(BaseCommand):
         engine = make_app_engine()
         archive = S3990Archive()
 
-        with engine.connect() as conn:
-            conn.execute(
-                text(f"SET lock_timeout = '{_LOCK_TIMEOUT}'")
+        lock_conn = engine.connect()
+        lock_conn.execute(text(f"SET lock_timeout = '{_LOCK_TIMEOUT}'"))
+        lock_conn.commit()
+        try:
+            lock_conn.execute(
+                text("SELECT pg_advisory_lock(hashtext(:key))"),
+                {"key": _LOCK_KEY},
             )
-            try:
-                conn.execute(
-                    text("SELECT pg_advisory_lock(hashtext(:key))"),
-                    {"key": _LOCK_KEY},
-                )
-            except Exception as e:
-                self.stderr.write(
-                    f"Could not acquire advisory lock (another job running?): {e}"
-                )
-                return
-            conn.commit()
+            lock_conn.commit()
+        except Exception as e:
+            self.stderr.write(
+                f"Could not acquire advisory lock (another job running?): {e}"
+            )
+            lock_conn.close()
+            return
 
         try:
             self._run(engine, archive, options)
         finally:
-            with engine.connect() as conn:
-                conn.execute(
-                    text("SELECT pg_advisory_unlock(hashtext(:key))"),
-                    {"key": _LOCK_KEY},
-                )
-                conn.commit()
+            lock_conn.execute(
+                text("SELECT pg_advisory_unlock(hashtext(:key))"),
+                {"key": _LOCK_KEY},
+            )
+            lock_conn.commit()
+            lock_conn.close()
 
     def _run(self, engine, archive: S3990Archive, options: dict):
         ein_filter = options.get("ein")
@@ -236,24 +244,24 @@ class Command(BaseCommand):
         if options["reparse"]:
             self._reset_errors(engine, ein_filter, options["backfill"])
 
-        # Pass 1: Download indexed filings
-        download_filings = self._query_filings(
-            engine, "indexed", ein_filter, options["backfill"]
-        )
-        # Pass 2: Parse already-downloaded filings
-        parse_filings = self._query_filings(
-            engine, "downloaded", ein_filter, backfill=True
-        )
-
         stats = {
             "downloaded": 0, "parsed": 0, "errors": 0, "skipped": 0
         }
 
+        # Pass 1: Download indexed filings
+        download_filings = self._query_filings(
+            engine, "indexed", ein_filter, options["backfill"]
+        )
         if download_filings:
             self._process_download_pass(
                 engine, archive, download_filings, stats
             )
 
+        # Pass 2: Parse downloaded filings (re-query AFTER download pass
+        # so newly-downloaded filings are included in this run)
+        parse_filings = self._query_filings(
+            engine, "downloaded", ein_filter, backfill=True
+        )
         if parse_filings:
             self._process_parse_pass(engine, archive, parse_filings, stats)
 
@@ -557,15 +565,10 @@ class Command(BaseCommand):
                 stats["errors"] += 1
                 continue
 
-            try:
-                if hasattr(result, "people") and result.people is not None:
-                    pass
-                else:
-                    result = parse_990_xml(xml_bytes)
-            except Exception as e:
+            if isinstance(result, _ParseError):
                 _record_filing_error(
                     engine, oid, ErrorCode.XML_PARSE_FAILED,
-                    type(e).__name__
+                    result.error_type
                 )
                 stats["errors"] += 1
                 continue
@@ -576,7 +579,7 @@ class Command(BaseCommand):
     def _upsert_people_and_mark_parsed(self, engine, result, filing: dict):
         oid = filing["object_id"]
 
-        upsert_sql = text("""
+        insert_sql = text("""
             INSERT INTO lava_corpus.people
                 (ein, tax_period, object_id, person_name, title, person_type,
                  avg_hours_per_week, reportable_comp, related_org_comp, other_comp,
@@ -595,11 +598,16 @@ class Command(BaseCommand):
         """)
 
         with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM lava_corpus.people WHERE object_id = :oid"),
+                {"oid": oid},
+            )
+
             if result.people:
                 meta = result.metadata
                 for p in result.people:
                     name = unicodedata.normalize("NFC", p.person_name.strip())
-                    conn.execute(upsert_sql, {
+                    conn.execute(insert_sql, {
                         "ein": meta.ein,
                         "tax_period": meta.tax_period,
                         "object_id": oid,

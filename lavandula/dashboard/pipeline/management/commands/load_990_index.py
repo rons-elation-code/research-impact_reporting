@@ -157,23 +157,23 @@ class Command(BaseCommand):
 
         engine = make_app_engine()
 
-        with engine.connect() as conn:
-            conn.execute(
-                text("SELECT pg_advisory_lock(hashtext(:key))"),
-                {"key": _LOCK_KEY},
-            )
-            conn.commit()
+        lock_conn = engine.connect()
+        lock_conn.execute(
+            text("SELECT pg_advisory_lock(hashtext(:key))"),
+            {"key": _LOCK_KEY},
+        )
+        lock_conn.commit()
 
         try:
             for year in sorted(years):
                 self._load_year(engine, year, ein_filter)
         finally:
-            with engine.connect() as conn:
-                conn.execute(
-                    text("SELECT pg_advisory_unlock(hashtext(:key))"),
-                    {"key": _LOCK_KEY},
-                )
-                conn.commit()
+            lock_conn.execute(
+                text("SELECT pg_advisory_unlock(hashtext(:key))"),
+                {"key": _LOCK_KEY},
+            )
+            lock_conn.commit()
+            lock_conn.close()
 
     def _load_year(self, engine, year: int, ein_filter: str | None):
         url = TEOS_INDEX_URL.format(year=year)
@@ -202,7 +202,7 @@ class Command(BaseCommand):
 
         rows_scanned = 0
         rows_inserted = 0
-        rows_skipped = 0
+        rows_updated = 0
         batch = []
 
         insert_sql = text("""
@@ -216,16 +216,18 @@ class Command(BaseCommand):
                  now(), now())
             ON CONFLICT (object_id) DO UPDATE SET
                 last_seen_at = now()
+            RETURNING (xmax = 0) AS inserted
         """)
 
         def flush_batch(conn, batch_rows):
-            nonlocal rows_inserted, rows_skipped
+            nonlocal rows_inserted, rows_updated
             for row_params in batch_rows:
                 result = conn.execute(insert_sql, row_params)
-                if result.rowcount > 0:
+                row = result.fetchone()
+                if row and row[0]:
                     rows_inserted += 1
                 else:
-                    rows_skipped += 1
+                    rows_updated += 1
 
         with engine.begin() as conn:
             for row in reader:
@@ -284,11 +286,11 @@ class Command(BaseCommand):
                 "year": year,
                 "scanned": rows_scanned,
                 "inserted": rows_inserted,
-                "skipped": rows_skipped,
+                "skipped": rows_updated,
                 "duration": round(duration, 2),
             })
 
         self.stdout.write(
             f"  {year}: scanned={rows_scanned} inserted={rows_inserted} "
-            f"skipped={rows_skipped} ({duration:.1f}s)"
+            f"updated={rows_updated} ({duration:.1f}s)"
         )

@@ -87,6 +87,7 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
         "params": {
             "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
             "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
+            "current_year": {"type": "bool", "flag": "--current-year"},
         },
     },
     "990-parse": {
