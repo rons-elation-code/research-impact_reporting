@@ -32,9 +32,9 @@ Replace local EBS zip cache with a dedicated S3 bucket. Download IRS batch zips 
 
 A background worker that keeps 990 data current for every org in `nonprofits_seed`:
 
-1. **New org trigger** — When an EIN is added to `nonprofits_seed`, check `filing_index` for matching filings and queue them for download/parse.
-2. **New filing trigger** — After the nightly index refresh, identify new `filing_index` rows where the EIN exists in `nonprofits_seed` and queue them for download/parse.
-3. **Backfill** — On first run, process all existing `nonprofits_seed` EINs that have indexed but unprocessed filings.
+1. **Reconciliation-based trigger** — `process_990_auto` runs a JOIN query: `filing_index.ein IN (SELECT ein FROM nonprofits_seed) AND status = 'indexed' AND xml_batch_id IS NOT NULL`. This catches both new orgs and new filings in one pass — no DB triggers or app-layer hooks needed.
+2. **Nightly schedule** — Runs after index refresh. The reconciliation query naturally picks up: (a) new filings added by the index refresh, (b) filings for orgs added to the seed list since the last run.
+3. **Backfill** — On first run with `--backfill`, processes all existing `nonprofits_seed` EINs that have indexed but unprocessed filings. Without `--backfill`, limits to filings with `indexed_at` within the last 7 days (recent index additions only).
 
 ### Goal 4: Manual Controls Remain
 
@@ -46,6 +46,31 @@ The dashboard 990 Index and 990 Parse forms stay available for ad-hoc use (e.g.,
 - Real-time streaming from IRS. The IRS updates indexes daily/weekly; nightly refresh is sufficient.
 - Deleting the dashboard manual controls. They remain for ad-hoc use.
 - Migrating existing parsed data. Already-parsed filings (`status = 'parsed'`) are untouched.
+- SSE-KMS encryption. SSE-S3 (AES-256) is sufficient — this is public IRS data, not PII. KMS adds cost and complexity for no security benefit here.
+
+## Filing Status Lifecycle
+
+`filing_index.status` tracks each filing through a linear pipeline. The `status` column already exists (Spec 0026, migration 010).
+
+```
+indexed → downloaded → parsed
+    ↘        ↘          ↘
+    error    error      error
+```
+
+**States:**
+- `indexed` — Filing appears in the IRS TEOS index. Metadata stored. No XML yet.
+- `downloaded` — XML extracted from batch zip and uploaded to S3. Ready for parsing.
+- `parsed` — XML parsed, people/compensation data written to `people` table.
+- `error` — Processing failed at any stage. `error_message` column has details.
+
+**Transition rules:**
+- `indexed → downloaded`: Batch zip downloaded (or cached in S3), XML member extracted and uploaded to `s3://lavandula-990-corpus/xml/{ein}/{object_id}.xml`.
+- `downloaded → parsed`: XML parsed successfully, people rows inserted.
+- `Any → error`: Failure at any stage. `error_message` records the cause.
+- `error → indexed`: Manual reset (via Django admin or management command) to retry from scratch.
+
+**Idempotency:** Each transition checks current status before acting. A filing already at `parsed` is skipped. A filing at `error` is skipped unless `--reparse` is passed. Re-running `process_990_auto` on an already-processed corpus inserts 0 rows.
 
 ## Data Source Analysis
 
@@ -127,11 +152,24 @@ WHERE object_id = :object_id AND xml_batch_id IS NULL;
 
 This is a one-time backfill. New filings (2024+) always have `xml_batch_id` in the index.
 
-Implementation note: Python's `zipfile` module can read the central directory from a remote zip via HTTP Range requests without downloading the entire file. If the IRS server supports Range (likely), we can resolve batch membership for ~2M filings by downloading only the central directories (~1-5 MB each vs 100 MB–2.5 GB for the full zip). If Range isn't supported, fall back to downloading full zips.
+Implementation note: Python's `zipfile` module can read the central directory from a remote zip via HTTP Range requests without downloading the entire file. If the IRS server supports Range, we can resolve batch membership for ~2M filings by downloading only the central directories (~1-5 MB each vs 100 MB–2.5 GB for the full zip).
+
+**Feasibility strategy:**
+1. First, issue a HEAD + Range probe on a single 2022 batch zip.
+2. If Range is supported: read central directories only (~50 MB total across all old batches).
+3. If Range is NOT supported: download full zips to S3 and read manifests locally. This costs 10-20 GB of one-time transfer for 2017–2023 (the zips we'd download eventually anyway for parsing). Since S3 caches them, this is not wasted work.
+4. **Stop condition**: If any year has zero resolvable batch zips (404s for all batch patterns), log a warning and mark those year's filings as `batch_unresolvable`. They won't block the rest of the pipeline.
 
 ### Phase 4: S3 Bucket & Archive
 
 New S3 bucket: `lavandula-990-corpus` (us-east-1, SSE-S3, versioned, private)
+
+**Bucket security:**
+- `BlockPublicAccess`: all four settings enabled (BlockPublicAcls, IgnorePublicAcls, BlockPublicPolicy, RestrictPublicBuckets)
+- IAM: same `cloud2_lavandulagroup` role used by the existing `lavandula-nonprofit-collaterals` bucket. Scoped to `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`, `s3:HeadObject` on this bucket only.
+- Encryption: SSE-S3 (AES-256). Not SSE-KMS — this is public IRS data, KMS adds cost for no benefit.
+- Lifecycle: `zips/` prefix transitions to Glacier after 30 days (one-time downloads, re-downloadable from IRS). `xml/` prefix stays Standard (active working set).
+- Object keys contain EINs — these are public identifiers (IRS publishes them), not PII.
 
 Prefix structure:
 ```
@@ -141,8 +179,8 @@ s3://lavandula-990-corpus/
 ```
 
 Download flow:
-1. Check if `zips/{year}/{batch_id}.zip` exists in S3
-2. If not, download from IRS → stream to S3
+1. Check if `zips/{year}/{batch_id}.zip` exists in S3 (HEAD request)
+2. If not, download from IRS → stream to S3 (multipart upload for large zips)
 3. Extract target filing's XML member → upload to `xml/{ein}/{object_id}.xml`
 4. Parse from S3 (stream XML through memory, same as current `teos_download.py` logic)
 
@@ -162,22 +200,37 @@ Behavior:
 4. Concurrency: single worker, processes one batch at a time (same advisory lock pattern as existing 990 jobs)
 
 Run modes:
-- **Backfill**: `manage.py process_990_auto --backfill` — process all unprocessed filings for tracked orgs
-- **Incremental**: `manage.py process_990_auto` — process only filings indexed since last run
+- **Backfill**: `manage.py process_990_auto --backfill` — process all unprocessed filings for tracked orgs (no time filter)
+- **Incremental** (default): `manage.py process_990_auto` — process filings with `indexed_at` within the last 7 days AND `status = 'indexed'`. The 7-day window provides overlap to catch filings that were indexed but not yet batch-resolved during the previous run. Safe to run repeatedly — already-processed filings are skipped.
 - **Single EIN**: `manage.py process_990_auto --ein 030440761` — process one org (useful for testing)
+
+**Failure handling:**
+- **Missing XML member in zip**: Mark filing as `error` with message "XML member not found in batch zip". Do not stop the batch — continue processing remaining filings.
+- **Zip download interrupted**: Retry up to 3 times with exponential backoff. On final failure, log error and skip that batch. Filings remain `indexed` for the next run.
+- **Malformed XML**: Mark filing as `error` with parse exception message. Continue processing.
+- **S3 upload succeeds but DB update fails**: Filing stays at `indexed`. Next run re-extracts the XML (S3 PUT is idempotent) and retries the DB update.
+- **DB update succeeds but parse fails**: Filing is at `downloaded`. Next run picks it up for parsing. Already-uploaded S3 XML is reused.
 
 ### Phase 6: Nightly Cron
 
-A cron job (or systemd timer) that runs:
+A systemd timer (preferred over cron for logging and failure visibility) that runs:
 ```bash
+#!/bin/bash
+set -euo pipefail
+cd /home/ubuntu/research/lavandula/dashboard
+
 # 1. Refresh the current year's index
-python3 manage.py load_990_index --current-year
+python3 manage.py load_990_index --current-year 2>&1 | logger -t 990-index
 
 # 2. Process any new filings for tracked orgs
-python3 manage.py process_990_auto
+python3 manage.py process_990_auto 2>&1 | logger -t 990-auto
 ```
 
-Schedule: nightly at 03:00 UTC (IRS updates are infrequent, daily is more than enough).
+Schedule: nightly at 03:00 UTC. Logs to journald via `logger` (queryable with `journalctl -t 990-index`).
+
+**Locking:** `process_990_auto` acquires the same `pg_advisory_xact_lock` used by the existing 990 job family. If a manual job is running, the auto worker waits (advisory lock is blocking). This prevents the auto worker and manual dashboard jobs from colliding — they share the same lock family, same status columns, same `filing_index` table. No deduplication needed beyond the status check (`WHERE status = 'indexed'`).
+
+**"Current year" semantics:** `--current-year` means `datetime.date.today().year` at runtime. When the calendar year rolls over on Jan 1, the cron automatically starts fetching the new year's index. The previous year's index is already fully loaded from the bulk import and doesn't need refresh (IRS rarely adds to old years).
 
 ### Phase 7: Dashboard Changes
 
@@ -253,6 +306,26 @@ CREATE TABLE lava_corpus.index_refresh_log (
 - AC23: 990 Index page shows last refresh time and total indexed filings
 - AC24: Manual index/parse forms still work for ad-hoc use
 - AC25: Org Detail filing list is pre-populated for tracked orgs
+
+## Testing Strategy
+
+### Unit Tests
+- **9-column vs 10-column CSV parsing**: Synthetic CSV fixtures with 9 and 10 columns. Verify both produce correct `filing_index` rows (9-col has `xml_batch_id=NULL`).
+- **Idempotent re-run**: Insert rows, re-run loader, assert 0 new inserts.
+- **Batch ID resolution logic**: Mock zip central directory responses, verify `object_id → batch_id` mapping.
+- **Status transitions**: Verify each transition (`indexed → downloaded → parsed`, `any → error`, `error �� indexed` reset).
+- **Incremental selection**: Verify 7-day window filter, verify `--backfill` ignores the window.
+
+### Integration Tests
+- **S3 round-trip**: Upload XML to localstack/moto S3, parse from S3, verify output matches local parse.
+- **Advisory lock**: Start two `process_990_auto` processes concurrently, verify only one runs at a time.
+- **Failure recovery**: Simulate interrupted zip download, verify filing stays at `indexed` and is picked up on retry.
+- **Manual + auto interaction**: Queue a manual parse job, run auto worker concurrently, verify advisory lock prevents collision.
+
+### Live Validation
+- **Bulk load smoke test**: Run `load_990_index --years 2024` on a single year, verify row count matches expected ~363K 990 filings.
+- **End-to-end for one EIN**: Run full pipeline for a known EIN (e.g., 131624241 UNCF), verify filings from 2017–2025 are indexed, downloaded, and parsed.
+- **Nightly cron dry run**: Run the cron script manually, verify `index_refresh_log` is populated and new filings are processed.
 
 ## Migration Path
 
