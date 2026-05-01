@@ -1,0 +1,12 @@
+[Unit]
+Description=990 index refresh and auto-process
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/research/lavandula/dashboard
+ExecStart=/bin/bash -c '/usr/bin/python3 manage.py load_990_index --current-year 2>&1 | logger -t 990-index; /usr/bin/python3 manage.py process_990_auto 2>&1 | logger -t 990-auto'
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=990-nightly
+TimeoutStartSec=7200
