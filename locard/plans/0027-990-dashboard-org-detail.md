@@ -64,7 +64,22 @@ Replace the single `990-enrich` entry with two new entries:
 
 Note: bake `--index-only` / `--parse-only` into the `cmd` base list, not as a param. The flag is not user-selectable — it's intrinsic to the phase.
 
-Keep the existing `990-enrich` entry so any in-flight or historical jobs don't break. Mark it with a comment as legacy.
+Keep the existing `990-enrich` entry for historical job display only. Mark it with a comment as legacy — no dashboard UI creates `990-enrich` jobs.
+
+**Concurrency family**: The duplicate-check functions for `990-index` and `990-parse` must also check for running/pending `990-enrich` jobs, since all three phases invoke the same underlying `enrich_990` pipeline and touch the same filing rows and cache directory. Treat `990-enrich`, `990-index`, and `990-parse` as one concurrency family:
+
+```python
+_990_PHASES = {"990-enrich", "990-index", "990-parse"}
+
+def create_990_index_job(config_overrides, host):
+    with transaction.atomic():
+        existing = Job.objects.select_for_update().filter(
+            phase__in=_990_PHASES, status__in=["pending", "running"]
+        ).first()
+        if existing:
+            raise DuplicateJobError(f"Active {existing.phase} job already exists: Job #{existing.pk}")
+        ...
+```
 
 **2b. Job creation functions**
 
@@ -101,17 +116,23 @@ Add to `PHASE_CHOICES`:
 
 Add two unmanaged models after the existing `CrawledOrg` model:
 
+These models are verified against `lavandula/migrations/rds/010_990_people_filing_index.sql` — every column matches.
+
 ```python
 class FilingIndex(models.Model):
     object_id = models.CharField(primary_key=True, max_length=30)
     ein = models.CharField(max_length=9)
     tax_period = models.CharField(max_length=6)
     return_type = models.CharField(max_length=10)
+    sub_date = models.CharField(max_length=20, null=True)
+    return_ts = models.DateTimeField(null=True)
+    is_amended = models.BooleanField(default=False)
+    taxpayer_name = models.TextField(null=True)
+    xml_batch_id = models.CharField(max_length=30, null=True)
     filing_year = models.IntegerField()
     status = models.CharField(max_length=20)
-    taxpayer_name = models.CharField(max_length=200, null=True)
-    xml_batch_id = models.CharField(max_length=30, null=True)
     error_message = models.TextField(null=True)
+    parsed_at = models.DateTimeField(null=True)
     run_id = models.CharField(max_length=50, null=True)
 
     class Meta:
@@ -122,11 +143,12 @@ class FilingIndex(models.Model):
 class Person(models.Model):
     id = models.AutoField(primary_key=True)
     ein = models.CharField(max_length=9)
-    object_id = models.CharField(max_length=30)
     tax_period = models.CharField(max_length=6)
+    object_id = models.CharField(max_length=30)
     person_name = models.CharField(max_length=200)
-    title = models.CharField(max_length=200, null=True)
+    title = models.TextField(null=True)
     person_type = models.CharField(max_length=30)
+    avg_hours_per_week = models.DecimalField(max_digits=5, decimal_places=1, null=True)
     reportable_comp = models.BigIntegerField(null=True)
     related_org_comp = models.BigIntegerField(null=True)
     other_comp = models.BigIntegerField(null=True)
@@ -138,7 +160,6 @@ class Person(models.Model):
     nontaxable_benefits = models.BigIntegerField(null=True)
     total_comp_sch_j = models.BigIntegerField(null=True)
     services_desc = models.TextField(null=True)
-    avg_hours_per_week = models.DecimalField(max_digits=5, decimal_places=2, null=True)
     is_officer = models.BooleanField(default=False)
     is_director = models.BooleanField(default=False)
     is_key_employee = models.BooleanField(default=False)
@@ -151,13 +172,6 @@ class Person(models.Model):
         managed = False
         db_table = '"lava_corpus"."people"'
 ```
-
-**Schema verification (AC41)**: The unmanaged models MUST match migration 010 exactly. The migration has columns not yet reflected above that must be added:
-
-- `FilingIndex`: add `sub_date = models.CharField(max_length=20, null=True)`, `return_ts = models.DateTimeField(null=True)`, `is_amended = models.BooleanField(default=False)`, `parsed_at = models.DateTimeField(null=True)`
-- `Person`: fix `avg_hours_per_week` to `DecimalField(max_digits=5, decimal_places=1)` (migration uses `NUMERIC(5,1)`, not `(5,2)`)
-
-The builder must diff the model field list against migration 010 before writing any views.
 
 **Router verification**: The existing `PipelineRouter` in `routers.py` uses `model._meta.managed == False` — no changes needed. Both new models have `managed = False` and will route to the `pipeline` DB alias automatically. Merge this verification into Phase 3 (not a separate phase).
 
@@ -252,7 +266,10 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
             if ein:
                 qs = qs.filter(ein=ein)
             elif state:
-                qs = qs.filter(ein__in=NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+                # Materialize EINs into a Python list to avoid cross-DB subquery
+                # (NonprofitSeed is on "default" DB, FilingIndex on "pipeline")
+                ein_list = list(NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+                qs = qs.filter(ein__in=ein_list)
             if years_param:
                 year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
                 qs = qs.filter(filing_year__in=year_list)
@@ -316,11 +333,17 @@ people_qs = Person.objects.using("pipeline").all()
 if ein:
     people_qs = people_qs.filter(ein=ein)
 elif state:
-    people_qs = people_qs.filter(ein__in=NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
-# Years filter on people uses the tax_period prefix (YYYY from YYYYMM)
+    # Materialize to avoid cross-DB subquery (same pattern as index view)
+    ein_list = list(NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+    people_qs = people_qs.filter(ein__in=ein_list)
+# Years filter: tax_period is YYYYMM, use __startswith via Q objects
 if years_param:
-    year_list = [str(y) for y in years_param.split(",") if y.strip().isdigit()]
-    people_qs = people_qs.filter(tax_period__regex=r"^(" + "|".join(year_list) + r")")
+    from django.db.models import Q
+    year_list = [y.strip() for y in years_param.split(",") if y.strip().isdigit()]
+    year_q = Q()
+    for y in year_list:
+        year_q |= Q(tax_period__startswith=y)
+    people_qs = people_qs.filter(year_q)
 ctx["people_count"] = people_qs.count()
 ```
 
@@ -370,9 +393,14 @@ class OrgDetailView(LoginRequiredMixin, DetailView):
         if filings.count() > 1:
             all_people = Person.objects.using("pipeline").filter(ein=ein)
             # Build comparison matrix: {person_name: {object_id: reportable_comp}}
+            # If duplicate person_name within same filing, keep the higher comp
+            # (can happen with malformed source data)
             comparison = {}
             for p in all_people:
-                comparison.setdefault(p.person_name, {})[p.object_id] = p.reportable_comp
+                row = comparison.setdefault(p.person_name, {})
+                existing = row.get(p.object_id)
+                if existing is None or (p.reportable_comp or 0) > (existing or 0):
+                    row[p.object_id] = p.reportable_comp
             ctx["comparison"] = comparison
             # Build filing headers with amended badge
             tp_counts = {}
@@ -413,10 +441,11 @@ def currency(value):
 Follow the classifier.html layout:
 - Left column: Status panel (global/scoped filing counts by status) + Job queue form
 - Right columns: Filing counts table
+- Job queue form: `method="post"` action to `enrich_index_job_create`, must include `{% csrf_token %}` (AC45)
 
 Status panel shows counts per status (indexed, downloaded, parsed, error) with color coding matching the filing status semantics from spec.
 
-**ACs**: 20, 26
+**ACs**: 20, 26, 45
 
 **6c. `990_parse.html`**
 
@@ -425,8 +454,9 @@ Status panel shows counts per status (indexed, downloaded, parsed, error) with c
 Same layout as 990_index.html plus:
 - Cache status line: "Cache: X zips, Y.Z GB" or "Cache: unavailable"
 - Total people count in status panel
+- Job queue form: `method="post"` action to `enrich_parse_job_create`, must include `{% csrf_token %}` (AC45)
 
-**ACs**: 29, 36, 37
+**ACs**: 29, 36, 37, 45
 
 **6d. `org_detail.html` enhancement**
 
@@ -559,7 +589,7 @@ Active link detection: match `'enrich_index'` and `'enrich_parse'` in `url_name`
 
 1. **Bake `--index-only`/`--parse-only` into COMMAND_MAP `cmd`**, not as user-selectable params. The mode is determined by which page the user submits from, not a form checkbox.
 
-2. **Keep legacy `990-enrich` COMMAND_MAP entry** so historical/in-flight jobs still render correctly in the Jobs list. No new jobs will use it. A running legacy `990-enrich` job does NOT block new `990-index` or `990-parse` jobs — they are different phase strings and the duplicate check is per-phase. This is acceptable because the operator won't accidentally launch `990-enrich` from the dashboard (no UI for it), and if they run it from CLI while a dashboard job is active, the underlying pipeline has its own file-level locking.
+2. **Keep legacy `990-enrich` COMMAND_MAP entry** for historical job display only. No dashboard UI creates `990-enrich` jobs. A running `990-enrich` job DOES block new `990-index`/`990-parse` jobs and vice versa — all three phases are in one concurrency family (`_990_PHASES`) because they invoke the same pipeline and touch the same filing rows and cache directory.
 
 3. **Extract shared form validation** (state-or-ein, years format, year bounds) into a mixin or helper to avoid copy-paste between `EnrichIndexForm` and `EnrichParseForm`.
 
@@ -567,7 +597,9 @@ Active link detection: match `'enrich_index'` and `'enrich_parse'` in `url_name`
 
 5. **Cache status scan**: synchronous `os.listdir` + `stat` — not recursive, only counts `*.zip` in the top-level cache dir. Lightweight enough to run on every page load.
 
-6. **`person_type` has granular values**: The `_derive_person_type()` function in `irs990_parser.py` already writes specific values: `officer`, `director`, `key_employee`, `highest_compensated`, `contractor`, `listed`. The template can use `person_type` directly for badge color mapping (AC8) — no need to read boolean flags.
+6. **Audit logging scope**: Only job creation endpoints log via `_log_audit()`, consistent with the existing pipeline controls pattern. GET access to control pages is not audit-logged — this matches the existing resolver/crawler/classifier pages and the single-operator context.
+
+7. **`person_type` has granular values**: The `_derive_person_type()` function in `irs990_parser.py` already writes specific values: `officer`, `director`, `key_employee`, `highest_compensated`, `contractor`, `listed`. The template can use `person_type` directly for badge color mapping (AC8) — no need to read boolean flags.
 
 ## Traps to Avoid
 
