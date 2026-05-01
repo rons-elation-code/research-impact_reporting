@@ -55,10 +55,13 @@ Enhance the existing org detail page (`/dashboard/orgs/<ein>/`) to display 990 l
 **1f. Cross-Filing Comparison**
 - When multiple filings exist, show a "Compare Across Filings" toggle
 - Matches people across filings by exact `person_name` string (case-sensitive)
-- Displays a table with rows = unique person names, columns = filings (by tax period)
+- Displays a table with rows = unique person names, columns = filings keyed by `object_id` with header label `tax_period` (plus "(amended)" badge if multiple filings share the same tax_period)
 - Cell values = reportable_comp for that person in that filing. Missing = "—"
 - Scoped to a single EIN (the current org detail page)
 - Known limitation: name variants across filings (e.g. "DAVID DIMMETT ED D" vs "DAVID DIMMETT ED") will appear as separate rows. This is acceptable for V1.
+
+**1g. Invalid Filing Selection**
+- If `?filing=<object_id>` references an object_id that doesn't exist or belongs to a different EIN, silently fall back to the most recent filing (first in sort order). No error page, no 404.
 
 ### Goal 2: TEOS Index Pipeline Control
 
@@ -81,7 +84,9 @@ New pipeline control page at `/dashboard/990-index/` for downloading and filteri
 - Years outside TEOS availability (pre-2019 or future): the IRS returns HTTP 404, CLI logs warning and continues to next year. No special dashboard handling needed.
 
 **Status Display:**
-- Count of `filing_index` rows by status for the currently selected state/EIN scope
+- On initial GET (no form submission): show **global** filing_index counts by status (all EINs, all years)
+- After form submission (redirect back with query params): show counts scoped to the submitted state/EIN + years
+- Scope passed via `?state=XX&years=YYYY` query params on the page URL
 - Derived from `filing_index` table aggregation — no separate run metadata table
 
 ### Goal 3: 990 XML Parse/Import Pipeline Control
@@ -108,9 +113,10 @@ New pipeline control page at `/dashboard/990-parse/` for downloading zip files a
 - Parse-only with no indexed filings: job completes successfully with "0 filings processed" in output (no-op, not an error)
 
 **Status Display:**
-- Count of filings by status (indexed/downloaded/parsed/error) from `filing_index` aggregation
-- People count from `people` table aggregation for the selected scope
-- Cache status (number of cached zip files, total size on disk) from filesystem scan of `~/.lavandula/990-cache/`
+- On initial GET: show **global** filing counts by status + total people count
+- After form submission: show counts scoped to submitted state/EIN + years (via query params)
+- Scope passed via `?state=XX&years=YYYY` query params on the page URL
+- Cache status: count and total size of `*.zip` files in `~/.lavandula/990-cache/`. If directory doesn't exist or is unreadable, display "Cache: unavailable". Scan is synchronous (lightweight — only `os.listdir` + `stat`, not recursive).
 
 ## Filing Status Semantics
 
@@ -298,47 +304,50 @@ Error messages from parse/import are already sanitized by `_sanitize_error()` in
 - **AC14**: Org detail page renders correctly for orgs with zero filings (graceful empty state: "No 990 filings found")
 - **AC15**: Org detail page renders correctly for filings with zero people ("No leadership data extracted")
 - **AC16**: Cross-filing comparison matches people by exact `person_name` (case-sensitive)
-- **AC17**: Comparison table: rows = unique person names, columns = filings by tax_period, cells = reportable_comp or "—"
+- **AC17**: Comparison table columns keyed by `object_id`, labeled with `tax_period` (+ "(amended)" badge when multiple filings share same tax_period)
 - **AC18**: Comparison scoped to single EIN (current org detail page only)
+- **AC19**: Invalid `?filing=` value (non-existent or wrong EIN) silently falls back to most recent filing
 
 ### 990 Index Pipeline Control
-- **AC19**: Pipeline control page at `/dashboard/990-index/`
-- **AC20**: Form requires either State or EIN (server-side validation, form error if both blank)
-- **AC21**: Years field validates as comma-separated 4-digit years (regex: `^\d{4}(\s*,\s*\d{4})*$`)
-- **AC22**: Form submission creates a Job with phase="990-index"
-- **AC23**: Job maps to `enrich_990 --index-only --state XX --years YYYY` (or `--ein` for single EIN)
-- **AC24**: `--index-only` flag runs only index download, skips parse/import
-- **AC25**: Status section shows filing_index row counts grouped by status
-- **AC26**: Sidebar includes "990 Index" link
-- **AC27**: Duplicate job prevention: error message if 990-index job already pending/running
+- **AC20**: Pipeline control page at `/dashboard/990-index/`
+- **AC21**: Form requires either State or EIN (server-side validation, form error if both blank)
+- **AC22**: Years field validates as comma-separated 4-digit years (regex: `^\d{4}(\s*,\s*\d{4})*$`), max 5 years per request
+- **AC23**: Form submission creates a Job with phase="990-index"
+- **AC24**: Job maps to `enrich_990 --index-only --state XX --years YYYY` (or `--ein` for single EIN)
+- **AC25**: `--index-only` flag runs only index download, skips parse/import
+- **AC26**: Status panel on initial GET shows global filing_index counts; after submission shows scoped counts via query params
+- **AC27**: Sidebar includes "990 Index" link
+- **AC28**: Duplicate job prevention: error message if 990-index job already pending/running
 
 ### 990 Parse/Import Pipeline Control
-- **AC28**: Pipeline control page at `/dashboard/990-parse/`
-- **AC29**: Form requires either State or EIN
-- **AC30**: Skip Download and Reparse checkboxes map to `--skip-download` and `--reparse` flags
-- **AC31**: Form submission creates a Job with phase="990-parse"
-- **AC32**: Job maps to `enrich_990 --parse-only --state XX --years YYYY [--skip-download] [--reparse] [--limit N]`
-- **AC33**: `--parse-only` flag skips index download, runs only parse/import
-- **AC34**: Parse-only with zero indexed filings: job completes successfully, logs "0 filings processed"
-- **AC35**: Status section shows filings by status + people count + error count
-- **AC36**: Sidebar includes "990 Parse" link
-- **AC37**: Duplicate job prevention: error message if 990-parse job already pending/running
+- **AC29**: Pipeline control page at `/dashboard/990-parse/`
+- **AC30**: Form requires either State or EIN
+- **AC31**: Skip Download and Reparse checkboxes map to `--skip-download` and `--reparse` flags
+- **AC32**: Form submission creates a Job with phase="990-parse"
+- **AC33**: Job maps to `enrich_990 --parse-only --state XX --years YYYY [--skip-download] [--reparse] [--limit N]`
+- **AC34**: `--parse-only` flag skips index download, runs only parse/import
+- **AC35**: Parse-only with zero indexed filings: job completes successfully, logs "0 filings processed"
+- **AC36**: Status panel on initial GET shows global counts; after submission shows scoped counts via query params
+- **AC37**: Cache status displays zip count + total size; shows "Cache: unavailable" if directory missing or unreadable
+- **AC38**: Sidebar includes "990 Parse" link
+- **AC39**: Duplicate job prevention: error message if 990-parse job already pending/running
 
 ### Infrastructure
-- **AC38**: Two new COMMAND_MAP entries: `990-index` and `990-parse`
-- **AC39**: Unmanaged Django models for FilingIndex and Person with all columns from migration 010
-- **AC40**: Models route to `pipeline` database alias via existing PipelineRouter
-- **AC41**: Currency template filter formats BIGINT as $X,XXX with null → "—"
-- **AC42**: All new views require login (LoginRequiredMixin)
-- **AC43**: Audit logging for job creation (same `_log_audit()` pattern as existing pipeline controls)
-- **AC44**: `--index-only` and `--parse-only` are mutually exclusive (argparse error if both specified)
+- **AC40**: Two new COMMAND_MAP entries: `990-index` and `990-parse`
+- **AC41**: Unmanaged Django models for FilingIndex and Person with all columns from migration 010
+- **AC42**: Models route to `pipeline` database alias via existing PipelineRouter
+- **AC43**: Currency template filter formats BIGINT as $X,XXX with null → "—"
+- **AC44**: All new views require login (LoginRequiredMixin)
+- **AC45**: Job creation endpoints are POST-only with Django CSRF protection (`{% csrf_token %}` in forms)
+- **AC46**: Audit logging for job creation (same `_log_audit()` pattern as existing pipeline controls)
+- **AC47**: `--index-only` and `--parse-only` are mutually exclusive (argparse error if both specified)
 
 ## Security Considerations
 
 - **Single-operator system**: This dashboard is used by a single operator (ronp). There is no multi-tenant access control or role-based authorization. All authenticated users have identical access. This is consistent with Spec 0019 and the project's single-operator DB architecture (see project memory).
 - **Read-only data access**: People/filing data displayed via unmanaged models with read-only database routing (`PipelineRouter` blocks writes to unmanaged models). No writes to pipeline DB from dashboard views.
-- **Job launch controls**: Duplicate prevention (one pending/running job per phase) prevents accidental repeated submissions. The existing Job queue infrastructure handles concurrency.
-- **Input validation**: EIN validated as exactly 9 digits (regex). Years validated as 4-digit integers in range [2019, current_year]. State validated against US_STATES whitelist. All validation server-side (forms.py).
+- **Job launch controls**: Duplicate prevention (one pending/running job per phase) prevents accidental repeated submissions. The existing Job queue infrastructure handles concurrency. Job creation endpoints are POST-only (Django `View` with only `post()` method, no `get()`). Standard Django CSRF protection applies (all forms include `{% csrf_token %}`, `CsrfViewMiddleware` is enabled).
+- **Input validation**: EIN validated as exactly 9 digits (regex). Years validated as 4-digit integers in range [2019, current_year], max 5 years per request. State validated against US_STATES whitelist. Limit field bounded 1-999999. All validation server-side (forms.py).
 - **Error message sanitization**: Error messages displayed in filing status are pre-sanitized by `_sanitize_error()` (no raw XML, no stack traces, 500 char max). No additional sanitization needed in dashboard.
 - **No PII exposure**: 990 data is public record (IRS publishes it via TEOS). Names and compensation are already publicly available.
 - **SQL injection**: All queries via Django ORM (unmanaged models) with parameterized queries. No string interpolation in SQL.
