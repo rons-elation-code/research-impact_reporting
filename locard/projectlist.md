@@ -474,9 +474,22 @@ projects:
     tags: [enrichment, ai, resolver, contractor, lavandula-sales]
     notes: "Follow-on to Spec 0026. Enhances contractor entries in people table with AI-researched descriptions for sales intelligence."
 
+  - id: "0029"
+    title: "Retire Legacy Classification Column"
+    summary: "Stop writing the lossy 5-value 'classification' column (derived from material_type_to_legacy mapping). Migrate all dashboard and pipeline references from 'classification' to 'material_type'/'material_group'. The classification column currently overwrites the LLM's granular material_type with a coarse bucket (e.g. financial_report → annual)."
+    status: conceived
+    priority: medium
+    files:
+      spec: locard/specs/0029-retire-legacy-classification.md
+      plan: null
+      review: null
+    dependencies: ["0025"]
+    tags: [classifier, cleanup, data-quality, dashboard]
+    notes: "Identified 2026-05-01: gemma_client.py line 229 overwrites result['classification'] with material_type_to_legacy(mt), collapsing granular labels to 5 buckets. material_type column preserves the real data. Dashboard reports page already uses material_type; crawler/classifier views still show classification. Surfaces to clean: gemma_client.py, pipeline_classify.py log line, crawler.html, classifier.html, report_detail.html, taxonomy.py _MATERIAL_TYPE_TO_LEGACY dict."
+
 ## Next Available Number
 
-**0029** - Reserve this number for your next project
+**0030** - Reserve this number for your next project
 
 ---
 
