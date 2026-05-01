@@ -36,9 +36,9 @@ A background worker that keeps 990 data current for every org in `nonprofits_see
 2. **Nightly schedule** — Runs after index refresh. The reconciliation query naturally picks up: (a) new filings added by the index refresh, (b) filings for orgs added to the seed list since the last run.
 3. **Backfill** — On first run with `--backfill`, processes all existing `nonprofits_seed` EINs that have indexed but unprocessed filings. Without `--backfill`, limits to filings with `first_indexed_at` within the last 7 days (recent index additions only).
 
-### Goal 4: Manual Controls Remain
+### Goal 4: Unified Codebase — Manual Controls Reuse New Infrastructure
 
-The dashboard 990 Index and 990 Parse forms stay available for ad-hoc use (e.g., one-off EINs not in the seed list). But for tracked orgs, the pipeline is fully automatic.
+The dashboard 990 Index and 990 Parse forms stay available for ad-hoc use (e.g., one-off EINs not in the seed list). But they are **refactored to call the same new code** — the orchestrator invokes `load_990_index --ein X` and `process_990_auto --ein X` instead of the old `teos_index.py` / `teos_download.py` EBS-based paths. One codebase, two entry points (nightly cron and dashboard button). The old EBS cache code paths (`~/.lavandula/990-cache/`, per-request CSV download) are retired after the new infrastructure is proven.
 
 ## Non-Goals
 
