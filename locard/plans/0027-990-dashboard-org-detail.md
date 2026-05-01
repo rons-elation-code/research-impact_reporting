@@ -28,7 +28,9 @@ In `main()`:
 - If `--parse-only`: skip the index loop, run only `process_filings()`
 - Neither: current behavior (both)
 
-**ACs**: 25, 34, 47
+**AC35 (parse-only with zero filings)**: `process_filings()` already handles an empty query result gracefully — it returns stats with all zeros. The CLI will log `"Done: processed=0 ..."` which satisfies "0 filings processed". No code change needed; verify with a test case that mocks an empty filing set.
+
+**ACs**: 25, 34, 35, 47
 
 ### Phase 2: COMMAND_MAP & Orchestrator
 
@@ -150,7 +152,14 @@ class Person(models.Model):
         db_table = '"lava_corpus"."people"'
 ```
 
-Verify these route through PipelineRouter in `routers.py`. The existing router checks `opts.managed == False` for unmanaged models — confirm this catches the new models and routes reads to `pipeline` DB alias.
+**Schema verification (AC41)**: The unmanaged models MUST match migration 010 exactly. The migration has columns not yet reflected above that must be added:
+
+- `FilingIndex`: add `sub_date = models.CharField(max_length=20, null=True)`, `return_ts = models.DateTimeField(null=True)`, `is_amended = models.BooleanField(default=False)`, `parsed_at = models.DateTimeField(null=True)`
+- `Person`: fix `avg_hours_per_week` to `DecimalField(max_digits=5, decimal_places=1)` (migration uses `NUMERIC(5,1)`, not `(5,2)`)
+
+The builder must diff the model field list against migration 010 before writing any views.
+
+**Router verification**: The existing `PipelineRouter` in `routers.py` uses `model._meta.managed == False` — no changes needed. Both new models have `managed = False` and will route to the `pipeline` DB alias automatically. Merge this verification into Phase 3 (not a separate phase).
 
 **ACs**: 41, 42
 
@@ -233,19 +242,23 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
         from .forms import EnrichIndexForm
         ctx["form"] = EnrichIndexForm()
 
-        # Status: global or scoped
+        # Status: global or scoped by state/ein + years
         state = self.request.GET.get("state")
+        ein = self.request.GET.get("ein")
         years_param = self.request.GET.get("years")
         qs = FilingIndex.objects.using("pipeline").all()
-        if state or years_param:
-            if state:
+        scoped = bool(state or ein or years_param)
+        if scoped:
+            if ein:
+                qs = qs.filter(ein=ein)
+            elif state:
                 qs = qs.filter(ein__in=NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
             if years_param:
                 year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
                 qs = qs.filter(filing_year__in=year_list)
         ctx["status_counts"] = qs.values("status").annotate(count=models.Count("status"))
         ctx["total_filings"] = qs.count()
-        ctx["scoped"] = bool(state or years_param)
+        ctx["scoped"] = scoped
         return ctx
 
 
@@ -265,30 +278,50 @@ class EnrichIndexJobCreateView(LoginRequiredMixin, View):
         except DuplicateJobError as e:
             messages.error(request, str(e))
 
-        # Redirect with scope params
-        redirect_url = "enrich_index"
+        # Redirect with scope params (state or ein + years)
         params = {}
-        if config.get("state"):
+        if config.get("ein"):
+            params["ein"] = config["ein"]
+        elif config.get("state"):
             params["state"] = config["state"]
         if config.get("years"):
             params["years"] = config["years"]
         if params:
             from urllib.parse import urlencode
             return redirect(f"{reverse('enrich_index')}?{urlencode(params)}")
-        return redirect(redirect_url)
+        return redirect("enrich_index")
 ```
 
-Same pattern for `EnrichParseView` / `EnrichParseJobCreateView`, adding cache status:
+Same pattern for `EnrichParseView` / `EnrichParseJobCreateView`, with these additions:
 
 ```python
 # In EnrichParseView.get_context_data():
+
+# Cache status (AC37)
 cache_dir = Path.home() / ".lavandula" / "990-cache"
 try:
     zips = list(cache_dir.glob("*.zip"))
     ctx["cache_count"] = len(zips)
     ctx["cache_size_gb"] = sum(f.stat().st_size for f in zips) / (1024 ** 3)
 except (OSError, PermissionError):
-    ctx["cache_count"] = None  # signals "unavailable" in template
+    ctx["cache_count"] = None  # signals "Cache: unavailable" in template
+
+# Scoped status + people count (AC36)
+# Same state/ein/years scoping as EnrichIndexView for filing counts.
+# People count: join Person table filtered by the same EIN set and years.
+state = self.request.GET.get("state")
+ein = self.request.GET.get("ein")
+years_param = self.request.GET.get("years")
+people_qs = Person.objects.using("pipeline").all()
+if ein:
+    people_qs = people_qs.filter(ein=ein)
+elif state:
+    people_qs = people_qs.filter(ein__in=NonprofitSeed.objects.filter(state=state).values_list("ein", flat=True))
+# Years filter on people uses the tax_period prefix (YYYY from YYYYMM)
+if years_param:
+    year_list = [str(y) for y in years_param.split(",") if y.strip().isdigit()]
+    people_qs = people_qs.filter(tax_period__regex=r"^(" + "|".join(year_list) + r")")
+ctx["people_count"] = people_qs.count()
 ```
 
 **5b. OrgDetailView enhancement**
@@ -457,19 +490,7 @@ Active link detection: match `'enrich_index'` and `'enrich_parse'` in `url_name`
 
 **ACs**: 27, 38
 
-### Phase 8: PipelineRouter Verification
-
-**File**: `lavandula/dashboard/pipeline/routers.py`
-
-Read the existing router to confirm it handles the new `FilingIndex` and `Person` models correctly. The router should:
-- Route reads to `pipeline` DB alias for unmanaged models
-- Block writes to unmanaged models
-
-If the router uses `opts.managed == False` as the check, no changes needed. If it checks model names explicitly, add the new models.
-
-**AC**: 42
-
-### Phase 9: Tests
+### Phase 8: Tests
 
 **Unit tests** (`lavandula/dashboard/pipeline/tests/`):
 
@@ -479,12 +500,19 @@ If the router uses `opts.managed == False` as the check, no changes needed. If i
 
 2. **View tests** (`test_views.py`):
    - Each new view returns 200 for authenticated user
-   - Each new view returns 302 for unauthenticated
+   - Each new view returns 302 for unauthenticated (AC44)
+   - Job create views accept only POST, reject GET with 405 (AC45)
+   - Job create views include CSRF token validation (AC45)
    - OrgDetailView returns filing context for orgs with filings
-   - OrgDetailView handles zero filings gracefully
-   - OrgDetailView handles invalid `?filing=` param (falls back to first)
+   - OrgDetailView handles zero filings gracefully — response contains "No 990 filings found" (AC14)
+   - OrgDetailView handles filings with zero people — response contains "No leadership data extracted" (AC15)
+   - OrgDetailView handles invalid `?filing=` param — `selected_filing` falls back to first (AC19)
+   - OrgDetailView with multiple filings includes `comparison` and `filing_headers` in context
+   - OrgDetailView with single filing does NOT include comparison context
+   - Filing picker default: `selected_filing` matches first in sort order when no `?filing=` param (AC4)
    - Job create views return redirect on valid POST
-   - Job create views return error on duplicate
+   - Job create views return error on duplicate (AC28, AC39)
+   - Status panel scoping: GET with `?state=NY&years=2024` returns scoped counts; GET without params returns global counts (AC26, AC36)
 
 3. **Template filter tests** (`test_template_tags.py`):
    - `currency(123456)` → `"$123,456"`
@@ -494,7 +522,8 @@ If the router uses `opts.managed == False` as the check, no changes needed. If i
 4. **CLI tests** (`lavandula/nonprofits/tests/unit/test_enrich_990.py`):
    - `--index-only` runs index loop, skips process_filings
    - `--parse-only` skips index loop, runs process_filings
-   - Both flags simultaneously → argparse error
+   - `--parse-only` with zero indexed filings: completes successfully, logs "processed=0" (AC35)
+   - Both flags simultaneously → argparse error (AC47)
    - Neither flag → both run (existing behavior)
 
 5. **Orchestrator tests** (`test_orchestrator.py`):
@@ -520,24 +549,25 @@ If the router uses `opts.managed == False` as the check, no changes needed. If i
 | `lavandula/dashboard/pipeline/templates/pipeline/org_detail.html` | Edit | 6 |
 | `lavandula/dashboard/pipeline/urls.py` | Edit | 7 |
 | `lavandula/dashboard/pipeline/templates/pipeline/base.html` | Edit | 7 |
-| `lavandula/dashboard/pipeline/routers.py` | Verify (edit if needed) | 8 |
-| `lavandula/dashboard/pipeline/tests/test_forms.py` | Edit | 9 |
-| `lavandula/dashboard/pipeline/tests/test_views.py` | Edit | 9 |
-| `lavandula/dashboard/pipeline/tests/test_template_tags.py` | Edit | 9 |
-| `lavandula/nonprofits/tests/unit/test_enrich_990.py` | Create | 9 |
-| `lavandula/dashboard/pipeline/tests/test_orchestrator.py` | Edit | 9 |
+| `lavandula/dashboard/pipeline/tests/test_forms.py` | Edit | 8 |
+| `lavandula/dashboard/pipeline/tests/test_views.py` | Edit | 8 |
+| `lavandula/dashboard/pipeline/tests/test_template_tags.py` | Edit | 8 |
+| `lavandula/nonprofits/tests/unit/test_enrich_990.py` | Create | 8 |
+| `lavandula/dashboard/pipeline/tests/test_orchestrator.py` | Edit | 8 |
 
 ## Key Decisions
 
 1. **Bake `--index-only`/`--parse-only` into COMMAND_MAP `cmd`**, not as user-selectable params. The mode is determined by which page the user submits from, not a form checkbox.
 
-2. **Keep legacy `990-enrich` COMMAND_MAP entry** so historical/in-flight jobs still render correctly in the Jobs list. No new jobs will use it.
+2. **Keep legacy `990-enrich` COMMAND_MAP entry** so historical/in-flight jobs still render correctly in the Jobs list. No new jobs will use it. A running legacy `990-enrich` job does NOT block new `990-index` or `990-parse` jobs — they are different phase strings and the duplicate check is per-phase. This is acceptable because the operator won't accidentally launch `990-enrich` from the dashboard (no UI for it), and if they run it from CLI while a dashboard job is active, the underlying pipeline has its own file-level locking.
 
 3. **Extract shared form validation** (state-or-ein, years format, year bounds) into a mixin or helper to avoid copy-paste between `EnrichIndexForm` and `EnrichParseForm`.
 
 4. **Cross-filing comparison query**: fetch all people for the EIN in one query rather than N queries per filing. Build the comparison matrix in Python. Acceptable because orgs typically have <100 people across all filings.
 
 5. **Cache status scan**: synchronous `os.listdir` + `stat` — not recursive, only counts `*.zip` in the top-level cache dir. Lightweight enough to run on every page load.
+
+6. **`person_type` has granular values**: The `_derive_person_type()` function in `irs990_parser.py` already writes specific values: `officer`, `director`, `key_employee`, `highest_compensated`, `contractor`, `listed`. The template can use `person_type` directly for badge color mapping (AC8) — no need to read boolean flags.
 
 ## Traps to Avoid
 
