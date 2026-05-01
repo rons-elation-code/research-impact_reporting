@@ -1,13 +1,16 @@
-"""TEOS index CSV downloader and filter (Spec 0026).
+"""TEOS index CSV downloader and filter (Spec 0026, updated Spec 0030).
 
 Downloads the IRS TEOS index CSV for a given year, filters to
 RETURN_TYPE='990' and matching EINs, inserts into filing_index.
+
+Supports both 9-column (2017-2023) and 10-column (2024+) CSV formats.
 """
 from __future__ import annotations
 
 import csv
 import io
 import logging
+import re
 from dataclasses import dataclass
 
 import requests
@@ -30,6 +33,10 @@ _COL_RETURN_TYPE = 6
 _COL_DLN = 7
 _COL_OBJECT_ID = 8
 _COL_XML_BATCH_ID = 9
+
+_EIN_RE = re.compile(r"^\d{9}$", re.ASCII)
+_OBJECT_ID_RE = re.compile(r"^\d+$", re.ASCII)
+_BATCH_ID_RE = re.compile(r"^\d{4}_TEOS_XML_(0[1-9]|1[0-2])[A-D]$", re.ASCII)
 
 
 @dataclass
@@ -116,7 +123,7 @@ def download_and_filter_index(
     with engine.begin() as conn:
         for row in reader:
             stats.rows_scanned += 1
-            if len(row) < 10:
+            if len(row) < 9:
                 continue
 
             return_type = row[_COL_RETURN_TYPE].strip()
@@ -127,8 +134,20 @@ def download_and_filter_index(
             if row_ein not in ein_set:
                 continue
 
-            stats.rows_matched += 1
+            if not _EIN_RE.match(row_ein):
+                continue
+
             object_id = row[_COL_OBJECT_ID].strip()
+            if not _OBJECT_ID_RE.match(object_id):
+                continue
+
+            xml_batch_id = (
+                row[_COL_XML_BATCH_ID].strip() if len(row) > 9 else None
+            )
+            if xml_batch_id and not _BATCH_ID_RE.match(xml_batch_id):
+                xml_batch_id = None
+
+            stats.rows_matched += 1
 
             result = conn.execute(_INSERT_SQL, {
                 "object_id": object_id,
@@ -137,7 +156,7 @@ def download_and_filter_index(
                 "return_type": return_type,
                 "sub_date": row[_COL_SUB_DATE].strip() or None,
                 "taxpayer_name": row[_COL_TAXPAYER_NAME].strip() or None,
-                "xml_batch_id": row[_COL_XML_BATCH_ID].strip() or None,
+                "xml_batch_id": xml_batch_id or None,
                 "filing_year": year,
                 "run_id": None,
             })

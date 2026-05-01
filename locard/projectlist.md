@@ -451,7 +451,7 @@ projects:
   - id: "0027"
     title: "990 Dashboard: Org Detail View & Pipeline Controls"
     summary: "Enhance the dashboard org detail page with 990 leadership data (officers, directors, compensation, Schedule J) and add two pipeline control forms for TEOS Index Download and 990 XML Parse/Import."
-    status: implementing
+    status: committed
     priority: high
     files:
       spec: locard/specs/0027-990-dashboard-org-detail.md
@@ -459,7 +459,7 @@ projects:
       review: null
     dependencies: ["0019", "0026"]
     tags: [dashboard, django, ui, 990, pipeline-controls]
-    notes: "Spec approved 2026-05-01 after Codex spec-review + red-team. Plan approved 2026-05-01 after Codex plan-review + red-team + Claude plan-review + red-team (0 CRITICAL, 0 HIGH). 47 ACs, 8 phases, 17 files."
+    notes: "Spec approved 2026-05-01. Plan approved 2026-05-01 after Codex + Claude plan-review + red-team. PR #23 merged 2026-05-01 after 2 integration review rounds (Codex + Claude). 47 ACs, 19 files, 74 tests. Awaiting operator: Django migration + live validation."
 
   - id: "0028"
     title: "Contractor Intelligence Resolver"
@@ -487,9 +487,22 @@ projects:
     tags: [classifier, cleanup, data-quality, dashboard]
     notes: "Identified 2026-05-01: gemma_client.py line 229 overwrites result['classification'] with material_type_to_legacy(mt), collapsing granular labels to 5 buckets. material_type column preserves the real data. Dashboard reports page already uses material_type; crawler/classifier views still show classification. Surfaces to clean: gemma_client.py, pipeline_classify.py log line, crawler.html, classifier.html, report_detail.html, taxonomy.py _MATERIAL_TYPE_TO_LEGACY dict."
 
+  - id: "0030"
+    title: "990 Filing Index Automation & S3 Archive"
+    summary: "Bulk-load the complete IRS TEOS 990 index (2017-2026, ~2.6M rows), store batch zips and per-org XMLs in S3 instead of EBS, and automatically maintain 990 data for all orgs in nonprofits_seed via nightly refresh and auto-process worker."
+    status: implementing
+    priority: high
+    files:
+      spec: locard/specs/0030-990-index-automation.md
+      plan: locard/plans/0030-990-index-automation.md
+      review: null
+    dependencies: ["0026", "0027"]
+    tags: [990, infrastructure, s3, automation, pipeline]
+    notes: "Spec approved 2026-05-01 after 4 review rounds (Codex spec + red-team, Claude spec + red-team). Plan approved 2026-05-01 after 4 review rounds (Codex plan + red-team, Claude plan + red-team). 32 ACs, 8 phases. S3 bucket: lavandula-990-corpus. Unified codebase — manual controls reuse new infrastructure. Builder spawned 2026-05-01."
+
 ## Next Available Number
 
-**0030** - Reserve this number for your next project
+**0031** - Reserve this number for your next project
 
 ---
 

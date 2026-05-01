@@ -26,7 +26,7 @@ TEOS_ZIP_URL = (
 )
 
 _MAX_MEMBER_SIZE = 50 * 1024 * 1024  # 50 MB
-_MEMBER_NAME_RE = re.compile(r"^[\w]+/\d+_public\.xml$")
+_MEMBER_NAME_RE = re.compile(r"^([\w]+/)?\d+_public\.xml$")
 _MAX_RETRIES = 3
 _RETRY_DELAYS = [2, 4, 8]
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
@@ -354,18 +354,25 @@ def _process_single_filing(
     stats: ProcessStats,
 ) -> None:
     object_id = filing["object_id"]
-    member_name = f"{xml_batch_id}/{object_id}_public.xml"
+    # IRS zips use nested paths (2024: {batch}/{oid}_public.xml) or flat (2025: {oid}_public.xml)
+    nested_name = f"{xml_batch_id}/{object_id}_public.xml"
+    flat_name = f"{object_id}_public.xml"
 
     try:
-        info = zf.getinfo(member_name)
+        info = zf.getinfo(nested_name)
+        member_name = nested_name
     except KeyError:
-        log.error("Member %s not found in zip", member_name)
-        _mark_filing_error(
-            engine, object_id,
-            f"Missing member {member_name} in zip", run_id,
-        )
-        stats.filings_error += 1
-        return
+        try:
+            info = zf.getinfo(flat_name)
+            member_name = flat_name
+        except KeyError:
+            log.error("Member %s not found in zip (tried nested and flat)", object_id)
+            _mark_filing_error(
+                engine, object_id,
+                f"Missing member {object_id}_public.xml in zip", run_id,
+            )
+            stats.filings_error += 1
+            return
 
     if not _MEMBER_NAME_RE.match(info.filename):
         _mark_filing_error(

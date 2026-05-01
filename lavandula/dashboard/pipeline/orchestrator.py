@@ -73,32 +73,28 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "re_classify_definition": {"type": "text", "pattern": r"^[a-z][a-z0-9_]*:v\d+$", "flag": "--re-classify-definition"},
         },
     },
-    # Legacy: kept for historical job display only. No dashboard UI creates 990-enrich jobs.
+    # Deprecated: enrich_990 now delegates to load_990_index + process_990_auto.
+    # Kept for historical job display only. No dashboard UI creates 990-enrich jobs.
     "990-enrich": {
         "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990"],
         "params": {
-            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
-            "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
-            "limit": {"type": "int", "min": 1, "max": 999999, "flag": "--limit"},
+            "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
         },
     },
     "990-index": {
-        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990", "--index-only"],
+        "cmd": ["python3", "lavandula/dashboard/manage.py", "load_990_index"],
         "params": {
-            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
             "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
             "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
+            "current_year": {"type": "bool", "flag": "--current-year"},
         },
     },
     "990-parse": {
-        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.enrich_990", "--parse-only"],
+        "cmd": ["python3", "lavandula/dashboard/manage.py", "process_990_auto"],
         "params": {
-            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
             "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
-            "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
-            "limit": {"type": "int", "min": 1, "max": 999999, "flag": "--limit"},
-            "skip_download": {"type": "bool", "flag": "--skip-download"},
             "reparse": {"type": "bool", "flag": "--reparse"},
+            "backfill": {"type": "bool", "flag": "--backfill"},
         },
     },
 }

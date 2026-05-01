@@ -56,6 +56,15 @@ class CrawledOrg(models.Model):
 
 
 class FilingIndex(models.Model):
+    STATUS_CHOICES = [
+        ("indexed", "Indexed"),
+        ("downloaded", "Downloaded"),
+        ("parsed", "Parsed"),
+        ("error", "Error"),
+        ("batch_unresolvable", "Batch Unresolvable"),
+        ("skipped", "Skipped"),
+    ]
+
     object_id = models.CharField(primary_key=True, max_length=30)
     ein = models.CharField(max_length=9)
     tax_period = models.CharField(max_length=6)
@@ -66,10 +75,14 @@ class FilingIndex(models.Model):
     taxpayer_name = models.TextField(null=True)
     xml_batch_id = models.CharField(max_length=30, null=True)
     filing_year = models.IntegerField()
-    status = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     error_message = models.TextField(null=True)
     parsed_at = models.DateTimeField(null=True)
     run_id = models.CharField(max_length=50, null=True)
+    first_indexed_at = models.DateTimeField(null=True)
+    last_seen_at = models.DateTimeField(null=True)
+    s3_xml_key = models.TextField(null=True)
+    zip_checksum = models.TextField(null=True)
 
     class Meta:
         managed = False
@@ -77,6 +90,22 @@ class FilingIndex(models.Model):
 
     def __str__(self):
         return f"{self.object_id} ({self.ein} {self.tax_period})"
+
+
+class IndexRefreshLog(models.Model):
+    filing_year = models.IntegerField()
+    refreshed_at = models.DateTimeField()
+    rows_scanned = models.IntegerField(default=0)
+    rows_inserted = models.IntegerField(default=0)
+    rows_skipped = models.IntegerField(default=0)
+    duration_sec = models.DecimalField(max_digits=8, decimal_places=2, null=True)
+
+    class Meta:
+        managed = False
+        db_table = "index_refresh_log"
+
+    def __str__(self):
+        return f"Refresh {self.filing_year} @ {self.refreshed_at}"
 
 
 class Person(models.Model):

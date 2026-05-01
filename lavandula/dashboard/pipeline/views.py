@@ -2,6 +2,7 @@ import socket
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import models
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
@@ -23,6 +24,7 @@ class HtmxLoginRequiredMixin(LoginRequiredMixin):
 from .models import (
     CrawledOrg,
     FilingIndex,
+    IndexRefreshLog,
     Job,
     NonprofitSeed,
     Person,
@@ -559,37 +561,6 @@ class OrgDetailView(LoginRequiredMixin, DetailView):
 # 990 Pipeline Controls
 # ---------------------------------------------------------------------------
 
-def _build_990_status_qs(request, form_cls):
-    """Build scoped filing_index queryset from GET params, validated via form."""
-    scope_form = form_cls(request.GET)
-    if scope_form.is_valid():
-        state = scope_form.cleaned_data.get("state") or None
-        ein = scope_form.cleaned_data.get("ein") or None
-        years_param = scope_form.cleaned_data.get("years") or None
-    else:
-        state = ein = years_param = None
-
-    qs = FilingIndex.objects.using("pipeline").all()
-    scoped = bool(state or ein or years_param)
-    scope_truncated = False
-
-    if scoped:
-        if ein:
-            qs = qs.filter(ein=ein)
-        elif state:
-            ein_list = list(
-                NonprofitSeed.objects.filter(state=state)
-                .values_list("ein", flat=True)[:10000]
-            )
-            if len(ein_list) >= 10000:
-                scope_truncated = True
-            qs = qs.filter(ein__in=ein_list)
-        if years_param:
-            year_list = [int(y) for y in years_param.split(",") if y.strip().isdigit()]
-            qs = qs.filter(filing_year__in=year_list)
-
-    return qs, scoped, scope_truncated
-
 
 class EnrichIndexView(LoginRequiredMixin, TemplateView):
     template_name = "pipeline/990_index.html"
@@ -601,11 +572,30 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
         from .forms import EnrichIndexForm
         ctx["form"] = EnrichIndexForm()
 
-        qs, scoped, scope_truncated = _build_990_status_qs(self.request, EnrichIndexForm)
+        qs = FilingIndex.objects.using("pipeline").all()
+        ein = self.request.GET.get("ein")
+        if ein:
+            qs = qs.filter(ein=ein)
         ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
         ctx["total_filings"] = qs.count()
-        ctx["scoped"] = scoped
-        ctx["scope_truncated"] = scope_truncated
+
+        try:
+            last_refresh = IndexRefreshLog.objects.using("pipeline").order_by(
+                "-refreshed_at"
+            ).first()
+            ctx["last_refresh"] = last_refresh
+        except Exception:
+            ctx["last_refresh"] = None
+
+        ctx["refresh_by_year"] = list(
+            IndexRefreshLog.objects.using("pipeline")
+            .values("filing_year")
+            .annotate(
+                last_refresh=models.Max("refreshed_at"),
+                total_inserted=models.Sum("rows_inserted"),
+            )
+            .order_by("-filing_year")
+        )
         return ctx
 
 
@@ -628,10 +618,6 @@ class EnrichIndexJobCreateView(LoginRequiredMixin, View):
         params = {}
         if config.get("ein"):
             params["ein"] = config["ein"]
-        elif config.get("state"):
-            params["state"] = config["state"]
-        if config.get("years"):
-            params["years"] = config["years"]
         if params:
             from urllib.parse import urlencode
             return redirect(f"{reverse('enrich_index')}?{urlencode(params)}")
@@ -642,57 +628,23 @@ class EnrichParseView(LoginRequiredMixin, TemplateView):
     template_name = "pipeline/990_parse.html"
 
     def get_context_data(self, **kwargs):
-        from pathlib import Path
-
         ctx = super().get_context_data(**kwargs)
         ctx["running_job"] = Job.objects.filter(phase="990-parse", status="running").first()
         ctx["pending_job"] = Job.objects.filter(phase="990-parse", status="pending").first()
         from .forms import EnrichParseForm
         ctx["form"] = EnrichParseForm()
 
-        qs, scoped, scope_truncated = _build_990_status_qs(self.request, EnrichParseForm)
+        qs = FilingIndex.objects.using("pipeline").all()
+        ein = self.request.GET.get("ein")
+        if ein:
+            qs = qs.filter(ein=ein)
         ctx["status_counts"] = list(qs.values("status").annotate(count=Count("status")))
         ctx["total_filings"] = qs.count()
-        ctx["scoped"] = scoped
-        ctx["scope_truncated"] = scope_truncated
 
-        # People count (scoped same way)
         people_qs = Person.objects.using("pipeline").all()
-        scope_form = EnrichParseForm(self.request.GET)
-        if scope_form.is_valid():
-            ein = scope_form.cleaned_data.get("ein") or None
-            state = scope_form.cleaned_data.get("state") or None
-            years_param = scope_form.cleaned_data.get("years") or None
-        else:
-            ein = state = years_param = None
-
         if ein:
             people_qs = people_qs.filter(ein=ein)
-        elif state:
-            ein_list = list(
-                NonprofitSeed.objects.filter(state=state)
-                .values_list("ein", flat=True)[:10000]
-            )
-            if len(ein_list) >= 10000:
-                ctx["scope_truncated"] = True
-            people_qs = people_qs.filter(ein__in=ein_list)
-        if years_param:
-            year_list = [y.strip() for y in years_param.split(",") if y.strip().isdigit()]
-            year_q = Q()
-            for y in year_list:
-                year_q |= Q(tax_period__startswith=y)
-            if year_q:
-                people_qs = people_qs.filter(year_q)
         ctx["people_count"] = people_qs.count()
-
-        # Cache status
-        cache_dir = Path.home() / ".lavandula" / "990-cache"
-        try:
-            zips = list(cache_dir.glob("*.zip"))
-            ctx["cache_count"] = len(zips)
-            ctx["cache_size_gb"] = sum(f.stat().st_size for f in zips) / (1024 ** 3)
-        except (OSError, PermissionError):
-            ctx["cache_count"] = None
 
         return ctx
 
@@ -716,10 +668,6 @@ class EnrichParseJobCreateView(LoginRequiredMixin, View):
         params = {}
         if config.get("ein"):
             params["ein"] = config["ein"]
-        elif config.get("state"):
-            params["state"] = config["state"]
-        if config.get("years"):
-            params["years"] = config["years"]
         if params:
             from urllib.parse import urlencode
             return redirect(f"{reverse('enrich_parse')}?{urlencode(params)}")

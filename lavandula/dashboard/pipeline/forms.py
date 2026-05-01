@@ -182,40 +182,34 @@ class ClassifierForm(forms.Form):
 
 
 def _clean_990_common(cleaned_data):
-    """Shared validation for 990 index/parse forms: state-or-ein + years."""
-    if not cleaned_data.get("state") and not cleaned_data.get("ein"):
-        raise forms.ValidationError("State or EIN is required.")
+    """Shared validation for 990 index/parse forms."""
     ein = cleaned_data.get("ein")
     if ein and not re.match(r"^\d{9}$", ein):
         raise forms.ValidationError("EIN must be exactly 9 digits.")
     years_str = cleaned_data.get("years", "")
-    if not re.match(r"^\d{4}(\s*,\s*\d{4})*$", years_str):
-        raise forms.ValidationError("Years must be comma-separated 4-digit years.")
-    year_list = [int(y.strip()) for y in years_str.split(",")]
-    current_year = datetime.date.today().year
-    for y in year_list:
-        if y < 2019 or y > current_year:
-            raise forms.ValidationError(
-                f"Year {y} outside valid range [2019, {current_year}]."
-            )
-    if len(year_list) > 5:
-        raise forms.ValidationError("Maximum 5 years per request.")
+    if years_str:
+        if not re.match(r"^\d{4}(\s*,\s*\d{4})*$", years_str):
+            raise forms.ValidationError("Years must be comma-separated 4-digit years.")
+        year_list = [int(y.strip()) for y in years_str.split(",")]
+        current_year = datetime.date.today().year
+        for y in year_list:
+            if y < 2017 or y > current_year:
+                raise forms.ValidationError(
+                    f"Year {y} outside valid range [2017, {current_year}]."
+                )
+        if len(year_list) > 10:
+            raise forms.ValidationError("Maximum 10 years per request.")
     return cleaned_data
 
 
 class EnrichIndexForm(forms.Form):
-    state = forms.ChoiceField(
-        choices=[("", "—")] + STATE_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={"class": _SELECT}),
-    )
     ein = forms.CharField(
         max_length=9, required=False,
-        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "123456789"}),
+        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "EIN (optional)"}),
     )
     years = forms.CharField(
-        initial=str(datetime.date.today().year),
-        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "2023,2024"}),
+        required=False,
+        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "2024,2025 (optional)"}),
     )
 
     def clean(self):
@@ -223,25 +217,12 @@ class EnrichIndexForm(forms.Form):
 
 
 class EnrichParseForm(forms.Form):
-    state = forms.ChoiceField(
-        choices=[("", "—")] + STATE_CHOICES,
-        required=False,
-        widget=forms.Select(attrs={"class": _SELECT}),
-    )
     ein = forms.CharField(
         max_length=9, required=False,
-        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "123456789"}),
+        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "EIN (optional)"}),
     )
-    years = forms.CharField(
-        initial=str(datetime.date.today().year),
-        widget=forms.TextInput(attrs={"class": _SELECT, "placeholder": "2023,2024"}),
-    )
-    limit = forms.IntegerField(
-        required=False, min_value=1, max_value=999999,
-        widget=forms.NumberInput(attrs={"class": _SELECT, "placeholder": "Optional"}),
-    )
-    skip_download = forms.BooleanField(required=False, label="Skip Download (cached only)")
     reparse = forms.BooleanField(required=False, label="Reparse errors")
+    backfill = forms.BooleanField(required=False, label="Backfill (all unprocessed)")
 
     def clean(self):
         return _clean_990_common(super().clean())
