@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
     rows_skipped    INTEGER NOT NULL DEFAULT 0,
     duration_sec    NUMERIC(8,2)
 );
+
+CREATE TABLE IF NOT EXISTS lava_corpus.filing_status_audit (
+    id              SERIAL PRIMARY KEY,
+    filing_id       INTEGER NOT NULL,
+    old_status      TEXT NOT NULL,
+    new_status      TEXT NOT NULL,
+    reset_by        TEXT NOT NULL,
+    reset_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    command_args    TEXT
+);
 ```
 
 **teos_index.py changes:**
@@ -92,16 +102,17 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
 - Arguments: `--years` (comma-separated), `--current-year` (flag), `--ein` (single EIN for ad-hoc — still downloads and streams the full CSV, but only inserts/updates rows matching this EIN; this preserves the bulk-load architecture while allowing targeted refreshes from the dashboard)
 - Default years: 2017 through current year (detect available years by probing HEAD on index URL)
 - For each year:
-  1. Download CSV via `requests.get()` with streaming, byte counter capped at 200 MB
-  2. Verify hostname is `apps.irs.gov` (reject redirects to other hosts)
+  1. Download CSV via `requests.get(url, stream=True, allow_redirects=False)` with byte counter capped at 200 MB. If response is 3xx, extract Location header, validate `urlparse(location).hostname == "apps.irs.gov"` and `urlparse(location).scheme == "https"`, then re-issue. Block link-local/private IPs via socket-level check (resolve DNS, reject `ipaddress.ip_address(resolved).is_private`). This prevents SSRF via redirects to instance metadata or internal endpoints.
+  2. All IRS URL construction uses a hardcoded template — never interpolate user/CSV-derived values into the hostname or path prefix
   3. Parse with `csv.reader`, detect column count from header row
-  4. For each `RETURN_TYPE == '990'` row, validate fields (EIN, OBJECT_ID, XML_BATCH_ID patterns)
+  4. For each `RETURN_TYPE == '990'` row, validate fields with `re.ASCII` flag: EIN `^\d{9}$`, OBJECT_ID `^\d+$`, XML_BATCH_ID `^\d{4}_TEOS_XML_(0[1-9]|1[0-2])[A-D]$` (exact IRS pattern: year + month 01-12 + sub-batch A-D)
   5. Bulk insert via `ON CONFLICT (object_id) DO UPDATE SET last_seen_at = now()`
   6. Record stats in `index_refresh_log`
 - Concurrency: acquire session-level `pg_advisory_lock(hashtext('990-family'))` at command start, release at command end. Session-level (not transaction-scoped) because the command uses multiple transactions for batch inserts — a transaction-scoped lock would release between batches and fail to serialize against concurrent runs.
 
 **Key design decisions:**
 - Use SQLAlchemy engine (same as `teos_index.py`) for bulk inserts, not Django ORM — batch performance matters for 2.6M rows
+- **All SQL MUST use parameterized queries** (`:param` placeholders with bound values). String interpolation (`f"INSERT ... {value}"`) is forbidden for any CSV/XML-derived data. This applies across all phases — reviewers MUST grep for f-string SQL patterns in PR review.
 - Stream CSV parsing — don't buffer entire 90 MB file in memory
 - The existing `download_and_filter_index()` in `teos_index.py` is NOT reused — it filters by EIN set, which we don't want for bulk load. New code path.
 
@@ -129,7 +140,7 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
 2. If Range supported:
    - For each year 2017–2023, enumerate batch zips (`{year}_TEOS_XML_{01A..12A}`, plus B/C/D sub-batches)
    - For each batch zip, fetch the zip central directory via Range requests:
-     a. GET last 64 KB to find EOCD (handle Zip64 EOCD locator if present)
+     a. GET last 64 KB to find EOCD (handle Zip64 EOCD locator if present). Assert `response.status_code == 206` AND `Content-Length <= 65536`; if server returns 200 (full body), abort — don't stream a 2.5 GB response into memory.
      b. Parse central directory to get member filename list
      c. Extract `object_id` from each `{oid}_public.xml` member name
    - Bulk UPDATE `filing_index SET xml_batch_id = :batch_id WHERE object_id IN (:oids) AND xml_batch_id IS NULL`
@@ -159,7 +170,9 @@ CREATE TABLE IF NOT EXISTS lava_corpus.index_refresh_log (
 - Create bucket `lavandula-990-corpus` via AWS console or CLI
 - Settings: us-east-1, SSE-S3, versioning enabled, all four BlockPublicAccess enabled, ACLs disabled
 - Lifecycle rule: `zips/` prefix → Standard-IA after 30 days
-- IAM: add `s3:GetObject`, `s3:PutObject`, `s3:ListBucket`, `s3:HeadObject` for `arn:aws:s3:::lavandula-990-corpus*` to `cloud2_lavandulagroup` role policy
+- IAM: add to `cloud2_lavandulagroup` role policy using two ARNs (not trailing wildcard on bucket name):
+    - `arn:aws:s3:::lavandula-990-corpus` — for `s3:ListBucket`
+    - `arn:aws:s3:::lavandula-990-corpus/*` — for `s3:GetObject`, `s3:PutObject`, `s3:HeadObject`
 
 **Files to create:**
 - `lavandula/nonprofits/s3_990.py` — S3 client for 990 corpus bucket
@@ -197,7 +210,7 @@ class S3990Archive:
 **Integrity storage:**
 - Multipart-upload ETags are NOT plain MD5 — they include a part suffix (e.g., `"abc123-5"`). Don't treat them as content checksums. Instead, use **S3 `ChecksumSHA256`**: pass `ChecksumAlgorithm='SHA256'` on `put_object`/`create_multipart_upload`, and S3 computes + stores a SHA-256 checksum. Store this in `filing_index.zip_checksum TEXT` (rename from `zip_checksum`).
 - Before reusing a cached zip, call `verify_zip_integrity()` which does a HEAD request and compares the stored `ChecksumSHA256` value. On mismatch, re-download from IRS.
-- Flow: `upload_zip()` returns `ChecksumSHA256` → store in DB → `verify_zip_integrity()` reads DB + HEAD → compare
+- Flow: `upload_zip()` returns `ChecksumSHA256` → store in DB → `verify_zip_integrity()` reads DB + HEAD → compare. If `upload_zip()` returns no checksum (e.g., network issue in response parsing), raise immediately — never store NULL. Column should be `NOT NULL` with no default.
 
 **Large zip handling:**
 - Zips up to 500 MB: hold in `BytesIO` (memory)
@@ -229,7 +242,7 @@ class S3990Archive:
 - `lavandula/nonprofits/teos_download.py` — refactor `_process_single_filing()` to accept XML bytes from S3 instead of local zip. Extract the parsing logic into a reusable function.
 
 **Implementation:**
-1. Acquire session-level advisory lock (`pg_advisory_lock(hashtext('990-family'))`) — session-level for the same reason as Phase 2: the command spans multiple transactions.
+1. Acquire session-level advisory lock: set `lock_timeout = '1h'` on the session, then `pg_advisory_lock(hashtext('990-family'))`. If lock acquisition times out (another job holding for >1h), log clearly and exit with non-zero so systemd reports a known failure. Session-level for the same reason as Phase 2: the command spans multiple transactions.
 2. Query filings to process (two passes):
    - **Pass 1 — Download**: `status = 'indexed' AND xml_batch_id IS NOT NULL` (need zip download + extraction)
    - **Pass 2 — Parse**: `status = 'downloaded'` (already extracted to S3, need parsing — catches prior failures)
@@ -239,23 +252,23 @@ class S3990Archive:
    - `--ein X`: additional `AND ein = :ein`
 3. Group results by `(filing_year, xml_batch_id)`
 4. For each batch group:
-   a. Check S3 for cached zip → if missing, download from IRS to S3 (validate hostname, TLS, size cap 5 GB, ETag integrity)
+   a. Check S3 for cached zip → if missing, download from IRS to S3 (`allow_redirects=False`, validate hostname + scheme on any redirect, block private IPs, TLS, size cap 5 GB, ChecksumSHA256 integrity)
    b. Open zip from S3 (via `SpooledTemporaryFile` for large zips). Pre-validate:
       - Check member count (`len(zf.namelist()) <= 200_000`)
       - Track cumulative extracted bytes (cap at 10 GB per batch)
       Iterate over target filings in the group:
-      - Validate member name against `_MEMBER_NAME_RE`
-      - Check compression ratio: `info.file_size / max(info.compress_size, 1) <= 100`
-      - Check file size: `info.file_size <= _MAX_MEMBER_SIZE` (50 MB)
+      - Validate member name against `_MEMBER_NAME_RE = re.compile(r'^([\w]+/)?\d+_public\.xml$', re.ASCII)` — anchored, ASCII-only, allows optional single directory prefix (for 2024 nested format). Rejects path traversal (`../`), absolute paths (`/`), null bytes, and Unicode tricks. Never call `zf.extract()` (writes to filesystem); only use `zf.read()` or `zf.open()` (reads into memory).
+      - Pre-check header ratio: `info.file_size / max(info.compress_size, 1) <= 100` (first pass — header values are attacker-controlled, so this is a fast reject, not a trust boundary)
+      - Stream extraction via `zf.open(member)`, reading in chunks, tracking actual `bytes_read`. Abort if `bytes_read > _MAX_MEMBER_SIZE` (50 MB) OR if `bytes_read / actual_compressed_consumed > 100`. This is the real bomb defense — it tracks actual decompressed bytes, not just header claims.
       - Extract XML bytes into memory
       - Upload to `s3://lavandula-990-corpus/xml/{ein}/{object_id}.xml`
       - Update `filing_index.status = 'downloaded'`, set `s3_xml_key`
    c. Parse each downloaded filing:
       - Read XML from S3 (or use in-memory bytes from step b if still available)
       - Parse with `defusedxml.ElementTree.fromstring()` which defends against XXE, entity expansion (billion-laughs), and quadratic blowup out of the box. For the 30-second timeout: isolate XML parsing in a `concurrent.futures.ProcessPoolExecutor` worker with `timeout=30`. This avoids `signal.alarm` pitfalls (main-thread-only, Unix-specific, interferes with surrounding code). If the subprocess times out, `TimeoutError` is caught, the worker is killed, and the filing is marked `error` with `XML_PARSE_TIMEOUT`.
-      - Extract people/compensation → insert into `people` table with `ON CONFLICT DO NOTHING`
+      - Extract people/compensation → normalize `person_name` to NFC (`unicodedata.normalize('NFC', name.strip())`) before insert → insert into `people` table with `ON CONFLICT DO NOTHING`
       - Update `filing_index.status = 'parsed'`
-   d. On error: mark filing as `error` with structured error code, continue to next filing
+   d. On error: call `record_filing_error(filing_id, ErrorCode.XXX, public_detail="...")` — a centralized helper that writes structured error codes (enum: `ZIP_MEMBER_MISSING`, `XML_PARSE_FAILED`, `XML_PARSE_TIMEOUT`, `S3_UPLOAD_FAILED`, `ZIP_BOMB_DETECTED`, etc.) to `error_message`. The helper MUST sanitize `public_detail` to strip hostnames, paths, connection strings, and stack traces. Continue to next filing.
 5. Log summary: filings processed, parsed, errored, skipped
 
 **Retry logic:**
@@ -295,9 +308,11 @@ python3 manage.py reset_990_status --ein 030440761          # all filings for EI
 python3 manage.py reset_990_status --object-id 20242319...  # specific filing
 python3 manage.py reset_990_status --status error           # all errored filings
 ```
-- **Allowed source states:** `error`, `downloaded`, `parsed`, `batch_unresolvable`. Refuses to reset `indexed` filings (already at target state).
+- **Allowed source states:** `error`, `downloaded`, `parsed`. Refuses to reset `indexed` filings (already at target state) and `batch_unresolvable` (terminal state by design — if an operator truly needs to un-resolve, they should re-run batch resolution instead).
 - Resets `status` to `indexed`, clears `error_message`, clears `s3_xml_key`
 - **S3 cleanup:** Does NOT delete cached XML from S3. The XML may be valid; the re-process step will re-upload (S3 PUT is idempotent) or reuse the existing object. Deleting would force unnecessary re-extraction from batch zips.
+- **Blast radius control:** Requires `--max-rows N` for bulk operations (`--status error`). Abort with clear message if matched rows exceed N. Single-EIN and single-object-id operations are exempt.
+- **Audit logging:** Every reset logged to `filing_status_audit` table: `(filing_id, old_status, new_status, reset_by, reset_at, command_args)`. `reset_by = os.environ.get('SUDO_USER', pwd.getpwuid(os.getuid()).pw_name)`.
 - Requires confirmation prompt showing affected filing count unless `--yes` flag passed
 
 **Systemd timer:**
@@ -361,7 +376,6 @@ SyslogIdentifier=990-nightly
 "990-index": {
     "cmd": ["python3", "manage.py", "load_990_index"],
     "params": {
-        "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
         "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
         "years": {"type": "text", "pattern": r"^\d{4}(\s*,\s*\d{4})*$", "flag": "--years"},
     },
