@@ -95,29 +95,32 @@ class SearchConfig:
     count: int            # results per engine query (default 10)
 ```
 
-#### Single-engine mode (default)
+#### Public API: `search()`
+
+One public function handles both single and multi-engine modes. No separate `search_multi()`.
 
 ```python
 def search(query: str, *, config: SearchConfig, rate_limiter: RateLimiter) -> list[SearchResult]:
-    """Query one engine, return results."""
+    """Query configured engine(s) and return results.
+    
+    Single engine (len(config.engines) == 1): one Serpex API call.
+    Multi engine (len(config.engines) > 1): sequential calls, merge+dedupe.
+    """
 ```
 
 Calls Serpex API: `GET https://api.serpex.dev/api/search?q={query}&engine={engine}&category=web`
 
-#### Multi-engine mode
-
-```python
-def search_multi(query: str, *, config: SearchConfig, rate_limiter: RateLimiter) -> list[SearchResult]:
-    """Query multiple engines sequentially, merge and dedupe results."""
-```
+Internally, multi-engine dispatch is a private `_merge_results()` helper — not a separate public function.
 
 When `config.engines` has >1 entry:
 1. Query each engine sequentially (respecting rate limiter between calls)
 2. Merge results into a single list
-3. Dedupe by normalized URL (same logic as experiment: strip www, lowercase, strip trailing slash)
+3. Dedupe by normalized URL (see URL Normalization below)
 4. Ordering: results that appear in multiple engines rank first (sorted by best rank across engines), then single-engine results by their original rank
 
-#### Blocklist + filter (same interface as brave_search.py)
+#### Blocklist + filter: `search_and_filter()`
+
+**Ownership model**: `web_search.py` owns the full search-and-filter flow. It imports `is_blocked()` from `brave_search.py` (the single source of truth for domain filtering) and applies it internally. `pipeline_resolver.py` no longer calls `is_blocked()` directly — Stage 2 moves into `search_and_filter()`.
 
 ```python
 def search_and_filter(
@@ -128,31 +131,27 @@ def search_and_filter(
     """Build query, search (single or multi), filter blocklist, return top N."""
 ```
 
-Uses the existing `is_blocked()` from `brave_search.py` — no changes to blocklist logic.
+This means `pipeline_resolver.py` replaces Stage 1 + Stage 2 with a single `search_and_filter()` call. Stages 3-6 remain untouched.
 
 ### Changes to Existing Modules
 
-#### `pipeline_resolver.py` — Minimal changes
+#### `pipeline_resolver.py` — Stages 1+2 collapse into one call
 
 Replace:
 ```python
-from .brave_search import search, BraveSearchError, BraveRateLimiter
+from .brave_search import search, BraveSearchError, BraveRateLimiter, is_blocked
 ```
 With:
 ```python
-from .web_search import search, SearchError, RateLimiter, SearchConfig
+from .web_search import search_and_filter, SearchError, RateLimiter, SearchConfig
 ```
 
-The `producer()` function's Stage 1 changes from:
+The `producer()` function's Stage 1 + Stage 2 collapse from ~30 lines into:
 ```python
-raw_results = search(query, api_key=api_key, count=20, rate_limiter=rate_limiter)
-```
-To:
-```python
-raw_results = search(query, config=search_config, rate_limiter=rate_limiter)
+results = search_and_filter(name, city, state, config=search_config, rate_limiter=rate_limiter, max_results=3)
 ```
 
-Stage 2 (blocklist filtering) is unchanged — `is_blocked()` stays in `brave_search.py` and operates on URLs.
+`search_and_filter()` handles query construction, search dispatch (single or multi-engine), blocklist filtering, and returns the final filtered list. Stages 3-6 remain identical.
 
 #### `pipeline_resolve.py` (CLI entry point) — New flags
 
@@ -177,7 +176,16 @@ Env override: `LAVANDULA_SECRET_SERPEX_API_KEY`
 
 #### Dashboard `pipeline/forms.py` and `views.py`
 
-The resolver form gains a search engine dropdown (or multi-select) so the operator can choose engines from the dashboard UI. This is a cosmetic addition to the existing resolver controls form.
+The resolver form gains a **search engine preset dropdown**:
+
+| Value | Label | Engines passed to CLI |
+|-------|-------|-----------------------|
+| `brave` | Brave (default) | `--search-engines brave` |
+| `google` | Google | `--search-engines google` |
+| `brave_google` | Brave + Google | `--search-engines brave,google` |
+| `auto` | Auto (Serpex routing) | `--search-engines auto` |
+
+Default selection: `brave`. The dropdown replaces no existing field — it's a new addition to the resolver controls form alongside the existing LLM model selector. The view passes the selected value as the `--search-engines` flag when spawning the pipeline subprocess.
 
 ### Serpex API Integration
 
@@ -205,21 +213,52 @@ The resolver form gains a search engine dropdown (or multi-select) so the operat
 
 **Error handling**: Same retry logic as current Brave client (429/5xx → exponential backoff with 3 retries). Serpex-specific: 402 Payment Required → log credit exhaustion, fail the query (do not retry).
 
+### URL Normalization for Dedup
+
+Used only for merge deduplication — the original URL is preserved on the `SearchResult` object.
+
+```
+normalize(url):
+  1. Parse with urllib.parse.urlsplit
+  2. Lowercase scheme and hostname
+  3. Strip "www." prefix from hostname
+  4. Strip trailing "/" from path
+  5. Remove default ports (:80 for http, :443 for https)
+  6. Strip fragment (#...) entirely
+  7. Preserve query string as-is (different query params = different pages)
+  8. Preserve path as-is (case-sensitive — /About != /about on many servers)
+  9. Normalize scheme to https (http://example.com == https://example.com for dedup)
+  10. Return: "{hostname}{path}?{query}" (no scheme, no fragment)
+```
+
+This is intentionally conservative: it merges obvious duplicates (www vs non-www, http vs https, trailing slash) without collapsing pages that are genuinely different.
+
+### Engine Validation Rules
+
+**Valid engines**: `brave`, `google`, `bing`, `auto`
+
+- `auto` **cannot** be combined with other engines (it is Serpex's own routing — combining defeats the purpose)
+- Duplicate engine names are silently deduplicated: `--search-engines brave,brave` → `["brave"]`
+- Unknown engine names fail at CLI parse time with a clear error listing valid values
+- `--search-backend brave-direct` ignores `--search-engines` entirely (Brave direct has no engine concept)
+- Dashboard UI: dropdown with values `brave`, `google`, `bing`, `brave+google` (presets, not free-form). Default: `brave`.
+
 ### Multi-Engine Merge Algorithm
 
 ```
 Input: results_by_engine = {engine: [SearchResult, ...]}
 
-1. Normalize each URL: lowercase, strip www., strip trailing /
+1. Normalize each URL per the normalization rules above
 2. Build url_map: normalized_url → {engines: set, best_rank: int, result: SearchResult}
-3. For each engine's results (in order):
+3. For each engine's results (in order of config.engines, then by rank within engine):
    - If URL already in url_map, add engine to set, update best_rank = min(current, rank)
-   - Else, add new entry
+   - Else, add new entry with engine set = {engine}, best_rank = rank
 4. Sort by: (-len(engines), best_rank)  # multi-engine hits first, then by rank
-5. Return sorted results
+5. Tie-breaker for equal engine-count and equal rank: order of first insertion (stable sort)
+6. Return sorted results
 ```
 
-This means a URL that appears in both Brave and Google at rank 2 and 5 respectively will sort before a URL that appears only in Brave at rank 1. The intuition: cross-engine agreement is a stronger signal than single-engine rank.
+This means a URL that appears in both Brave and Google at rank 2 and 5 respectively will sort before a URL that appears only in Brave at rank 1. The intuition: cross-engine agreement is a stronger signal than single-engine rank. The stable-sort tie-breaker ensures deterministic ordering.
 
 ### Cost Model
 
@@ -234,16 +273,21 @@ Even triple-engine Serpex is 2-5x cheaper than single-engine Brave direct.
 
 ### Logging & Observability
 
-Each search call logs:
+Each search call logs at DEBUG:
 - `search.engine={engine} query={query[:50]} results={count} elapsed={ms}ms`
 
-Multi-engine mode additionally logs:
+Multi-engine mode additionally logs at INFO:
 - `search.multi engines={engines} unique_urls={n} multi_hit_urls={m}`
+
+Partial engine failure logs at WARNING:
+- `search.engine_failed engine={engine} error={msg} remaining_engines={list}`
 
 End-of-run summary includes:
 - Total queries by engine
 - Total unique results
 - Multi-engine overlap rate (for multi-engine runs)
+- Per-engine failure count
+- **Estimated credit usage**: `total_queries × engines_per_query × 1 credit` (Serpex charges 1 credit per search call regardless of engine). This is an estimate — actual billing comes from the Serpex dashboard.
 
 ### Migration Path
 
@@ -255,52 +299,60 @@ End-of-run summary includes:
 
 ### Core Search Adapter
 1. `web_search.py` module exists with `SearchResult`, `SearchConfig`, `RateLimiter`, `SearchError` types
-2. `search()` function calls Serpex API with configurable engine parameter
-3. `search_and_filter()` applies existing blocklist logic from `brave_search.py`
+2. `search()` is the single public search function — handles both single and multi-engine modes
+3. `search_and_filter()` owns query construction + search + blocklist filtering (imports `is_blocked()` from `brave_search.py`)
 4. Response parsing extracts title, url, snippet from Serpex JSON response
 5. `engine` field on `SearchResult` records which engine produced the result
 
 ### Multi-Engine Mode
 6. `search()` with multiple engines queries each sequentially, respecting rate limiter
-7. Results are deduped by normalized URL (lowercase, no www, no trailing slash)
+7. Results are deduped by normalized URL (per URL Normalization rules: lowercase host, strip www, strip trailing /, remove fragment, normalize scheme, preserve query string and path case)
 8. Multi-engine hits sort before single-engine hits at same rank
-9. Within same engine count, results sort by best rank across engines
+9. Within same engine count, results sort by best rank across engines; equal engine-count + equal rank uses insertion order (stable sort)
 10. `max_results` parameter limits final output after merge+dedupe
 
+### Engine Validation
+11. Valid engines: `brave`, `google`, `bing`, `auto`. Unknown values fail at CLI parse with error listing valid options.
+12. `auto` cannot be combined with other engines — CLI error if attempted
+13. Duplicate engine names silently deduplicated
+14. `--search-backend brave-direct` ignores `--search-engines`
+
 ### Error Handling
-11. Retries on 429/5xx with exponential backoff (2s, 4s, 8s) — same as current Brave client
-12. 402 Payment Required logged as credit exhaustion, no retry
-13. Network errors (timeouts, connection failures) retried same as status errors
-14. Per-engine failures in multi-engine mode do not abort the entire query — remaining engines still run
-15. `SearchError` raised only when ALL engines fail for a query
+15. Retries on 429/5xx with exponential backoff (2s, 4s, 8s) — same as current Brave client
+16. 402 Payment Required logged as credit exhaustion, no retry
+17. Network errors (timeouts, connection failures) retried same as status errors
+18. Per-engine failures in multi-engine mode do not abort the entire query — remaining engines still run, failure logged at WARNING with engine name and error
+19. `SearchError` raised only when ALL engines fail for a query
 
 ### Pipeline Integration
-16. `pipeline_resolver.py` producer Stage 1 uses `web_search.search()` instead of `brave_search.search()`
-17. Stage 2 blocklist filtering unchanged (still uses `brave_search.is_blocked()`)
-18. Stages 3-6 completely unchanged
-19. CLI flags: `--search-backend`, `--search-engines`, `--serpex-api-key`, `--serpex-ssm-key`
-20. `--search-backend brave-direct` falls back to existing `brave_search.search()` for backward compatibility
+20. `pipeline_resolver.py` producer replaces Stage 1 + Stage 2 with single `search_and_filter()` call
+21. Stages 3-6 completely unchanged
+22. CLI flags: `--search-backend`, `--search-engines`, `--serpex-api-key`, `--serpex-ssm-key`
+23. `--search-backend brave-direct` falls back to existing `brave_search.search()` + inline blocklist filter for backward compatibility
+24. `--search-qps` controls rate limit (default 1.0), `--brave-qps` kept as deprecated alias that maps to `--search-qps`
 
 ### Configuration & Secrets
-21. `secrets.py` has `get_serpex_api_key()` reading from SSM path `lavandula/serpex/api_key`
-22. Env var override: `LAVANDULA_SECRET_SERPEX_API_KEY`
-23. `--search-qps` controls rate limit (default 1.0), `--brave-qps` kept as deprecated alias
+25. `secrets.py` has `get_serpex_api_key()` reading from SSM path `lavandula/serpex/api_key`
+26. Env var override: `LAVANDULA_SECRET_SERPEX_API_KEY`
 
 ### Dashboard Integration
-24. Resolver form includes engine selection (dropdown or multi-select for engine choice)
-25. Dashboard resolver trigger passes selected engine(s) to the pipeline
+27. Resolver form includes search engine preset dropdown with values: `brave` (default), `google`, `brave_google`, `auto`
+28. Dashboard resolver trigger passes selected engine(s) as `--search-engines` flag to pipeline subprocess
 
 ### Logging
-26. Each search call logs engine, query prefix, result count, and latency
-27. Multi-engine queries log unique URLs and multi-hit count
-28. End-of-run summary includes per-engine query counts
+29. Each search call logs engine, query prefix, result count, and latency (DEBUG level)
+30. Multi-engine queries log unique URLs and multi-hit count (INFO level)
+31. Partial engine failures logged at WARNING with engine name and error message
+32. End-of-run summary includes per-engine query counts, per-engine failure counts, and estimated credit usage (queries × engines)
 
 ### Testing
-29. Unit tests for Serpex API call construction (mock HTTP)
-30. Unit tests for multi-engine merge/dedupe algorithm
-31. Unit tests for error handling (402, 429, 5xx, network error, partial engine failure)
-32. Integration test: `search_and_filter()` with mocked Serpex returning known results, verify blocklist applied
-33. Backward compatibility test: `--search-backend brave-direct` uses existing Brave client
+33. Unit tests for Serpex API call construction (mock HTTP)
+34. Unit tests for multi-engine merge/dedupe algorithm including tie-breaker determinism
+35. Unit tests for URL normalization edge cases (www stripping, trailing slash, fragments, query strings, scheme normalization)
+36. Unit tests for error handling (402, 429, 5xx, network error, partial engine failure in multi-engine)
+37. Unit tests for engine validation (auto+other rejected, duplicates deduped, unknown rejected)
+38. Integration test: `search_and_filter()` with mocked Serpex returning known results, verify blocklist applied
+39. Backward compatibility test: `--search-backend brave-direct` uses existing Brave client path
 
 ## Traps to Avoid
 
@@ -312,10 +364,12 @@ End-of-run summary includes:
 
 ## Security Considerations
 
-- Serpex API key stored in AWS SSM (encrypted at rest), same pattern as Brave key
-- API key never logged (existing `log.warning` patterns don't include key)
-- Query strings may contain org names — same exposure as current Brave calls, no change in risk profile
-- Serpex is a third-party proxy — search queries are visible to them. Same trust model as Brave (queries are nonprofit names + locations, not sensitive data)
+- **API key storage**: Serpex API key stored in AWS SSM (encrypted at rest), same pattern as Brave key. Env var override for local dev only.
+- **Key exposure**: API key never logged — existing `log.warning` patterns don't include key, and new Serpex logging follows the same pattern. `SearchConfig.api_key` field is never included in `__repr__`.
+- **Query exposure**: Query strings contain org names + city/state — same exposure as current Brave calls, no change in risk profile. Nonprofit names and locations are public IRS data.
+- **Third-party proxy trust**: Serpex is a third-party proxy — search queries are visible to them. Same trust model as Brave (queries are nonprofit names + locations, not sensitive data). No PII is sent.
+- **SSRF via returned URLs**: Search results contain third-party URLs that Stage 3 will HTTP-fetch. This is unchanged from the current pipeline — Stage 3's existing SSRF protections (private IP blocking, timeout, size limits) apply regardless of search backend. No additional SSRF surface is introduced.
+- **Multi-engine provenance**: When multi-engine mode produces more candidates, the existing blocklist filter and LLM disambiguator are the quality gates. More candidates = more URLs to fetch, but each fetch goes through the same protections. The `engine` field on `SearchResult` provides audit trail for which engine sourced each URL.
 
 ## Experiment Evidence
 
