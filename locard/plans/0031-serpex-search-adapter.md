@@ -88,20 +88,26 @@ def search(query: str, *, config: SearchConfig, rate_limiter: RateLimiter) -> li
 ### Step 1.5: `search_and_filter()` with blocklist
 
 ```python
+class SearchFilterResult(NamedTuple):
+    results: list[SearchResult]
+    had_raw_results: bool  # True if search returned results (even if all blocked)
+
 def search_and_filter(
     org_name: str, city: str, state: str,
     *, config: SearchConfig, rate_limiter: RateLimiter,
     max_results: int = 3,
-) -> list[SearchResult]:
+) -> SearchFilterResult:
 ```
 
 - Builds query: `f'"{sanitized_name}" {city} {state}'` (same sanitization as `brave_search.search_and_filter`)
-- Calls `search()`
+- Calls `search()` — if returns empty list, returns `SearchFilterResult([], False)`
 - Imports `is_blocked` from `brave_search` and filters results
-- Returns up to `max_results` non-blocked results
-- Returns `[]` if all blocked or no results (no error)
+- Returns `SearchFilterResult(filtered[:max_results], True)` — `had_raw_results=True` even if all got blocked
+- This lets the caller distinguish "no search results" from "all blocked"
 
-**ACs**: 3, 10, 20
+For `brave-direct` backend: `search()` delegates to `brave_search.search()` internally, so the full execution path goes through `web_search.py` even for brave-direct. This means `pipeline_resolver.py` always calls `web_search.search_and_filter()` regardless of backend — the backend choice is encapsulated inside `web_search.py`. This satisfies AC23 (brave-direct backward compatibility) while centralizing the interface.
+
+**ACs**: 3, 10, 20, 23
 
 ### Step 1.6: Engine validation helper
 
@@ -216,18 +222,28 @@ No changes needed in Stage 3. The `engines` field is simply not used downstream.
 ```python
 @dataclass
 class SearchStats:
-    queries_by_engine: dict[str, int]    # {"brave": 150, "google": 148}
-    failures_by_engine: dict[str, int]   # {"google": 2}
-    search_full: int = 0                 # all engines succeeded
-    search_partial: int = 0              # some engines failed
-    search_failed: int = 0              # all engines failed
+    successful_by_engine: dict[str, int]  # {"brave": 150, "google": 148}
+    failed_by_engine: dict[str, int]      # {"google": 2}
+    search_full: int = 0                  # all engines succeeded
+    search_partial: int = 0               # some engines failed
+    search_failed: int = 0               # all engines failed
+    _lock: threading.Lock = field(default_factory=threading.Lock)
     
     @property
     def estimated_credits(self) -> int:
-        return sum(self.queries_by_engine.values())
+        """Only successful calls count toward credit estimate."""
+        return sum(self.successful_by_engine.values())
+    
+    def record_success(self, engine: str) -> None:
+        with self._lock:
+            self.successful_by_engine[engine] = self.successful_by_engine.get(engine, 0) + 1
+
+    def record_failure(self, engine: str) -> None:
+        with self._lock:
+            self.failed_by_engine[engine] = self.failed_by_engine.get(engine, 0) + 1
 ```
 
-`search()` increments these after each call. The module exposes `get_search_stats() → SearchStats` and `reset_search_stats()`.
+Thread-safe via explicit `threading.Lock` (the producer may run in a separate thread from main). Module exposes `get_search_stats() → SearchStats` and `reset_search_stats()`.
 
 The CLI (`pipeline_resolve.py`) calls `get_search_stats()` at end-of-run and prints alongside the existing pipeline summary:
 
@@ -413,7 +429,7 @@ Pipeline:
    a. Query Serpex: `"{name} {city} {state} phone number"` — note: NO blocklist filtering (Trap #7)
    b. Scan all result snippets with `extract_phone()`
    c. If found → write to DB with `phone_source = 'search_snippet'`
-   d. If not found → fetch `{website_url}/contact`, `{website_url}/about`, `{website_url}/about-us` using the existing `_fetch_candidate()` from `pipeline_resolver.py` (which already has SSRF protections: private IP blocking, timeout, size limits)
+   d. If not found → fetch `{website_url}/contact`, `{website_url}/about`, `{website_url}/about-us` using `fetch_page()` from `lavandula/nonprofits/http_fetch.py` (see Step 6.2b below)
    e. Scan page text with `extract_phone()`
    f. If found → write to DB with `phone_source = 'website_extract'`
    g. If still not found → skip (don't write anything)
@@ -434,9 +450,42 @@ Update org detail template (`org_detail.html`) to show `phone` field if present:
 
 **AC**: 40
 
+### Step 6.2b: Extract shared fetch module
+
+Extract `_fetch_candidate()` from `pipeline_resolver.py` into `lavandula/nonprofits/http_fetch.py` as a public `fetch_page(url, *, timeout=15) → dict` function. This preserves the existing SSRF protections (private IP blocking via `_is_private_ip()`, response size limits, timeout) in a shared location. Both `pipeline_resolver.py` and `pipeline_enrich_phone.py` import from this module.
+
+Alternatively, if extracting is too invasive for this spec, the phone pipeline can use a simpler `requests.get()` with explicit timeout and size limit — the phone fetcher only hits known `website_url` values (already validated by the resolver), not arbitrary URLs from search results. Document this decision.
+
 ### Step 6.5: Dashboard "Enrich Phones" trigger
 
-Add a phone enrichment section to the pipeline controls. Minimal: a button + state dropdown that triggers `pipeline_enrich_phone.py` as a background job. Follows the same `create_*_job()` pattern as resolver/crawler/classifier.
+**Files changed**: `forms.py`, `views.py`, `orchestrator.py`, `pipeline/templates/pipeline/enrichment.html` (new template, or add to existing pipeline controls page)
+
+**Form** in `forms.py`:
+```python
+class PhoneEnrichForm(forms.Form):
+    state = forms.ChoiceField(
+        choices=[("", "All resolved")] + STATE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": _SELECT}),
+    )
+    limit = forms.IntegerField(required=False, min_value=0, max_value=999999,
+        widget=forms.NumberInput(attrs={"class": _SELECT}))
+    search_engines = forms.ChoiceField(
+        choices=SEARCH_ENGINE_CHOICES, initial="brave",
+        widget=forms.Select(attrs={"class": _SELECT}))
+```
+
+**Job creation** in `orchestrator.py`:
+```python
+def create_phone_enrich_job(config_overrides: dict, host: str) -> Job:
+    # Same pattern as create_resolve_job: dedup check, create Job with phase="enrich_phone"
+```
+
+**Subprocess invocation** (in the job runner): 
+```
+python -m lavandula.nonprofits.tools.pipeline_enrich_phone
+  --state {state} --limit {limit} --search-engines {engines}
+```
 
 **AC**: 41
 

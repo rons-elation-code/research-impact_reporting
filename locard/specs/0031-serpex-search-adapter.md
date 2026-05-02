@@ -176,7 +176,7 @@ def get_serpex_api_key() -> str:
     """Retrieve Serpex API key from SSM or env var."""
 ```
 
-SSM path: `lavandula/serpex/api_key`
+Short name: `serpex-api-key` (SSM full path: `/cloud2.lavandulagroup.com/serpex-api-key`, following existing `brave-api-key` convention)
 Env override: `LAVANDULA_SECRET_SERPEX_API_KEY`
 
 #### Dashboard `pipeline/forms.py` and `views.py`
