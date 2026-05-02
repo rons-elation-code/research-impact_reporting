@@ -24,6 +24,11 @@ _SERPEX_URL = "https://api.serpex.dev/api/search"
 _RETRY_STATUSES = {429, 500, 502, 503, 504}
 _RETRY_DELAYS = [2.0, 4.0, 8.0]
 
+_LEGAL_SUFFIX_RE = re.compile(
+    r"\s+(?:Inc|Corp|Corporation|LLC|Ltd|Co|Foundation|Trust|Assn|Association|Pc)\s*$",
+    re.I,
+)
+
 
 class SearchError(RuntimeError):
     """Raised when search fails after all retries (or all engines fail)."""
@@ -365,11 +370,16 @@ def search(
 
     engines = config.engines
     if len(engines) == 1:
-        results = _serpex_search(
-            query, engines[0],
-            api_key=config.api_key, count=config.count,
-            rate_limiter=rate_limiter,
-        )
+        try:
+            results = _serpex_search(
+                query, engines[0],
+                api_key=config.api_key, count=config.count,
+                rate_limiter=rate_limiter,
+            )
+        except SearchError:
+            _search_stats.record_failure(engines[0])
+            _search_stats.record_query_outcome(total_engines=1, failed_engines=1)
+            raise
         _search_stats.record_success(engines[0])
         _search_stats.record_query_outcome(total_engines=1, failed_engines=0)
         return results
@@ -424,7 +434,8 @@ def search_and_filter(
 ) -> SearchFilterResult:
     """Build query, search (single or multi), filter blocklist, return top N."""
     sanitized_name = re.sub(r'"', "", org_name or "").strip()
-    query = f'"{sanitized_name}" {city} {state}'
+    clean_name = _LEGAL_SUFFIX_RE.sub("", sanitized_name).strip()
+    query = f'{clean_name} {city} {state}'
 
     raw_results = search(query, config=config, rate_limiter=rate_limiter)
 
