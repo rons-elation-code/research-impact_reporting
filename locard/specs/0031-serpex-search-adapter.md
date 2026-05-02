@@ -487,3 +487,12 @@ See `experiments/0001_serpex_search_comparison/`:
 - **Hard cases** (250 ambiguous/unresolved/low-confidence): 30% overlap, but manual review of 15 zero-overlap samples showed Serpex 5 wins / 2 losses — divergence was often Serpex finding better candidates
 - **Latency**: 2.26s mean, 5.22s p95 (hard cases) — within acceptable range for batch pipeline
 - **Reliability**: 450 queries, 0 errors
+
+## Consultation Log
+
+| Round | Model | Type | Verdict | Key Changes |
+|-------|-------|------|---------|-------------|
+| 1 | Codex | spec-review | REQUEST_CHANGES | Unified search()/search_multi() API, clarified blocklist ownership, added URL normalization rules, engine validation, dashboard presets, SSRF analysis, merge tie-breaker tests |
+| 2 | Codex | red-team-spec | REQUEST_CHANGES | SearchResult.engines tuple, partial failure counters, brave-direct config path, scheme-collapsing rationale, empty-results behavior |
+| — | Gemini | spec-review | SKIPPED | Gemini rate-limited (quota exhausted) |
+| — | Gemini | red-team-spec | SKIPPED | Gemini rate-limited (quota exhausted) |

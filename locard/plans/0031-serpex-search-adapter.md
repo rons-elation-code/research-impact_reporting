@@ -581,3 +581,12 @@ After implementation:
 | Phase 6: Phone enrichment | 2-3 hours |
 | Phase 7: Tests | 2-3 hours |
 | **Total** | **~10 hours** |
+
+## Consultation Log
+
+| Round | Model | Type | Verdict | Key Changes |
+|-------|-------|------|---------|-------------|
+| 1 | Codex | plan-review | REQUEST_CHANGES | Preserved all_blocked vs no_search_results split, fixed SSM path, committed to module-level SearchStats, phone uses existing fetch infra, CLI mutual exclusion, dashboard form value mapping |
+| 2 | Codex | red-team-plan | REQUEST_CHANGES | Unified brave-direct through web_search.py, credit accounting from successful calls only, SearchStats with threading.Lock, SearchFilterResult consistency, phone dashboard trigger fleshed out |
+| — | Gemini | plan-review | SKIPPED | Gemini rate-limited (quota exhausted) |
+| — | Gemini | red-team-plan | SKIPPED | Gemini rate-limited (quota exhausted) |
