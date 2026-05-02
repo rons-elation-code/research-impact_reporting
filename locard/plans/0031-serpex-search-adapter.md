@@ -128,10 +128,13 @@ def get_serpex_api_key() -> str:
     return get_secret("serpex-api-key")
 ```
 
-SSM path: `/cloud2.lavandulagroup.com/serpex-api-key`
-Env override: `LAVANDULA_SECRET_SERPEX_API_KEY`
+This uses the existing `get_secret()` which prefixes with `/cloud2.lavandulagroup.com/`, giving SSM path: `/cloud2.lavandulagroup.com/serpex-api-key`
+
+Env override (auto-derived by `_env_var_name`): `LAVANDULA_SECRET_SERPEX_API_KEY`
 
 Update `__all__` to export it.
+
+**Note**: The spec says SSM path `lavandula/serpex/api_key` — this is the short_name convention used in the spec. The actual SSM path is determined by `secrets.py`'s prefix convention: `{_PARAM_PREFIX}{short_name}`. The short_name we use is `serpex-api-key` (following `brave-api-key` convention).
 
 **ACs**: 25, 26
 
@@ -166,17 +169,36 @@ try:
         config=search_config, rate_limiter=rate_limiter, max_results=3,
     )
 except SearchError as exc:
-    stats.brave_errors += 1
-    _write_unresolved(engine, ein, f"search_error:{exc}", method=method)
+    stats.search_errors += 1
+    reason_match = re.search(r"(\d{3})", str(exc))
+    status_code = reason_match.group(1) if reason_match else "unknown"
+    _write_unresolved(engine, ein, f"search_error:{status_code}", method=method)
     continue
 
 if not results:
-    stats.skipped_all_blocked += 1
-    _write_unresolved(engine, ein, "no_results_or_all_blocked", method=method)
+    # Preserve split between "no results at all" vs "had results but all blocked"
+    # search_and_filter returns ([], True) when results existed but were all blocked
+    # vs ([], False) when no results came back from search
+    if search_had_results:
+        stats.skipped_all_blocked += 1
+        _write_unresolved(engine, ein, "all_blocked", method=method)
+    else:
+        stats.skipped_no_results += 1
+        _write_unresolved(engine, ein, "no_search_results", method=method)
     continue
 ```
 
-Note: `stats.brave_errors` field should be renamed to `stats.search_errors` but this is cosmetic — keep it for now to avoid breaking the summary output format.
+To preserve the `all_blocked` vs `no_search_results` distinction, `search_and_filter()` returns a `SearchFilterResult` namedtuple:
+
+```python
+class SearchFilterResult(NamedTuple):
+    results: list[SearchResult]
+    had_raw_results: bool  # True if search returned results (even if all blocked)
+```
+
+This lets the caller distinguish "search found nothing" from "search found things but blocklist rejected all of them" without breaking the existing DB reason strings.
+
+Rename `stats.brave_errors` → `stats.search_errors` in `ProducerStats`.
 
 ### Step 3.4: Update Stage 3 to use `SearchResult`
 
@@ -187,13 +209,37 @@ Current code accesses `r.title`, `r.snippet`, `r.url` from `BraveSearchResult`. 
 
 No changes needed in Stage 3. The `engines` field is simply not used downstream.
 
-### Step 3.5: Add search counters to `ProducerStats`
+### Step 3.5: Search stats tracking
 
-Add `search_full`, `search_partial`, `search_failed` counters to the `ProducerStats` dataclass. These are set by `search()` via callback or by the producer after each `search_and_filter()` call (check result's `engines` tuple lengths).
+`web_search.py` maintains a module-level `SearchStats` dataclass (thread-safe via atomic increments):
 
-Actually simpler: let `web_search.search()` return the results, and have `producer()` not track partial failures — that's internal to `web_search.py`. The module-level counters in `web_search.py` track `search_full`/`search_partial`/`search_failed` and expose them via a `get_stats()` function the CLI prints at the end.
+```python
+@dataclass
+class SearchStats:
+    queries_by_engine: dict[str, int]    # {"brave": 150, "google": 148}
+    failures_by_engine: dict[str, int]   # {"google": 2}
+    search_full: int = 0                 # all engines succeeded
+    search_partial: int = 0              # some engines failed
+    search_failed: int = 0              # all engines failed
+    
+    @property
+    def estimated_credits(self) -> int:
+        return sum(self.queries_by_engine.values())
+```
 
-**ACs**: 20, 21
+`search()` increments these after each call. The module exposes `get_search_stats() → SearchStats` and `reset_search_stats()`.
+
+The CLI (`pipeline_resolve.py`) calls `get_search_stats()` at end-of-run and prints alongside the existing pipeline summary:
+
+```
+--- Search Summary ---
+Engine queries: brave=150, google=148
+Engine failures: google=2
+Search: 148 full, 2 partial, 0 failed
+Estimated credits: 298
+```
+
+**ACs**: 29, 30, 31, 32
 
 ## Phase 4: CLI Entry Point
 
@@ -204,15 +250,29 @@ Add new arguments to `_build_parser()`:
 ```python
 p.add_argument("--search-backend", choices=["serpex", "brave-direct"], default="serpex")
 p.add_argument("--search-engines", default="brave", help="Comma-separated: brave,google,bing,auto")
-p.add_argument("--serpex-api-key", default=None, help="Serpex API key (literal)")
-p.add_argument("--serpex-ssm-key", default=None, help="SSM path for Serpex API key")
 p.add_argument("--search-qps", type=float, default=None, help="Search queries per second")
+
+serpex_key_group = p.add_mutually_exclusive_group()
+serpex_key_group.add_argument("--serpex-api-key", default=None, help="Serpex API key (literal)")
+serpex_key_group.add_argument("--serpex-ssm-key", default=None, help="SSM path for Serpex API key")
 ```
 
 Keep existing `--brave-qps` but map it:
 ```python
 qps = args.search_qps or args.brave_qps
 ```
+
+**Post-parse validation** (in `main()`, before any work):
+```python
+if args.search_backend == "brave-direct":
+    engines = ["brave"]  # ignored per spec AC14
+else:
+    engines = validate_engines(args.search_engines.split(","))
+    # validate_engines raises ValueError for unknown engines, auto+other, etc.
+    # Catch and call parser.error() for clean CLI output
+```
+
+This ensures `--search-backend brave-direct --search-engines google` is silently accepted (engines ignored), while `--search-engines potato` fails immediately.
 
 ### Step 4.2: Build `SearchConfig` in `main()`
 
@@ -256,7 +316,7 @@ In `forms.py`, add to `ResolverForm`:
 SEARCH_ENGINE_CHOICES = [
     ("brave", "Brave (default)"),
     ("google", "Google"),
-    ("brave,google", "Brave + Google"),
+    ("brave_google", "Brave + Google"),
     ("auto", "Auto (Serpex routing)"),
 ]
 
@@ -273,7 +333,8 @@ search_engines = forms.ChoiceField(
 In `views.py` where `ResolverView` builds the config dict for `create_resolve_job()`, add the `search_engines` value from the form:
 
 ```python
-config["search_engines"] = form.cleaned_data.get("search_engines", "brave")
+raw = form.cleaned_data.get("search_engines", "brave")
+config["search_engines"] = raw.replace("_", ",")  # "brave_google" → "brave,google"
 ```
 
 ### Step 5.3: Update resolver template
@@ -315,16 +376,18 @@ _US_PHONE_RE = re.compile(
 _FAX_CONTEXT_RE = re.compile(r'\bfax\b', re.I)
 _TOLLFREE_PREFIXES = {"800", "888", "877", "866", "855", "844", "833"}
 
-def extract_phone(text: str, *, allow_tollfree: bool = False) -> str | None:
-    """Extract first valid US phone number from text."""
+def extract_phone(text: str, *, allow_tollfree: bool = False, org_name: str = "") -> str | None:
+    """Extract best valid US phone number from text."""
 ```
 
 Logic:
-1. Find all `_US_PHONE_RE` matches in text
+1. Find all `_US_PHONE_RE` matches in text with their positions
 2. For each match, check 20-char window before for "fax" → skip
 3. Check area code against toll-free prefixes → skip unless `allow_tollfree`
-4. Return first passing match as normalized `(XXX) XXX-XXXX` string
-5. Return `None` if no valid phone found
+4. Collect all valid candidates with their text positions
+5. If `org_name` provided and multiple candidates: prefer the phone closest to any occurrence of the org name in the text (character distance from match position to nearest org_name occurrence)
+6. If no org_name or only one candidate: return the first valid match
+7. Return as normalized `(XXX) XXX-XXXX` string, or `None` if no valid phone found
 
 **ACs**: 35, 36, 37
 
@@ -350,7 +413,7 @@ Pipeline:
    a. Query Serpex: `"{name} {city} {state} phone number"` — note: NO blocklist filtering (Trap #7)
    b. Scan all result snippets with `extract_phone()`
    c. If found → write to DB with `phone_source = 'search_snippet'`
-   d. If not found → fetch `{website_url}/contact`, `{website_url}/about`, `{website_url}/about-us` with `requests.get()` (timeout=15, SSRF protections from existing `_fetch_candidate`)
+   d. If not found → fetch `{website_url}/contact`, `{website_url}/about`, `{website_url}/about-us` using the existing `_fetch_candidate()` from `pipeline_resolver.py` (which already has SSRF protections: private IP blocking, timeout, size limits)
    e. Scan page text with `extract_phone()`
    f. If found → write to DB with `phone_source = 'website_extract'`
    g. If still not found → skip (don't write anything)
