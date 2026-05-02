@@ -7,6 +7,10 @@
 <div class="bg-white rounded-lg shadow p-4 mb-6">
   <form method="get" class="flex flex-wrap gap-4 items-end">
     <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">EIN</label>
+      <input type="text" name="ein" value="{{ filter_ein }}" placeholder="e.g. 030440761" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-32">
+    </div>
+    <div>
       <label class="block text-xs font-medium text-gray-600 mb-1">State</label>
       <input type="text" name="state" value="{{ filter_state }}" placeholder="e.g. NY" class="border border-gray-300 rounded px-3 py-1.5 text-sm w-20">
     </div>
@@ -57,10 +61,10 @@
     <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} orgs)</span>
     <div class="flex gap-2">
       {% if page_obj.has_previous %}
-      <a href="?page={{ page_obj.previous_page_number }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Previous</a>
+      <a href="?page={{ page_obj.previous_page_number }}&ein={{ filter_ein }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Previous</a>
       {% endif %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Next</a>
+      <a href="?page={{ page_obj.next_page_number }}&ein={{ filter_ein }}&state={{ filter_state }}&resolver_status={{ filter_status }}&resolver_method={{ filter_method }}" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">Next</a>
       {% endif %}
     </div>
   </div>

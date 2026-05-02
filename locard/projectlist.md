@@ -500,9 +500,22 @@ projects:
     tags: [990, infrastructure, s3, automation, pipeline]
     notes: "Spec approved 2026-05-01 after 4 review rounds (Codex spec + red-team, Claude spec + red-team). Plan approved 2026-05-01 after 4 review rounds (Codex plan + red-team, Claude plan + red-team). 32 ACs, 8 phases. S3 bucket: lavandula-990-corpus. Unified codebase — manual controls reuse new infrastructure. Builder spawned 2026-05-01."
 
+  - id: "0031"
+    title: "Serpex Search Adapter with Multi-Engine Support"
+    summary: "Replace direct Brave Search API calls with Serpex proxy, adding a search adapter abstraction that supports configurable engine selection (brave, google, bing) and a multi-engine mode that queries multiple engines per org and merges/dedupes candidates for higher recall on hard cases. 6-17x cost reduction vs Brave direct."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0031-serpex-search-adapter.md
+      plan: null
+      review: null
+    dependencies: ["0018"]
+    tags: [resolver, search, cost-optimization, serpex, multi-engine]
+    notes: "Motivated by experiment 0001: Serpex matched Brave on easy cases (90% overlap), slightly outperformed on hard cases (5 wins vs 2 losses in manual review of 15 zero-overlap samples). Multi-engine mode addresses the 47% zero-overlap on hard cases — different engines surface different candidates."
+
 ## Next Available Number
 
-**0031** - Reserve this number for your next project
+**0032** - Reserve this number for your next project
 
 ---
 

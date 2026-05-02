@@ -186,7 +186,7 @@ def _clean_990_common(cleaned_data):
     ein = cleaned_data.get("ein")
     if ein and not re.match(r"^\d{9}$", ein):
         raise forms.ValidationError("EIN must be exactly 9 digits.")
-    years_str = cleaned_data.get("years", "")
+    years_str = cleaned_data.get("years", "").strip()
     if years_str:
         if not re.match(r"^\d{4}(\s*,\s*\d{4})*$", years_str):
             raise forms.ValidationError("Years must be comma-separated 4-digit years.")

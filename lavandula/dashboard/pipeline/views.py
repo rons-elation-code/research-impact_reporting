@@ -476,9 +476,12 @@ class OrgListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = NonprofitSeed.objects.all().order_by("ein")
+        ein = self.request.GET.get("ein")
         state = self.request.GET.get("state")
         status = self.request.GET.get("resolver_status")
         method = self.request.GET.get("resolver_method")
+        if ein:
+            qs = qs.filter(ein=ein.strip())
         if state:
             qs = qs.filter(state=state)
         if status:
@@ -489,6 +492,7 @@ class OrgListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx["filter_ein"] = self.request.GET.get("ein", "")
         ctx["filter_state"] = self.request.GET.get("state", "")
         ctx["filter_status"] = self.request.GET.get("resolver_status", "")
         ctx["filter_method"] = self.request.GET.get("resolver_method", "")
