@@ -42,7 +42,8 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "llm_url": {"type": "text", "pattern": r"^https?://", "flag": "--llm-url"},
             "llm_model": {"type": "text", "flag": "--llm-model"},
             "llm_api_key_ssm": {"type": "text", "flag": "--llm-api-key-ssm"},
-            "brave_qps": {"type": "float", "min": 0.1, "max": 50.0, "flag": "--brave-qps"},
+            "brave_qps": {"type": "float", "min": 0.1, "max": 50.0, "flag": "--search-qps"},
+            "search_engines": {"type": "text", "pattern": r"^[a-z,]+$", "flag": "--search-engines"},
             "search_parallelism": {"type": "int", "min": 1, "max": 32, "flag": "--search-parallelism"},
             "consumer_threads": {"type": "int", "min": 1, "max": 16, "flag": "--consumer-threads"},
             "limit": {"type": "int", "min": 0, "max": 999999, "flag": "--limit"},
@@ -95,6 +96,14 @@ COMMAND_MAP: dict[str, dict[str, Any]] = {
             "ein": {"type": "text", "pattern": r"^\d{9}$", "flag": "--ein"},
             "reparse": {"type": "bool", "flag": "--reparse"},
             "backfill": {"type": "bool", "flag": "--backfill"},
+        },
+    },
+    "enrich-phone": {
+        "cmd": ["python3", "-m", "lavandula.nonprofits.tools.pipeline_enrich_phone"],
+        "params": {
+            "state": {"type": "choice", "choices": US_STATES, "flag": "--state"},
+            "limit": {"type": "int", "min": 0, "max": 999999, "flag": "--limit"},
+            "search_engines": {"type": "text", "pattern": r"^[a-z,]+$", "flag": "--search-engines"},
         },
     },
 }
@@ -391,6 +400,32 @@ def create_990_parse_job(config_overrides: dict, host: str) -> Job:
             )
         except IntegrityError:
             raise DuplicateJobError("Duplicate 990-parse job (constraint violation)")
+
+
+def create_phone_enrich_job(config_overrides: dict, host: str) -> Job:
+    """Create a phone enrichment job."""
+    state = config_overrides.get("state") or None
+    with transaction.atomic():
+        existing = (
+            Job.objects.select_for_update()
+            .filter(phase="enrich-phone", status__in=["pending", "running"])
+            .first()
+        )
+        if existing:
+            raise DuplicateJobError(
+                f"Active phone enrich job already exists: Job #{existing.pk}"
+            )
+
+        try:
+            return Job.objects.create(
+                state_code=state,
+                phase="enrich-phone",
+                status="pending",
+                host=host,
+                config_json=config_overrides,
+            )
+        except IntegrityError:
+            raise DuplicateJobError("Duplicate phone enrich job (constraint violation)")
 
 
 def retry_job(job: Job) -> Job:

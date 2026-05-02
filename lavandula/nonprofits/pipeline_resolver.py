@@ -25,11 +25,11 @@ import requests as http_requests
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
-from .brave_search import (
-    BraveRateLimiter,
-    BraveSearchError,
-    search,
-    search_and_filter,
+from .web_search import (
+    RateLimiter,
+    SearchConfig,
+    SearchError,
+    search_and_filter as ws_search_and_filter,
 )
 from .gemma_client import (
     LLMClient,
@@ -111,7 +111,7 @@ class ProducerStats:
     skipped_no_results: int = 0
     skipped_all_blocked: int = 0
     skipped_no_live: int = 0
-    brave_errors: int = 0
+    search_errors: int = 0
 
 
 @dataclass
@@ -254,8 +254,8 @@ def producer(
     *,
     pq: PipelineQueue,
     engine: Engine,
-    api_key: str,
-    rate_limiter: BraveRateLimiter,
+    search_config: SearchConfig,
+    rate_limiter: RateLimiter,
     search_parallelism: int = 4,
     fetch_parallelism: int = 8,
     shutdown: ShutdownFlag,
@@ -277,44 +277,28 @@ def producer(
 
             stats.searched += 1
 
-            # Stage 1: Search — unquoted, legal suffix stripped
-            clean_name = _LEGAL_SUFFIX_RE.sub("", name).strip()
+            # Stage 1+2: Search + blocklist filter (Spec 0031)
             try:
-                raw_results = search(
-                    f'{clean_name} {city} {state}',
-                    api_key=api_key,
-                    count=20,
-                    rate_limiter=rate_limiter,
+                filter_result = ws_search_and_filter(
+                    name, city, state,
+                    config=search_config, rate_limiter=rate_limiter,
+                    max_results=3,
                 )
-            except BraveSearchError as exc:
-                stats.brave_errors += 1
+            except SearchError as exc:
+                stats.search_errors += 1
                 reason_match = re.search(r"(\d{3})", str(exc))
                 status_code = reason_match.group(1) if reason_match else "unknown"
-                _write_unresolved(engine, ein, f"brave_error:{status_code}", method=method)
+                _write_unresolved(engine, ein, f"search_error:{status_code}", method=method)
                 continue
 
-            if not raw_results:
-                stats.skipped_no_results += 1
-                _write_unresolved(engine, ein, "no_search_results", method=method)
-                continue
-
-            # Stage 2: Filter blocklist
-            from .brave_search import is_blocked
-            from urllib.parse import urlsplit as _urlsplit
-            results = []
-            for r in raw_results:
-                try:
-                    host = _urlsplit(r.url).hostname or ""
-                except Exception:
-                    continue
-                if not is_blocked(host, name):
-                    results.append(r)
-                    if len(results) >= 3:
-                        break
-
+            results = filter_result.results
             if not results:
-                stats.skipped_all_blocked += 1
-                _write_unresolved(engine, ein, "all_blocked", method=method)
+                if filter_result.had_raw_results:
+                    stats.skipped_all_blocked += 1
+                    _write_unresolved(engine, ein, "all_blocked", method=method)
+                else:
+                    stats.skipped_no_results += 1
+                    _write_unresolved(engine, ein, "no_search_results", method=method)
                 continue
 
             # Stage 3: Fetch candidates in parallel
@@ -325,10 +309,10 @@ def producer(
                     for r in results
                 }
                 for future in as_completed(futures):
-                    brave_result = futures[future]
+                    search_result = futures[future]
                     cand = future.result()
-                    cand["title"] = brave_result.title
-                    cand["snippet"] = brave_result.snippet
+                    cand["title"] = search_result.title
+                    cand["snippet"] = search_result.snippet
                     candidates.append(cand)
 
             live = [c for c in candidates if c["live"]]
@@ -576,8 +560,8 @@ def load_unresolved_orgs(
 def run_dry(
     orgs: list[dict],
     *,
-    api_key: str,
-    rate_limiter: BraveRateLimiter,
+    search_config: SearchConfig,
+    rate_limiter: RateLimiter,
     search_parallelism: int = 4,
     fetch_parallelism: int = 8,
 ) -> None:
@@ -589,15 +573,16 @@ def run_dry(
         state = org.get("state", "")
 
         try:
-            results = search_and_filter(
+            filter_result = ws_search_and_filter(
                 name, city, state,
-                api_key=api_key,
+                config=search_config,
                 rate_limiter=rate_limiter,
             )
-        except BraveSearchError as exc:
+        except SearchError as exc:
             print(f"SEARCH ERROR ein={ein}: {exc}")
             continue
 
+        results = filter_result.results
         if not results:
             print(f"NO RESULTS ein={ein} name={name}")
             continue
@@ -609,10 +594,10 @@ def run_dry(
                 for r in results
             }
             for future in as_completed(futures):
-                brave_result = futures[future]
+                search_result = futures[future]
                 cand = future.result()
-                cand["title"] = brave_result.title
-                cand["snippet"] = brave_result.snippet
+                cand["title"] = search_result.title
+                cand["snippet"] = search_result.snippet
                 candidates.append(cand)
 
         live = [c for c in candidates if c["live"]]
@@ -628,6 +613,7 @@ __all__ = [
     "ConsumerStats",
     "PipelineQueue",
     "ProducerStats",
+    "SearchConfig",
     "ShutdownFlag",
     "consumer",
     "install_sigint_handler",

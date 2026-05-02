@@ -27,6 +27,10 @@ urlpatterns = [
     path("classifier/", views.ClassifierView.as_view(), name="classifier"),
     path("classifier/queue/", views.ClassifyJobCreateView.as_view(), name="classify_job_create"),
 
+    # Phone Enrichment
+    path("phone-enrich/", views.PhoneEnrichView.as_view(), name="phone_enrich"),
+    path("phone-enrich/queue/", views.PhoneEnrichJobCreateView.as_view(), name="phone_enrich_job_create"),
+
     # 990 Pipeline Controls
     path("990-index/", views.EnrichIndexView.as_view(), name="enrich_index"),
     path("990-index/queue/", views.EnrichIndexJobCreateView.as_view(), name="enrich_index_job_create"),

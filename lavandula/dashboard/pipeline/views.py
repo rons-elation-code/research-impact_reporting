@@ -40,6 +40,7 @@ from .orchestrator import (
     create_990_parse_job,
     create_classify_job,
     create_crawl_job,
+    create_phone_enrich_job,
     create_resolve_job,
     create_state_jobs,
     retry_job,
@@ -249,6 +250,9 @@ class ResolveJobCreateView(LoginRequiredMixin, View):
 
         config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
         config = _expand_llm_preset(config)
+        # Map form search_engines value: "brave_google" → "brave,google"
+        raw_engines = config.get("search_engines", "brave")
+        config["search_engines"] = raw_engines.replace("_", ",")
         try:
             job = create_resolve_job(config, _get_hostname())
             _log_audit(request, "job_create", "resolve", {"job_id": job.pk})
@@ -676,6 +680,48 @@ class EnrichParseJobCreateView(LoginRequiredMixin, View):
             from urllib.parse import urlencode
             return redirect(f"{reverse('enrich_parse')}?{urlencode(params)}")
         return redirect("enrich_parse")
+
+
+# ---------------------------------------------------------------------------
+# Phone Enrichment
+# ---------------------------------------------------------------------------
+
+
+class PhoneEnrichView(LoginRequiredMixin, TemplateView):
+    template_name = "pipeline/phone_enrich.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["running_job"] = Job.objects.filter(phase="enrich-phone", status="running").first()
+        ctx["pending_job"] = Job.objects.filter(phase="enrich-phone", status="pending").first()
+        from .forms import PhoneEnrichForm
+        ctx["form"] = PhoneEnrichForm()
+        ctx["phone_count"] = NonprofitSeed.objects.exclude(phone__isnull=True).exclude(phone="").count()
+        ctx["resolved_no_phone"] = NonprofitSeed.objects.filter(
+            resolver_status="resolved", phone__isnull=True,
+        ).count()
+        return ctx
+
+
+class PhoneEnrichJobCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        from .forms import PhoneEnrichForm
+        form = PhoneEnrichForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, f"Invalid form: {form.errors.as_text()}")
+            return redirect("phone_enrich")
+
+        config = {k: v for k, v in form.cleaned_data.items() if v not in (None, "", False)}
+        raw_engines = config.get("search_engines", "brave")
+        config["search_engines"] = raw_engines.replace("_", ",")
+        try:
+            job = create_phone_enrich_job(config, _get_hostname())
+            _log_audit(request, "job_create", "enrich-phone", {"job_id": job.pk})
+            messages.success(request, f"Created phone enrich job #{job.pk}")
+        except DuplicateJobError as e:
+            messages.error(request, str(e))
+
+        return redirect("phone_enrich")
 
 
 # ---------------------------------------------------------------------------
