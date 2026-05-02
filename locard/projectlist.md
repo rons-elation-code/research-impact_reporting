@@ -501,8 +501,8 @@ projects:
     notes: "Spec approved 2026-05-01 after 4 review rounds (Codex spec + red-team, Claude spec + red-team). Plan approved 2026-05-01 after 4 review rounds (Codex plan + red-team, Claude plan + red-team). 32 ACs, 8 phases. S3 bucket: lavandula-990-corpus. Unified codebase — manual controls reuse new infrastructure. Builder spawned 2026-05-01."
 
   - id: "0031"
-    title: "Serpex Search Adapter with Multi-Engine Support"
-    summary: "Replace direct Brave Search API calls with Serpex proxy, adding a search adapter abstraction that supports configurable engine selection (brave, google, bing) and a multi-engine mode that queries multiple engines per org and merges/dedupes candidates for higher recall on hard cases. 6-17x cost reduction vs Brave direct."
+    title: "Serpex Search Adapter with Multi-Engine & Phone Enrichment"
+    summary: "Replace direct Brave Search API calls with Serpex proxy, adding a search adapter with configurable engine selection (brave, google, bing) and multi-engine mode that merges/dedupes candidates for higher recall. Includes phone number enrichment pass that extracts org phone numbers from search snippets and website contact pages. 6-17x cost reduction vs Brave direct."
     status: conceived
     priority: high
     files:

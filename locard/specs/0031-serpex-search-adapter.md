@@ -20,6 +20,7 @@ Additionally, the current pipeline is locked to a single search engine. Differen
 3. **Multi-engine mode** — Query N engines per org, merge and dedupe results, pass a wider candidate set to the LLM disambiguator
 4. **Cost transparency** — Log which engine(s) were used per query and total credit consumption for the run
 5. **Backward compatibility** — Brave direct mode remains available as a fallback (flag to bypass Serpex entirely)
+6. **Phone number enrichment** — Separate enrichment pass that uses the search adapter to find org phone numbers from search snippets and website contact pages
 
 ## Non-Goals
 
@@ -319,11 +320,74 @@ End-of-run summary includes:
 - `search_full` / `search_partial` / `search_failed` counters
 - **Estimated credit usage**: `successful_calls × 1 credit` (counts only successful API calls, not retries or failures). Labeled explicitly as "estimated" — actual billing comes from the Serpex dashboard. Retries that succeed count as 1 call. `auto` engine counts as 1 call per query.
 
+### Phone Number Enrichment Pass
+
+A separate enrichment pipeline that uses `web_search.py` to find org phone numbers. Runs independently of the URL resolver — targets orgs that are already resolved (have `website_url`) but lack a phone number.
+
+#### Schema Change
+
+Migration adds a `phone` column to `nonprofits_seed`:
+
+```sql
+ALTER TABLE lava_corpus.nonprofits_seed ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE lava_corpus.nonprofits_seed ADD COLUMN IF NOT EXISTS phone_source TEXT;
+```
+
+`phone_source` records provenance: `search_snippet`, `website_extract`, or `manual`.
+
+#### Pipeline Design
+
+```
+New CLI: pipeline_enrich_phone.py
+
+1. SELECT resolved orgs where phone IS NULL
+2. For each org:
+   a. Query: "{org_name} {city} {state} phone number"
+   b. Extract phone from search snippets using regex
+   c. If found in snippets → write directly (no HTTP fetch needed)
+   d. If not found in snippets → fetch org's website_url contact/about page,
+      extract phone from page text
+   e. Validate: US phone format (10 digits, optional +1), not a fax number
+   f. Write to nonprofits_seed.phone + phone_source
+```
+
+#### Phone Extraction Strategy
+
+**Priority 1 — Search snippets** (cheapest, no HTTP fetch):
+Search engines frequently surface phone numbers in Knowledge Panels and local listing snippets. A regex scan of search result snippets catches these at zero additional cost.
+
+```python
+_US_PHONE_RE = re.compile(
+    r'(?:\+?1[-.\s]?)?'          # optional +1 or 1
+    r'\(?(\d{3})\)?[-.\s]?'      # area code
+    r'(\d{3})[-.\s]?'            # exchange
+    r'(\d{4})'                   # subscriber
+)
+```
+
+**Priority 2 — Website contact page** (fallback):
+If snippets don't contain a phone, fetch the org's known `website_url` and look for `/contact`, `/about`, or `/about-us` pages. Extract phone from page text using the same regex. This reuses the existing HTTP fetch infrastructure from Stage 3 of the resolver (SSRF protections, timeouts, size limits).
+
+**Validation rules**:
+- Must be 10-digit US number (with optional +1 prefix)
+- Reject known non-phone patterns: fax numbers (skip if preceded by "fax" within 20 chars)
+- Reject toll-free numbers starting with 800/888/877/866/855/844/833 (these are call centers, not local offices — configurable)
+- If multiple phones found, prefer the one closest to the org name in the text
+
+#### Dashboard Integration
+
+The org detail page (`/orgs/{ein}/`) already shows org metadata. Add `phone` to the display. The pipeline controls page gains an "Enrich Phones" button that triggers the enrichment pipeline for a selected state or all resolved orgs.
+
+#### Cost
+
+Phone enrichment uses 1 Serpex credit per org (single search query). For 100K resolved orgs: ~$30-80 at Serpex rates. Website fetch fallback adds no search cost (uses already-known URLs).
+
 ### Migration Path
 
 1. **Phase 1**: Ship `web_search.py` with Serpex backend. Default to `--search-backend serpex --search-engines brave`. This is a 1:1 replacement — same engine, different proxy. Validate with a 100-org run.
 2. **Phase 2**: Enable `--search-engines brave,google` for hard cases (re-resolve the ~20K ambiguous/unresolved orgs). Compare resolution rates.
-3. **Phase 3**: Once validated, deprecate `--search-backend brave-direct` flag. `brave_search.py` becomes blocklist-only (no more API client code).
+3. **Phase 3**: Phone number enrichment pass on all resolved orgs.
+4. **Phase 4**: Once validated, deprecate `--search-backend brave-direct` flag. `brave_search.py` becomes blocklist-only (no more API client code).
 
 ## Acceptance Criteria
 
@@ -375,14 +439,27 @@ End-of-run summary includes:
 31. Partial engine failures logged at WARNING with engine name and error message
 32. End-of-run summary includes per-engine query counts, per-engine failure counts, search_full/partial/failed counters, and estimated credit usage (successful calls × 1)
 
+### Phone Number Enrichment
+33. `pipeline_enrich_phone.py` CLI exists with `--state`, `--limit`, `--search-engines` flags
+34. Migration adds `phone` and `phone_source` columns to `nonprofits_seed`
+35. Phone regex extracts 10-digit US numbers from search snippets
+36. Fax numbers rejected (preceded by "fax" within 20 characters)
+37. Toll-free numbers (800/888/877/866/855/844/833) rejected by default, configurable via `--allow-tollfree`
+38. Fallback: if no phone in snippets, fetches org's website_url contact/about page
+39. Writes `phone` and `phone_source` (`search_snippet` or `website_extract`) to DB
+40. Dashboard org detail page displays phone number
+41. Dashboard pipeline controls includes "Enrich Phones" trigger
+
 ### Testing
-33. Unit tests for Serpex API call construction (mock HTTP)
-34. Unit tests for multi-engine merge/dedupe algorithm including tie-breaker determinism
-35. Unit tests for URL normalization edge cases (www stripping, trailing slash, fragments, query strings, scheme normalization)
-36. Unit tests for error handling (402, 429, 5xx, network error, partial engine failure in multi-engine)
-37. Unit tests for engine validation (auto+other rejected, duplicates deduped, unknown rejected)
-38. Integration test: `search_and_filter()` with mocked Serpex returning known results, verify blocklist applied
-39. Backward compatibility test: `--search-backend brave-direct` uses existing Brave client path
+42. Unit tests for Serpex API call construction (mock HTTP)
+43. Unit tests for multi-engine merge/dedupe algorithm including tie-breaker determinism
+44. Unit tests for URL normalization edge cases (www stripping, trailing slash, fragments, query strings, scheme normalization)
+45. Unit tests for error handling (402, 429, 5xx, network error, partial engine failure in multi-engine)
+46. Unit tests for engine validation (auto+other rejected, duplicates deduped, unknown rejected)
+47. Integration test: `search_and_filter()` with mocked Serpex returning known results, verify blocklist applied
+48. Backward compatibility test: `--search-backend brave-direct` uses existing Brave client path
+49. Unit tests for phone regex extraction (valid US formats, fax rejection, toll-free rejection, multiple phones)
+50. Integration test: phone enrichment pipeline with mocked search returning snippet with phone number
 
 ## Traps to Avoid
 
@@ -390,7 +467,9 @@ End-of-run summary includes:
 2. **Don't change query construction** — The `"{clean_name} {city} {state}"` pattern is battle-tested. Serpex takes the same query string.
 3. **Don't parallelize multi-engine queries** — Sequential with rate limiter is safer. Serpex has tier-based concurrency limits and we don't want to burn credits on rate-limit retries.
 4. **402 is not retryable** — Credit exhaustion won't resolve on retry. Log it, fail the query, and let the operator know.
-5. **Don't remove brave_search.py** — It still owns the blocklist and serves as the fallback backend. Remove only the API client code in Phase 3 (future work, not this spec).
+5. **Don't remove brave_search.py** — It still owns the blocklist and serves as the fallback backend. Remove only the API client code in Phase 4 (future work, not this spec).
+6. **Phone regex false positives** — EINs are 9 digits, zip codes are 5+4 digits, dates look like phone numbers. The phone regex must require exactly 10 digits in phone-like grouping (3-3-4) with separators. Don't extract bare digit sequences without format markers (parens, dashes, dots).
+7. **Don't use the phone enrichment blocklist** — The resolver blocklist blocks directory/aggregator sites. For phone enrichment, those sites (Yelp, MapQuest, ChamberOfCommerce) are actually good phone sources. The phone pipeline should NOT apply `is_blocked()` to search results — it uses its own simpler filter (or none).
 
 ## Security Considerations
 
