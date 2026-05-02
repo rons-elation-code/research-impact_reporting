@@ -240,6 +240,22 @@ class TestErrorHandling:
         assert len(out) == 1
         assert "google" in out[0].engines
 
+    def test_single_engine_error_increments_search_failed(self):
+        reset_search_stats()
+        rl = _fast_rl()
+        config = _make_config(engines=["brave"])
+
+        with patch("lavandula.nonprofits.web_search.requests.get") as mock_get:
+            mock_get.return_value = _mock_serpex_error(500)
+            with patch("lavandula.nonprofits.web_search.time.sleep"):
+                with pytest.raises(SearchError):
+                    search("test", config=config, rate_limiter=rl)
+
+        from lavandula.nonprofits.web_search import get_search_stats
+        stats = get_search_stats()
+        assert stats.search_failed == 1
+        assert stats.failed_by_engine.get("brave", 0) == 1
+
     def test_multi_engine_all_fail(self):
         reset_search_stats()
         rl = _fast_rl()
@@ -409,6 +425,25 @@ class TestSearchAndFilter:
 
         assert result.results == []
         assert result.had_raw_results is False
+
+    def test_legal_suffix_stripped(self):
+        """Legal suffixes like Inc, Foundation are stripped from query."""
+        reset_search_stats()
+        rl = _fast_rl()
+        config = _make_config()
+        results = [{"title": "T", "url": "https://example.org", "snippet": "S"}]
+
+        with patch("lavandula.nonprofits.web_search.requests.get") as mock_get:
+            mock_get.return_value = _mock_serpex_response(results)
+            search_and_filter(
+                "American Red Cross Inc", "Austin", "TX",
+                config=config, rate_limiter=rl,
+            )
+
+        call_args = mock_get.call_args
+        query = call_args.kwargs["params"]["q"]
+        assert "Inc" not in query
+        assert "American Red Cross" in query
 
     def test_all_blocked(self):
         reset_search_stats()
