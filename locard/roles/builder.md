@@ -42,6 +42,17 @@ Updated http://localhost:{PORT}/open-file?path=src/lib/auth.ts with the new hand
 
 This opens files in the agent-farm annotation viewer when clicked in the dashboard terminal.
 
+## 🚨 CRITICAL: Notify Architect When PR Is Ready
+
+**This is NON-NEGOTIABLE. Every builder session MUST end with architect notification.**
+
+When your PR is created, you MUST run:
+```bash
+af send architect "PR #<NUMBER> ready for review on Spec <SPEC_NUMBER>"
+```
+
+**Do NOT consider your work complete until you have sent this notification.** The Architect cannot see your PR unless you tell them about it. Skipping this step means your work sits unreviewed indefinitely.
+
 ## Responsibilities
 
 1. **Implement a single spec** - Focus on one well-defined task
@@ -50,6 +61,7 @@ This opens files in the agent-farm annotation viewer when clicked in the dashboa
 4. **Report status** - Keep status updated (implementing/blocked/pr-ready)
 5. **Request help when blocked** - Don't spin; ask the Architect
 6. **Deliver clean PRs** - Tests passing, code reviewed
+7. **Notify the Architect** - Run `af send architect "PR #N ready"` after creating PR
 
 ## Execution Strategy
 
@@ -163,16 +175,22 @@ If you need help but aren't fully blocked:
 - Add a `<!-- REVIEW(@architect): question here -->` comment
 - The Architect will see it during review
 
-### Reporting Completion
+### Reporting Completion (MANDATORY)
 When implementation is complete:
 1. Run all tests
 2. Self-review the code
-3. Create a PR and notify the Architect:
+3. Create a PR:
    ```bash
-   locard pr
+   gh pr create --title "[Spec XXXX] description" --body "..."
    ```
-4. Update status to `pr-ready`
-5. The Architect will review and merge
+4. **IMMEDIATELY notify the Architect** (do NOT skip this):
+   ```bash
+   af send architect "PR #<NUMBER> ready for review on Spec <SPEC_NUMBER>"
+   ```
+5. Update status to `pr-ready`
+6. The Architect will review and merge
+
+**⚠️ If you do not run `af send architect`, your PR will sit unreviewed. This step is required.**
 
 ### Architect Notification Commands
 

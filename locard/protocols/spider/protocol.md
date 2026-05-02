@@ -551,10 +551,19 @@ Execute for each phase in the plan. This is a strict cycle that must be complete
    - Document in `locard/reviews/`
    - **Important**: This protocol should evolve based on each project's learnings
 
+8. **Create PR and Notify Architect** (MANDATORY — do NOT skip)
+   - Create a pull request for the implementation branch
+   - **Immediately** notify the Architect:
+     ```bash
+     af send architect "PR #<NUMBER> ready for review on Spec <SPEC_NUMBER>"
+     ```
+   - Your work is NOT complete until the Architect has been notified
+
 **Output**:
 - Single review document in `locard/reviews/####-descriptive-name.md`
 - Same filename as spec/plan, captures review and learnings from this feature
 - Methodology improvement proposals (update protocol if needed)
+- Pull request created and Architect notified
 
 **Review Required**: Yes - Team retrospective recommended
 
