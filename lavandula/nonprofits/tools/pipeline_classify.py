@@ -40,9 +40,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--limit", type=int, default=0, help="Max reports to process (0 = no limit)")
     p.add_argument("--queue-size", type=int, default=32, help="Bounded queue capacity")
-    p.add_argument("--llm-url", default="http://localhost:11434/v1", help="OpenAI-compatible endpoint")
-    p.add_argument("--llm-model", default="gemma4:e4b", help="Model name/tag")
-    p.add_argument("--llm-api-key-ssm", default=None, help="SSM path for API key (omit for local Ollama)")
+    p.add_argument("--llm-url", default="https://api.deepseek.com/v1", help="OpenAI-compatible endpoint")
+    p.add_argument("--llm-model", default="deepseek-v4-flash", help="Model name/tag")
+    p.add_argument("--llm-api-key-ssm", default="lavandula/deepseek/api_key", help="SSM path for API key")
     p.add_argument("--state", default=None, help="Only classify corpus rows from orgs in this state (e.g. TX)")
     p.add_argument("--re-classify", action="store_true", help="Re-classify all rows, not just NULL classification")
     p.add_argument("--definition", default=None,

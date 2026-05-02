@@ -72,9 +72,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--search-parallelism", type=int, default=4, help="Concurrent search requests")
     p.add_argument("--fetch-parallelism", type=int, default=8, help="Concurrent HTTP fetch requests")
     p.add_argument("--queue-size", type=int, default=32, help="Bounded queue capacity")
-    p.add_argument("--llm-url", default="http://localhost:11434/v1", help="OpenAI-compatible endpoint")
-    p.add_argument("--llm-model", default="gemma4:e4b", help="Model name/tag")
-    p.add_argument("--llm-api-key-ssm", default=None, help="SSM path for API key (omit for local Ollama)")
+    p.add_argument("--llm-url", default="https://api.deepseek.com/v1", help="OpenAI-compatible endpoint")
+    p.add_argument("--llm-model", default="deepseek-v4-flash", help="Model name/tag")
+    p.add_argument("--llm-api-key-ssm", default="lavandula/deepseek/api_key", help="SSM path for API key")
     p.add_argument("--consumer-threads", type=int, default=1, help="Parallel LLM consumer threads (default: 1)")
     p.add_argument("--dry-run", action="store_true", help="Search + fetch but skip LLM and DB writes")
     return p

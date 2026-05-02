@@ -48,7 +48,7 @@ class SearchConfig:
     engines: list[str]    # ["brave"] or ["brave", "google"]
     api_key: str
     qps: float
-    count: int = 10
+    count: int = 20
 
     def __repr__(self) -> str:
         return (
