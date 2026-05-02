@@ -503,11 +503,11 @@ projects:
   - id: "0031"
     title: "Serpex Search Adapter with Multi-Engine & Phone Enrichment"
     summary: "Replace direct Brave Search API calls with Serpex proxy, adding a search adapter with configurable engine selection (brave, google, bing) and multi-engine mode that merges/dedupes candidates for higher recall. Includes phone number enrichment pass that extracts org phone numbers from search snippets and website contact pages. 6-17x cost reduction vs Brave direct."
-    status: specified
+    status: planned
     priority: high
     files:
       spec: locard/specs/0031-serpex-search-adapter.md
-      plan: null
+      plan: locard/plans/0031-serpex-search-adapter.md
       review: null
     dependencies: ["0018"]
     tags: [resolver, search, cost-optimization, serpex, multi-engine]
