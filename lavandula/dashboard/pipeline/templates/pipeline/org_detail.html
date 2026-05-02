@@ -16,6 +16,9 @@
       <div class="flex"><dt class="w-40 text-gray-500">City</dt><dd>{{ org.city|default:"-" }}</dd></div>
       <div class="flex"><dt class="w-40 text-gray-500">State</dt><dd>{{ org.state|default:"-" }}</dd></div>
       <div class="flex"><dt class="w-40 text-gray-500">Website URL</dt><dd class="break-all">{{ org.website_url|default:"-" }}</dd></div>
+      {% if org.phone %}
+      <div class="flex"><dt class="w-40 text-gray-500">Phone</dt><dd>{{ org.phone }} <span class="text-xs text-gray-400">({{ org.phone_source }})</span></dd></div>
+      {% endif %}
       <div class="flex"><dt class="w-40 text-gray-500">Resolver Status</dt><dd>
         {% if org.resolver_status == "resolved" %}<span class="text-green-600">{{ org.resolver_status }}</span>
         {% else %}{{ org.resolver_status|default:"-" }}{% endif %}

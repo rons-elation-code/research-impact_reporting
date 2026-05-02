@@ -1,16 +1,19 @@
-"""CLI entry point for pipeline URL resolution (Spec 0018).
+"""CLI entry point for pipeline URL resolution (Spec 0018, 0031).
 
 Usage:
     python -m lavandula.nonprofits.tools.pipeline_resolve --state TX [OPTIONS]
 
-    # Local Ollama (default):
-    python -m lavandula.nonprofits.tools.pipeline_resolve --state TX
-
-    # DeepSeek API:
+    # Serpex backend (default, Spec 0031):
     python -m lavandula.nonprofits.tools.pipeline_resolve --state TX \
-        --llm-url https://api.deepseek.com/v1 \
-        --llm-model deepseek-v4-flash \
-        --llm-api-key-ssm lavandula/deepseek/api_key
+        --search-backend serpex --search-engines brave
+
+    # Multi-engine:
+    python -m lavandula.nonprofits.tools.pipeline_resolve --state TX \
+        --search-engines brave,google
+
+    # Brave direct (legacy):
+    python -m lavandula.nonprofits.tools.pipeline_resolve --state TX \
+        --search-backend brave-direct
 """
 from __future__ import annotations
 
@@ -21,8 +24,7 @@ import threading
 import time
 
 from lavandula.common.db import MIN_SCHEMA_VERSION, assert_schema_at_least, make_app_engine
-from lavandula.common.secrets import SecretUnavailable, get_brave_api_key
-from lavandula.nonprofits.brave_search import BraveRateLimiter
+from lavandula.common.secrets import SecretUnavailable, get_brave_api_key, get_serpex_api_key
 from lavandula.nonprofits.gemma_client import LLMClient
 from lavandula.nonprofits.pipeline_resolver import (
     PipelineQueue,
@@ -33,6 +35,13 @@ from lavandula.nonprofits.pipeline_resolver import (
     producer,
     run_dry,
 )
+from lavandula.nonprofits.web_search import (
+    RateLimiter,
+    SearchConfig,
+    get_search_stats,
+    reset_search_stats,
+    validate_engines,
+)
 
 log = logging.getLogger(__name__)
 
@@ -40,14 +49,27 @@ log = logging.getLogger(__name__)
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="pipeline_resolve",
-        description="Resolve nonprofit website URLs via Brave Search + LLM.",
+        description="Resolve nonprofit website URLs via search + LLM.",
     )
     p.add_argument("--state", required=True, help="Filter to orgs in this state")
     p.add_argument("--limit", type=int, default=0, help="Max orgs to process (0 = no limit)")
     p.add_argument("--status-filter", default="unresolved", help="Which resolver_status to re-process")
     p.add_argument("--fresh-only", action="store_true", help="Only process orgs with resolver_status IS NULL (skip previously attempted)")
-    p.add_argument("--brave-qps", type=float, default=1.0, help="Brave API queries per second")
-    p.add_argument("--search-parallelism", type=int, default=4, help="Concurrent Brave search requests")
+
+    # Search backend (Spec 0031)
+    p.add_argument("--search-backend", choices=["serpex", "brave-direct"], default="serpex",
+                    help="Search backend (default: serpex)")
+    p.add_argument("--search-engines", default="brave",
+                    help="Comma-separated engines: brave,google,bing,auto (default: brave)")
+    p.add_argument("--search-qps", type=float, default=None, help="Search queries per second")
+    p.add_argument("--brave-qps", type=float, default=None,
+                    help="(deprecated, use --search-qps) Brave API queries per second")
+
+    serpex_key_group = p.add_mutually_exclusive_group()
+    serpex_key_group.add_argument("--serpex-api-key", default=None, help="Serpex API key (literal)")
+    serpex_key_group.add_argument("--serpex-ssm-key", default=None, help="SSM path for Serpex API key")
+
+    p.add_argument("--search-parallelism", type=int, default=4, help="Concurrent search requests")
     p.add_argument("--fetch-parallelism", type=int, default=8, help="Concurrent HTTP fetch requests")
     p.add_argument("--queue-size", type=int, default=32, help="Bounded queue capacity")
     p.add_argument("--llm-url", default="http://localhost:11434/v1", help="OpenAI-compatible endpoint")
@@ -66,9 +88,21 @@ def main(argv: list[str] | None = None) -> None:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
-    if args.brave_qps <= 0:
-        parser.error("--brave-qps must be > 0")
+    # QPS: --search-qps takes priority, --brave-qps is deprecated alias
+    qps = args.search_qps or args.brave_qps or 1.0
+    if qps <= 0:
+        parser.error("--search-qps must be > 0")
 
+    # Engine validation
+    if args.search_backend == "brave-direct":
+        engines = ["brave"]
+    else:
+        try:
+            engines = validate_engines(args.search_engines.split(","))
+        except ValueError as exc:
+            parser.error(str(exc))
+
+    # LLM setup
     api_key_value = None
     if args.llm_api_key_ssm:
         from lavandula.common.secrets import get_secret
@@ -85,17 +119,41 @@ def main(argv: list[str] | None = None) -> None:
         )
         sys.exit(1)
 
+    # Search API key
     try:
-        api_key = get_brave_api_key()
+        if args.search_backend == "serpex":
+            if args.serpex_api_key:
+                search_api_key = args.serpex_api_key
+            elif args.serpex_ssm_key:
+                from lavandula.common.secrets import get_secret
+                search_api_key = get_secret(args.serpex_ssm_key)
+            else:
+                search_api_key = get_serpex_api_key()
+        else:
+            search_api_key = get_brave_api_key()
     except SecretUnavailable as exc:
-        print(f"ERROR: Brave API key unavailable: {exc}", file=sys.stderr)
+        print(f"ERROR: Search API key unavailable: {exc}", file=sys.stderr)
         sys.exit(1)
+
+    search_config = SearchConfig(
+        backend=args.search_backend,
+        engines=engines,
+        api_key=search_api_key,
+        qps=qps,
+    )
+    rate_limiter = RateLimiter(qps)
+
+    log.info(
+        "Search: backend=%s engines=%s qps=%.1f",
+        args.search_backend, ",".join(engines), qps,
+    )
 
     engine = make_app_engine()
     assert_schema_at_least(engine, MIN_SCHEMA_VERSION)
 
+    reset_search_stats()
+
     try:
-        rate_limiter = BraveRateLimiter(args.brave_qps)
         limit = args.limit if args.limit > 0 else None
 
         orgs = load_unresolved_orgs(
@@ -114,7 +172,7 @@ def main(argv: list[str] | None = None) -> None:
         if args.dry_run:
             run_dry(
                 orgs,
-                api_key=api_key,
+                search_config=search_config,
                 rate_limiter=rate_limiter,
                 search_parallelism=args.search_parallelism,
                 fetch_parallelism=args.fetch_parallelism,
@@ -135,7 +193,7 @@ def main(argv: list[str] | None = None) -> None:
                 orgs,
                 pq=pq,
                 engine=engine,
-                api_key=api_key,
+                search_config=search_config,
                 rate_limiter=rate_limiter,
                 search_parallelism=args.search_parallelism,
                 fetch_parallelism=args.fetch_parallelism,
@@ -185,12 +243,12 @@ def main(argv: list[str] | None = None) -> None:
         print(f"Wall time: {wall_time:.1f}s")
         print(f"Consumer threads: {n_consumers}")
         if p_stats:
-            print(f"Brave queries: {p_stats.searched}")
+            print(f"Search queries: {p_stats.searched}")
             print(f"Enqueued: {p_stats.enqueued}")
             print(f"Skipped (no results): {p_stats.skipped_no_results}")
             print(f"Skipped (all blocked): {p_stats.skipped_all_blocked}")
             print(f"Skipped (no live): {p_stats.skipped_no_live}")
-            print(f"Brave errors: {p_stats.brave_errors}")
+            print(f"Search errors: {p_stats.search_errors}")
         print(f"Resolved: {resolved}")
         print(f"Ambiguous: {ambiguous}")
         print(f"Unresolved: {unresolved}")
@@ -198,6 +256,18 @@ def main(argv: list[str] | None = None) -> None:
         total = resolved + ambiguous + unresolved
         if wall_time > 0 and total > 0:
             print(f"Rate: {total / wall_time * 60:.1f} orgs/minute")
+
+        # Search stats (Spec 0031)
+        s_stats = get_search_stats()
+        if s_stats.estimated_credits > 0:
+            print("\n--- Search Summary ---")
+            eng_parts = ", ".join(f"{k}={v}" for k, v in sorted(s_stats.successful_by_engine.items()))
+            print(f"Engine queries: {eng_parts}")
+            if s_stats.failed_by_engine:
+                fail_parts = ", ".join(f"{k}={v}" for k, v in sorted(s_stats.failed_by_engine.items()))
+                print(f"Engine failures: {fail_parts}")
+            print(f"Search: {s_stats.search_full} full, {s_stats.search_partial} partial, {s_stats.search_failed} failed")
+            print(f"Estimated credits: {s_stats.estimated_credits}")
 
     finally:
         engine.dispose()

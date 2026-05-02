@@ -28,6 +28,13 @@ LLM_PRESET_CHOICES = [
     ("local-ollama", "Local Ollama (gemma4)"),
 ]
 
+SEARCH_ENGINE_CHOICES = [
+    ("brave", "Brave (default)"),
+    ("google", "Google"),
+    ("brave_google", "Brave + Google"),
+    ("auto", "Auto (Serpex routing)"),
+]
+
 
 ALL_NTEE_MAJORS = "A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z"
 
@@ -114,9 +121,15 @@ class ResolverForm(forms.Form):
         widget=forms.Select(attrs={"class": _SELECT}),
         label="LLM",
     )
+    search_engines = forms.ChoiceField(
+        choices=SEARCH_ENGINE_CHOICES,
+        initial="brave",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="Search Engine",
+    )
     brave_qps = forms.FloatField(initial=10.0, required=False, min_value=0.1, max_value=50.0, widget=forms.NumberInput(
         attrs={"class": _SELECT, "step": "0.1"}
-    ))
+    ), label="Search QPS")
     search_parallelism = forms.IntegerField(initial=12, required=False, min_value=1, max_value=32, widget=forms.NumberInput(
         attrs={"class": _SELECT}
     ))
@@ -186,7 +199,7 @@ def _clean_990_common(cleaned_data):
     ein = cleaned_data.get("ein")
     if ein and not re.match(r"^\d{9}$", ein):
         raise forms.ValidationError("EIN must be exactly 9 digits.")
-    years_str = cleaned_data.get("years", "")
+    years_str = cleaned_data.get("years", "").strip()
     if years_str:
         if not re.match(r"^\d{4}(\s*,\s*\d{4})*$", years_str):
             raise forms.ValidationError("Years must be comma-separated 4-digit years.")
@@ -226,3 +239,18 @@ class EnrichParseForm(forms.Form):
 
     def clean(self):
         return _clean_990_common(super().clean())
+
+
+class PhoneEnrichForm(forms.Form):
+    state = forms.ChoiceField(
+        choices=[("", "All resolved")] + STATE_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": _SELECT}),
+    )
+    limit = forms.IntegerField(required=False, min_value=0, max_value=999999,
+        widget=forms.NumberInput(attrs={"class": _SELECT}))
+    search_engines = forms.ChoiceField(
+        choices=SEARCH_ENGINE_CHOICES, initial="brave",
+        widget=forms.Select(attrs={"class": _SELECT}),
+        label="Search Engine",
+    )

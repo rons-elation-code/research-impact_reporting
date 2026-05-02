@@ -1,4 +1,4 @@
-"""Unit tests for pipeline_resolver.py (Spec 0018)."""
+"""Unit tests for pipeline_resolver.py (Spec 0018, updated for Spec 0031)."""
 from __future__ import annotations
 
 import json
@@ -18,6 +18,13 @@ from lavandula.nonprofits.pipeline_resolver import (
     consumer,
     install_sigint_handler,
     producer,
+)
+from lavandula.nonprofits.web_search import (
+    RateLimiter,
+    SearchConfig,
+    SearchError,
+    SearchFilterResult,
+    SearchResult,
 )
 
 
@@ -74,9 +81,22 @@ def _make_mock_engine():
     return engine
 
 
+def _make_search_config():
+    return SearchConfig(
+        backend="serpex",
+        engines=["brave"],
+        api_key="test-key",
+        qps=100.0,
+    )
+
+
+def _fast_rl():
+    return RateLimiter(100.0)
+
+
 class TestProducer:
     def test_producer_enqueues_packets(self):
-        """Mock Brave + fetch → packets appear in queue."""
+        """Mock search_and_filter + fetch → packets appear in queue."""
         pq = PipelineQueue(maxsize=32)
         engine = _make_mock_engine()
         shutdown = ShutdownFlag()
@@ -86,12 +106,14 @@ class TestProducer:
             {"ein": "222222222", "name": "Org B", "city": "Austin", "state": "TX"},
         ]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchResult
+        rl = _fast_rl()
+        config = _make_search_config()
 
-        rl = BraveRateLimiter(100.0)
-
-        def mock_search(query, *, api_key, rate_limiter, count=10):
-            return [BraveSearchResult(title="Org Site", url="https://orgsite.org", snippet="...")]
+        def mock_search_and_filter(name, city, state, *, config, rate_limiter, max_results=3):
+            return SearchFilterResult(
+                results=[SearchResult(title="Org Site", url="https://orgsite.org", snippet="...", engines=("brave",))],
+                had_raw_results=True,
+            )
 
         def mock_fetch(url):
             return {
@@ -100,10 +122,10 @@ class TestProducer:
                 "status_code": 200,
             }
 
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=mock_search):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             with patch("lavandula.nonprofits.pipeline_resolver._fetch_candidate", side_effect=mock_fetch):
                 stats = producer(
-                    orgs, pq=pq, engine=engine, api_key="key",
+                    orgs, pq=pq, engine=engine, search_config=config,
                     rate_limiter=rl, shutdown=shutdown,
                 )
 
@@ -124,13 +146,15 @@ class TestProducer:
         shutdown = ShutdownFlag()
         orgs = [{"ein": "111111111", "name": "Ghost Org", "city": "Nowhere", "state": "TX"}]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter
+        rl = _fast_rl()
+        config = _make_search_config()
 
-        rl = BraveRateLimiter(100.0)
+        def mock_search_and_filter(*args, **kwargs):
+            return SearchFilterResult(results=[], had_raw_results=False)
 
-        with patch("lavandula.nonprofits.pipeline_resolver.search", return_value=[]):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             stats = producer(
-                orgs, pq=pq, engine=engine, api_key="key",
+                orgs, pq=pq, engine=engine, search_config=config,
                 rate_limiter=rl, shutdown=shutdown,
             )
 
@@ -143,68 +167,66 @@ class TestProducer:
         shutdown = ShutdownFlag()
         orgs = [{"ein": "111111111", "name": "Dead Org", "city": "X", "state": "TX"}]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchResult
+        rl = _fast_rl()
+        config = _make_search_config()
 
-        rl = BraveRateLimiter(100.0)
-
-        def mock_search(*args, **kwargs):
-            return [BraveSearchResult(title="Dead", url="https://dead.org", snippet="...")]
+        def mock_search_and_filter(*args, **kwargs):
+            return SearchFilterResult(
+                results=[SearchResult(title="Dead", url="https://dead.org", snippet="...", engines=("brave",))],
+                had_raw_results=True,
+            )
 
         def mock_fetch(url):
             return {"url": url, "final_url": url, "live": False, "title": "", "snippet": "", "excerpt": "", "status_code": 404}
 
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=mock_search):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             with patch("lavandula.nonprofits.pipeline_resolver._fetch_candidate", side_effect=mock_fetch):
                 stats = producer(
-                    orgs, pq=pq, engine=engine, api_key="key",
+                    orgs, pq=pq, engine=engine, search_config=config,
                     rate_limiter=rl, shutdown=shutdown,
                 )
 
         assert stats.skipped_no_live == 1
 
     def test_producer_skips_all_blocked(self):
-        """All search results are blocked domains → skipped_all_blocked incremented."""
+        """All search results are blocked → skipped_all_blocked incremented."""
         pq = PipelineQueue(maxsize=32)
         engine = _make_mock_engine()
         shutdown = ShutdownFlag()
         orgs = [{"ein": "111111111", "name": "Test Org", "city": "X", "state": "TX"}]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchResult
+        rl = _fast_rl()
+        config = _make_search_config()
 
-        rl = BraveRateLimiter(100.0)
+        def mock_search_and_filter(*args, **kwargs):
+            return SearchFilterResult(results=[], had_raw_results=True)
 
-        def mock_search(query, *, api_key, rate_limiter, count=10):
-            return [
-                BraveSearchResult(title="LinkedIn", url="https://www.linkedin.com/company/test", snippet="..."),
-                BraveSearchResult(title="Facebook", url="https://www.facebook.com/test", snippet="..."),
-            ]
-
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=mock_search):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             stats = producer(
-                orgs, pq=pq, engine=engine, api_key="key",
+                orgs, pq=pq, engine=engine, search_config=config,
                 rate_limiter=rl, shutdown=shutdown,
             )
 
         assert stats.skipped_all_blocked == 1
         assert stats.enqueued == 0
 
-    def test_producer_brave_error_reason(self):
+    def test_producer_search_error_reason(self):
         pq = PipelineQueue(maxsize=32)
         engine = _make_mock_engine()
         shutdown = ShutdownFlag()
         orgs = [{"ein": "111111111", "name": "Err Org", "city": "X", "state": "TX"}]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchError
+        rl = _fast_rl()
+        config = _make_search_config()
 
-        rl = BraveRateLimiter(100.0)
-
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=BraveSearchError("Brave API returned 500")):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter",
+                    side_effect=SearchError("Serpex API returned 500")):
             stats = producer(
-                orgs, pq=pq, engine=engine, api_key="key",
+                orgs, pq=pq, engine=engine, search_config=config,
                 rate_limiter=rl, shutdown=shutdown,
             )
 
-        assert stats.brave_errors == 1
+        assert stats.search_errors == 1
 
     def test_producer_shutdown_stops_early(self):
         pq = PipelineQueue(maxsize=32)
@@ -212,25 +234,27 @@ class TestProducer:
         shutdown = ShutdownFlag()
         orgs = [{"ein": f"{i:09d}", "name": f"Org {i}", "city": "X", "state": "TX"} for i in range(10)]
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchResult
-
-        rl = BraveRateLimiter(100.0)
+        rl = _fast_rl()
+        config = _make_search_config()
         call_count = 0
 
-        def mock_search(*args, **kwargs):
+        def mock_search_and_filter(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count >= 3:
                 shutdown.set()
-            return [BraveSearchResult(title="Site", url="https://site.org", snippet="...")]
+            return SearchFilterResult(
+                results=[SearchResult(title="Site", url="https://site.org", snippet="...", engines=("brave",))],
+                had_raw_results=True,
+            )
 
         def mock_fetch(url):
             return {"url": url, "final_url": url, "live": True, "title": "", "snippet": "", "excerpt": "ok", "status_code": 200}
 
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=mock_search):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             with patch("lavandula.nonprofits.pipeline_resolver._fetch_candidate", side_effect=mock_fetch):
                 stats = producer(
-                    orgs, pq=pq, engine=engine, api_key="key",
+                    orgs, pq=pq, engine=engine, search_config=config,
                     rate_limiter=rl, shutdown=shutdown,
                 )
 
@@ -410,13 +434,15 @@ class TestQueueDepth:
         engine = _make_mock_engine()
         shutdown = ShutdownFlag()
 
-        from lavandula.nonprofits.brave_search import BraveRateLimiter, BraveSearchResult
-
-        rl = BraveRateLimiter(1000.0)
+        rl = RateLimiter(1000.0)
+        config = _make_search_config()
         orgs = [{"ein": f"{i:09d}", "name": f"Org {i}", "city": "X", "state": "TX"} for i in range(20)]
 
-        def mock_search(*args, **kwargs):
-            return [BraveSearchResult(title="Site", url="https://site.org", snippet="...")]
+        def mock_search_and_filter(*args, **kwargs):
+            return SearchFilterResult(
+                results=[SearchResult(title="Site", url="https://site.org", snippet="...", engines=("brave",))],
+                had_raw_results=True,
+            )
 
         def mock_fetch(url):
             return {"url": url, "final_url": url, "live": True, "title": "", "snippet": "", "excerpt": "ok", "status_code": 200}
@@ -429,13 +455,13 @@ class TestQueueDepth:
 
         mock_gemma.disambiguate.side_effect = slow_disambiguate
 
-        with patch("lavandula.nonprofits.pipeline_resolver.search", side_effect=mock_search):
+        with patch("lavandula.nonprofits.pipeline_resolver.ws_search_and_filter", side_effect=mock_search_and_filter):
             with patch("lavandula.nonprofits.pipeline_resolver._fetch_candidate", side_effect=mock_fetch):
                 producer_thread = threading.Thread(
                     target=producer,
                     kwargs={
                         "orgs": orgs, "pq": pq, "engine": engine,
-                        "api_key": "key", "rate_limiter": rl, "shutdown": shutdown,
+                        "search_config": config, "rate_limiter": rl, "shutdown": shutdown,
                     },
                     daemon=True,
                 )

@@ -96,6 +96,11 @@ def get_brave_api_key() -> str:
     return get_secret("brave-api-key")
 
 
+def get_serpex_api_key() -> str:
+    """Convenience accessor. Used by the Serpex search adapter."""
+    return get_secret("serpex-api-key")
+
+
 def clear_cache() -> None:
     """Invalidate the per-process cache (test helper)."""
     get_secret.cache_clear()
@@ -105,5 +110,6 @@ __all__ = [
     "SecretUnavailable",
     "get_secret",
     "get_brave_api_key",
+    "get_serpex_api_key",
     "clear_cache",
 ]
