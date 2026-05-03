@@ -1,71 +1,54 @@
-{% load pipeline_tags %}
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+{% load humanize pipeline_tags %}
 
-  <!-- Job Queue -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Job Queue</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Running</span><span class="font-bold text-blue-600">{{ jobs_running }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Pending</span><span class="font-bold text-yellow-600">{{ jobs_pending }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Completed</span><span class="font-bold text-green-600">{{ jobs_completed }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Failed</span><span class="font-bold text-red-600">{{ jobs_failed }}</span></div>
-    </div>
-    <a href="{% url 'job_list' %}" class="block mt-3 text-sm text-blue-600 hover:underline">View all jobs →</a>
+{% if running_jobs %}
+<div class="mb-6">
+  <h2 class="text-lg font-semibold text-gray-900 mb-3">Running Jobs</h2>
+  {% for job in running_jobs %}
+  <div class="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded mb-2">
+    <span class="h-3 w-3 rounded-full bg-blue-500 animate-pulse flex-shrink-0"></span>
+    <span class="font-mono text-sm">
+      Job #{{ job.pk }} — {{ job.phase }} {{ job.state_code|default:"" }}
+      {% for param in job.config_display %} | {{ param }}{% endfor %}
+      | {{ job.elapsed }}
+    </span>
   </div>
-
-  <!-- Seed Pool -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Seed Pool</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Total Orgs</span><span class="font-bold">{{ seed_total }}</span></div>
-      {% for status, count in seed_by_status %}
-      <div class="flex justify-between"><span class="text-gray-600">{% if status == "unresolved" %}no website found{% elif status == "ambiguous" %}ambiguous (multiple matches){% else %}{{ status|default:"pending (not run)" }}{% endif %}</span><span class="font-medium">{{ count }}</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Resolver -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Resolver</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Resolved</span><span class="font-bold text-green-600">{{ resolver_resolved }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Unresolved</span><span class="font-bold text-gray-600">{{ resolver_unresolved }}</span></div>
-      {% for method, count in resolver_by_method %}
-      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ method }}</span><span class="font-medium text-sm">{{ count }}</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Crawler -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Crawler</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Orgs Crawled</span><span class="font-bold">{{ crawler_orgs }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Total Reports</span><span class="font-bold">{{ crawler_reports }}</span></div>
-    </div>
-  </div>
-
-  <!-- Classifier -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Classifier</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Classified</span><span class="font-bold text-green-600">{{ classifier_done }}</span></div>
-      <div class="flex justify-between"><span class="text-gray-600">Unclassified</span><span class="font-bold text-gray-600">{{ classifier_pending }}</span></div>
-      {% for cls, count in classifier_by_type %}
-      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ cls }}</span><span class="font-medium text-sm">{{ count }}</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Reports -->
-  <div class="bg-white rounded-lg shadow p-5">
-    <h2 class="text-sm font-semibold text-gray-500 uppercase mb-3">Reports</h2>
-    <div class="space-y-2">
-      <div class="flex justify-between"><span class="text-gray-600">Total Reports</span><span class="font-bold">{{ reports_total }}</span></div>
-      {% for year, count in reports_by_year %}
-      <div class="flex justify-between"><span class="text-gray-600 text-sm">{{ year|default:"Unknown" }}</span><span class="font-medium text-sm">{{ count }}</span></div>
-      {% endfor %}
-    </div>
-  </div>
-
+  {% endfor %}
 </div>
+{% endif %}
+
+<h2 class="text-lg font-semibold text-gray-900 mb-3">National Ingest Progress</h2>
+<div class="overflow-x-auto">
+  <table class="min-w-full text-sm">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="px-3 py-2 text-left">State</th>
+        <th class="px-3 py-2 text-right">Seeded</th>
+        <th class="px-3 py-2 text-right">Resolved</th>
+        <th class="px-3 py-2 text-right">Crawled</th>
+        <th class="px-3 py-2 text-right">Classified</th>
+        <th class="px-3 py-2 text-right">Reports</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in state_rows %}
+      <tr class="border-b {% if row.is_running %}border-l-4 border-l-blue-500 bg-blue-50{% elif row.is_pending %}border-l-4 border-l-yellow-500 bg-yellow-50{% endif %}">
+        <td class="px-3 py-2 font-medium">{{ row.state }}</td>
+        <td class="px-3 py-2 text-right">{{ row.seeded|intcomma }}</td>
+        <td class="px-3 py-2 text-right">
+          <span class="{% if row.resolved_pct == 0 %}text-gray-400{% elif row.resolved_pct < 80 %}text-yellow-600{% else %}text-green-600{% endif %}">
+            {{ row.resolved|intcomma }} / {{ row.seeded|intcomma }} ({{ row.resolved_pct }}%)
+          </span>
+        </td>
+        <td class="px-3 py-2 text-right">{{ row.crawled|intcomma }}</td>
+        <td class="px-3 py-2 text-right">{{ row.classified|intcomma }}</td>
+        <td class="px-3 py-2 text-right">{{ row.total_reports|intcomma }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="px-3 py-4 text-center text-gray-400">No states seeded yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="text-lg font-semibold text-gray-900 mt-6 mb-3">Recent Jobs</h2>
+{% include "pipeline/partials/_recent_jobs_table.html" %}

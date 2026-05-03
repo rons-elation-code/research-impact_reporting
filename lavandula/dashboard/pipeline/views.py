@@ -7,6 +7,7 @@ from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -72,6 +73,63 @@ def _expand_llm_preset(config: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers for job display
+# ---------------------------------------------------------------------------
+
+_CONFIG_ALLOWLIST = {
+    "seed": ["states", "target", "ntee_majors"],
+    "resolve": ["state", "search_engines", "llm_model", "brave_qps", "search_qps", "consumer_threads", "limit"],
+    "crawl": ["state", "limit"],
+    "classify": ["state", "llm_model", "definition", "limit", "re_classify"],
+    "enrich-phone": ["state", "search_engines", "limit"],
+    "990-index": ["filing_year"],
+    "990-parse": ["filing_year", "limit"],
+}
+
+
+def _format_job_config(job):
+    if not job or not job.config_json:
+        return []
+    allowed = _CONFIG_ALLOWLIST.get(job.phase, [])
+    parts = []
+    for key in allowed:
+        val = job.config_json.get(key)
+        if val is not None and val != "":
+            parts.append(f"{key}={val}")
+    return parts
+
+
+def _annotate_running_jobs(jobs):
+    now = timezone.now()
+    annotated = []
+    for job in jobs:
+        job.config_display = _format_job_config(job)
+        if job.started_at:
+            mins = int((now - job.started_at).total_seconds() // 60)
+            job.elapsed = f"{mins}m ago" if mins > 0 else "just started"
+        else:
+            job.elapsed = "pending"
+        annotated.append(job)
+    return annotated
+
+
+def _job_duration(job):
+    if job.finished_at and job.started_at:
+        total_secs = int((job.finished_at - job.started_at).total_seconds())
+        if total_secs < 60:
+            return f"{total_secs}s"
+        mins = total_secs // 60
+        return f"{mins}m {total_secs % 60}s"
+    return None
+
+
+def _annotate_recent_jobs(jobs):
+    for job in jobs:
+        job.duration_display = _job_duration(job)
+    return list(jobs)
+
+
+# ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
 
@@ -94,56 +152,74 @@ class DashboardStatsPartial(HtmxLoginRequiredMixin, TemplateView):
 
 
 def _dashboard_stats():
-    stats = {}
-    stats["jobs_running"] = Job.objects.filter(status="running").count()
-    stats["jobs_pending"] = Job.objects.filter(status="pending").count()
-    stats["jobs_completed"] = Job.objects.filter(status="completed").count()
-    stats["jobs_failed"] = Job.objects.filter(status="failed").count()
+    from django.db import connections
 
-    stats["seed_total"] = NonprofitSeed.objects.count()
-    stats["seed_by_status"] = list(
-        NonprofitSeed.objects.values_list("resolver_status")
-        .annotate(c=Count("ein"))
-        .order_by("-c")[:10]
+    with connections["pipeline"].cursor() as cursor:
+        cursor.execute("""
+            SELECT
+                s.state,
+                COUNT(*) as seeded,
+                SUM(CASE WHEN s.resolver_status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                COUNT(DISTINCT co.ein) as crawled,
+                SUM(CASE WHEN s.phone IS NOT NULL AND s.phone != '' THEN 1 ELSE 0 END) as has_phone
+            FROM nonprofits_seed s
+            LEFT JOIN crawled_orgs co ON s.ein = co.ein
+            GROUP BY s.state
+            ORDER BY COUNT(*) DESC
+        """)
+        columns = [col[0] for col in cursor.description]
+        state_rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT
+                s.state,
+                COUNT(DISTINCT c.content_sha256) as total_reports,
+                COUNT(DISTINCT CASE WHEN c.classification IS NOT NULL THEN c.content_sha256 END) as classified
+            FROM nonprofits_seed s
+            JOIN corpus c ON s.ein = c.source_org_ein
+            GROUP BY s.state
+        """)
+        report_rows = {row[0]: {"total_reports": row[1], "classified": row[2]} for row in cursor.fetchall()}
+
+    for row in state_rows:
+        rpt = report_rows.get(row["state"], {})
+        row["total_reports"] = rpt.get("total_reports", 0)
+        row["classified"] = rpt.get("classified", 0)
+        row["resolved_pct"] = round(row["resolved"] / row["seeded"] * 100) if row["seeded"] > 0 else 0
+
+    running_jobs = _annotate_running_jobs(
+        Job.objects.filter(status="running").select_related()
     )
 
-    stats["resolver_resolved"] = NonprofitSeed.objects.filter(
-        resolver_status="resolved"
-    ).count()
-    stats["resolver_unresolved"] = NonprofitSeed.objects.exclude(
-        resolver_status="resolved"
-    ).count()
-    stats["resolver_by_method"] = list(
-        NonprofitSeed.objects.filter(resolver_method__isnull=False)
-        .values_list("resolver_method")
-        .annotate(c=Count("ein"))
-        .order_by("-c")[:10]
-    )
+    running_states = set()
+    pending_states = set()
+    for job in Job.objects.filter(status__in=["running", "pending"]):
+        if job.state_code:
+            if job.status == "running":
+                running_states.add(job.state_code)
+            else:
+                pending_states.add(job.state_code)
 
-    stats["crawler_orgs"] = CrawledOrg.objects.count()
-    stats["crawler_reports"] = Report.objects.count()
+    def sort_key(r):
+        if r["state"] in running_states:
+            return (0, -r["seeded"])
+        if r["state"] in pending_states:
+            return (1, -r["seeded"])
+        return (2, -r["seeded"])
 
-    stats["classifier_done"] = Report.objects.filter(
-        classification__isnull=False
-    ).count()
-    stats["classifier_pending"] = Report.objects.filter(
-        classification__isnull=True
-    ).count()
-    stats["classifier_by_type"] = list(
-        Report.objects.filter(classification__isnull=False)
-        .values_list("classification")
-        .annotate(c=Count("content_sha256"))
-        .order_by("-c")[:10]
-    )
+    state_rows.sort(key=sort_key)
+    for row in state_rows:
+        row["is_running"] = row["state"] in running_states
+        row["is_pending"] = row["state"] in pending_states
 
-    stats["reports_total"] = Report.objects.count()
-    stats["reports_by_year"] = list(
-        Report.objects.values_list("report_year")
-        .annotate(c=Count("content_sha256"))
-        .order_by("-report_year")[:10]
-    )
+    recent_jobs = _annotate_recent_jobs(Job.objects.order_by("-created_at")[:10])
 
-    return stats
+    return {
+        "state_rows": state_rows,
+        "running_jobs": running_jobs,
+        "recent_jobs": recent_jobs,
+        "show_phase": True,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -371,11 +447,28 @@ class ResolverView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["running_job"] = Job.objects.filter(phase="resolve", status="running").first()
+        running = Job.objects.filter(phase="resolve", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["pending_job"] = Job.objects.filter(phase="resolve", status="pending").first()
         ctx["recent_results"] = NonprofitSeed.objects.filter(
             resolver_updated_at__isnull=False
         ).order_by("-resolver_updated_at")[:50]
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="resolve").order_by("-created_at")[:20]
+        )
+        resolve_stats = list(
+            NonprofitSeed.objects.values("state")
+            .annotate(
+                total=Count("ein"),
+                resolved=Count("ein", filter=models.Q(resolver_status="resolved")),
+            )
+            .order_by("state")
+        )
+        for stat in resolve_stats:
+            stat["pct"] = round(stat["resolved"] / stat["total"] * 100) if stat["total"] > 0 else 0
+        ctx["resolve_stats"] = resolve_stats
         from .forms import ResolverForm
         ctx["form"] = ResolverForm()
         return ctx
@@ -390,9 +483,31 @@ class CrawlerView(LoginRequiredMixin, TemplateView):
             ctx["process"] = check_process("crawl")
         except PipelineProcess.DoesNotExist:
             ctx["process"] = None
-        ctx["running_job"] = Job.objects.filter(phase="crawl", status="running").first()
+        running = Job.objects.filter(phase="crawl", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["recent_orgs"] = CrawledOrg.objects.order_by("-last_crawled_at")[:50]
         ctx["recent_reports"] = Report.objects.order_by("-archived_at")[:50]
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="crawl").order_by("-created_at")[:20]
+        )
+        from django.db import connections
+        with connections["pipeline"].cursor() as cursor:
+            cursor.execute("""
+                SELECT s.state,
+                       SUM(CASE WHEN s.resolver_status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                       COUNT(DISTINCT co.ein) as crawled
+                FROM nonprofits_seed s
+                LEFT JOIN crawled_orgs co ON s.ein = co.ein
+                WHERE s.resolver_status = 'resolved'
+                GROUP BY s.state ORDER BY s.state
+            """)
+            crawl_stats = []
+            for row in cursor.fetchall():
+                pct = round(row[2] / row[1] * 100) if row[1] > 0 else 0
+                crawl_stats.append({"state": row[0], "resolved": row[1], "crawled": row[2], "pct": pct})
+        ctx["crawl_stats"] = crawl_stats
         from .forms import CrawlerForm, RunCrawlForm
         ctx["form"] = CrawlerForm()
         ctx["crawl_job_form"] = RunCrawlForm()
@@ -408,10 +523,31 @@ class ClassifierView(LoginRequiredMixin, TemplateView):
             ctx["process"] = check_process("classify")
         except PipelineProcess.DoesNotExist:
             ctx["process"] = None
-        ctx["running_job"] = Job.objects.filter(phase="classify", status="running").first()
+        running = Job.objects.filter(phase="classify", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["recent_results"] = Report.objects.filter(
             classification__isnull=False
         ).order_by("-archived_at")[:50]
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="classify").order_by("-created_at")[:20]
+        )
+        from django.db import connections
+        with connections["pipeline"].cursor() as cursor:
+            cursor.execute("""
+                SELECT s.state,
+                       COUNT(DISTINCT c.content_sha256) as total_reports,
+                       COUNT(DISTINCT CASE WHEN c.classification IS NOT NULL THEN c.content_sha256 END) as classified
+                FROM nonprofits_seed s
+                JOIN corpus c ON s.ein = c.source_org_ein
+                GROUP BY s.state ORDER BY s.state
+            """)
+            classify_stats = []
+            for row in cursor.fetchall():
+                pct = round(row[2] / row[1] * 100) if row[1] > 0 else 0
+                classify_stats.append({"state": row[0], "total_reports": row[1], "classified": row[2], "pct": pct})
+        ctx["classify_stats"] = classify_stats
         from .forms import ClassifierForm
         ctx["form"] = ClassifierForm()
         return ctx
@@ -575,8 +711,14 @@ class EnrichIndexView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["running_job"] = Job.objects.filter(phase="990-index", status="running").first()
+        running = Job.objects.filter(phase="990-index", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["pending_job"] = Job.objects.filter(phase="990-index", status="pending").first()
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="990-index").order_by("-created_at")[:20]
+        )
         from .forms import EnrichIndexForm
         ctx["form"] = EnrichIndexForm()
 
@@ -637,8 +779,14 @@ class EnrichParseView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["running_job"] = Job.objects.filter(phase="990-parse", status="running").first()
+        running = Job.objects.filter(phase="990-parse", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["pending_job"] = Job.objects.filter(phase="990-parse", status="pending").first()
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="990-parse").order_by("-created_at")[:20]
+        )
         from .forms import EnrichParseForm
         ctx["form"] = EnrichParseForm()
 
@@ -692,7 +840,10 @@ class PhoneEnrichView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["running_job"] = Job.objects.filter(phase="enrich-phone", status="running").first()
+        running = Job.objects.filter(phase="enrich-phone", status="running").first()
+        if running:
+            running = _annotate_running_jobs([running])[0]
+        ctx["running_job"] = running
         ctx["pending_job"] = Job.objects.filter(phase="enrich-phone", status="pending").first()
         from .forms import PhoneEnrichForm
         ctx["form"] = PhoneEnrichForm()
@@ -700,6 +851,21 @@ class PhoneEnrichView(LoginRequiredMixin, TemplateView):
         ctx["resolved_no_phone"] = NonprofitSeed.objects.filter(
             resolver_status="resolved", phone__isnull=True,
         ).count()
+        ctx["recent_jobs"] = _annotate_recent_jobs(
+            Job.objects.filter(phase="enrich-phone").order_by("-created_at")[:20]
+        )
+        phone_stats = list(
+            NonprofitSeed.objects.filter(resolver_status="resolved")
+            .values("state")
+            .annotate(
+                resolved=Count("ein"),
+                has_phone=Count("ein", filter=models.Q(phone__isnull=False) & ~models.Q(phone="")),
+            )
+            .order_by("state")
+        )
+        for stat in phone_stats:
+            stat["pct"] = round(stat["has_phone"] / stat["resolved"] * 100) if stat["resolved"] > 0 else 0
+        ctx["phone_stats"] = phone_stats
         return ctx
 
 
