@@ -6,23 +6,26 @@
 
 Replace the aggregate dashboard with a state × pipeline-stage progress grid. Add recent jobs tables and stats-by-state pills to all phase pages, matching the seeder's pattern. Add config display on running jobs.
 
-The implementation touches 2 Python files and 8 templates. No migrations, no new models, no new URLs.
+The implementation touches 1 Python file (`views.py`) and 10 templates (1 rewrite, 7 enhanced, 2 new shared partials). No migrations, no new models, no new URLs.
 
 ## Implementation Order
 
 Work in this order to get incremental value and testability:
 
-1. **Config display helper** (views.py) — shared utility used by all pages
+1. **Shared helpers and partials** (views.py + 2 new template partials) — config display helper, recent jobs table partial, stats pills partial. Create these FIRST so all subsequent pages use `{% include %}` from the start.
 2. **Main dashboard rewrite** (views.py + dashboard_stats.html) — highest value, most complex
-3. **Resolver page** (views.py + resolver.html) — establishes the phase page pattern
+3. **Resolver page** (views.py + resolver.html) — establishes the phase page pattern using shared partials
 4. **Classifier, crawler, phone enrich pages** — apply the same pattern
-5. **990 index, 990 parse pages** — simpler variant (jobs only, no state stats)
+5. **990 index, 990 parse pages** — simpler variant (recent jobs partial only, no stats pills)
+6. **Verification** — manual test each page, cross-check numbers
 
-## Step 1: Job Config Display Helper
+## Step 1: Shared Helpers and Template Partials
 
-**File**: `views.py`
+Create all shared infrastructure first so every page uses `{% include %}` from the start.
 
-Add a helper function near the top (after imports, before view classes) that extracts display-worthy config from `job.config_json`:
+### 1a. View Helpers in `views.py`
+
+Add near the top (after imports, before view classes). Config display helper:
 
 ```python
 _CONFIG_ALLOWLIST = {
@@ -68,6 +71,71 @@ def _annotate_running_jobs(jobs):
         annotated.append(job)
     return annotated
 ```
+
+Also add a duration helper for the recent jobs table:
+
+```python
+def _job_duration(job):
+    """Return human-readable duration string."""
+    if job.finished_at and job.started_at:
+        delta = job.finished_at - job.started_at
+        total_secs = int(delta.total_seconds())
+        if total_secs < 60:
+            return f"{total_secs}s"
+        mins = total_secs // 60
+        return f"{mins}m {total_secs % 60}s"
+    return None
+```
+
+### 1b. Shared Recent Jobs Table Partial
+
+**New file**: `templates/pipeline/partials/_recent_jobs_table.html`
+
+Takes `recent_jobs` context var. Renders standard job table with columns: ID, State, Status, Exit, Progress, Duration, Created. Uses `_job_duration` annotation from the view (each view annotates `job.duration_display` before passing to template).
+
+```html
+{% load humanize %}
+<table class="min-w-full text-sm">
+  <thead class="bg-gray-100">
+    <tr>
+      <th class="px-2 py-1 text-left">ID</th>
+      <th class="px-2 py-1 text-left">State</th>
+      <th class="px-2 py-1 text-left">Status</th>
+      <th class="px-2 py-1 text-left">Exit</th>
+      <th class="px-2 py-1 text-left">Progress</th>
+      <th class="px-2 py-1 text-left">Duration</th>
+      <th class="px-2 py-1 text-left">Created</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for job in recent_jobs %}
+    <tr class="border-b">
+      <td class="px-2 py-1"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600">{{ job.pk }}</a></td>
+      <td class="px-2 py-1">{{ job.state_code|default:"—" }}</td>
+      <td class="px-2 py-1">{{ job.status }}</td>
+      <td class="px-2 py-1">{{ job.exit_code|default:"—" }}</td>
+      <td class="px-2 py-1">{% if job.progress_total %}{{ job.progress_current }}/{{ job.progress_total }}{% else %}—{% endif %}</td>
+      <td class="px-2 py-1">{{ job.duration_display|default:"—" }}</td>
+      <td class="px-2 py-1">{{ job.created_at|timesince }} ago</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7" class="px-2 py-4 text-center text-gray-400">No jobs yet</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+```
+
+Each view annotates jobs before passing to template:
+```python
+def _annotate_recent_jobs(jobs):
+    for job in jobs:
+        job.duration_display = _job_duration(job)
+    return jobs
+```
+
+### 1c. Stats Pills — No Shared Partial
+
+The stats pills vary too much across pages (resolver uses resolved/total with color thresholds, classifier uses classified/total_reports, phone uses has_phone/resolved). Rather than a generic partial with confusing key parameters, each page writes its own pill markup inline — it's ~8 lines per page, and the visual pattern (flex-wrap, rounded pills, font-mono) is easy to keep consistent without abstraction.
 
 ## Step 2: Main Dashboard Rewrite
 
@@ -121,28 +189,42 @@ def _dashboard_stats():
         Job.objects.filter(status="running").select_related()
     )
 
-    # Determine which states have active jobs (for row ordering)
-    active_states = set()
+    # Determine which states have running or pending jobs (for row ordering + highlighting)
+    running_states = set()
+    pending_states = set()
     for job in Job.objects.filter(status__in=["running", "pending"]):
         if job.state_code:
-            active_states.add(job.state_code)
+            if job.status == "running":
+                running_states.add(job.state_code)
+            else:
+                pending_states.add(job.state_code)
 
-    # Sort: active states first, then by seeded desc
-    state_rows.sort(key=lambda r: (0 if r["state"] in active_states else 1, -r["seeded"]))
+    # Sort: running first, then pending, then by seeded desc
+    def sort_key(r):
+        if r["state"] in running_states:
+            return (0, -r["seeded"])
+        if r["state"] in pending_states:
+            return (1, -r["seeded"])
+        return (2, -r["seeded"])
+
+    state_rows.sort(key=sort_key)
     for row in state_rows:
-        row["is_active"] = row["state"] in active_states
+        row["is_running"] = row["state"] in running_states
+        row["is_pending"] = row["state"] in pending_states
 
+    # Recent jobs — never cached, always fresh
     recent_jobs = Job.objects.order_by("-created_at")[:10]
 
     return {
         "state_rows": state_rows,
         "running_jobs": running_jobs,
         "recent_jobs": recent_jobs,
-        "active_states": active_states,
     }
 ```
 
 **Note**: On the `pipeline` connection, `search_path=lava_corpus,public`, so we use unqualified table names (`nonprofits_seed`, `corpus`, `crawled_orgs`).
+
+**Caching**: Only the `state_rows` aggregation may be cached (30s TTL via `django.core.cache`) if queries exceed 2s. The `running_jobs` and `recent_jobs` sections must always be fresh — they're queried separately via Django ORM.
 
 ### 2b. Rewrite `dashboard_stats.html`
 
@@ -182,7 +264,7 @@ Replace the entire template content. New structure:
     </thead>
     <tbody>
       {% for row in state_rows %}
-      <tr class="border-b {% if row.is_active %}border-l-4 border-l-blue-500 bg-blue-50{% endif %}">
+      <tr class="border-b {% if row.is_running %}border-l-4 border-l-blue-500 bg-blue-50{% elif row.is_pending %}border-l-4 border-l-yellow-500 bg-yellow-50{% endif %}">
         <td class="px-3 py-2 font-medium">{{ row.state }}</td>
         <td class="px-3 py-2 text-right">{{ row.seeded|intcomma }}</td>
         <td class="px-3 py-2 text-right">
@@ -203,9 +285,7 @@ Replace the entire template content. New structure:
 
 <!-- Recent Jobs Table -->
 <h2 class="text-lg font-semibold mt-6 mb-3">Recent Jobs</h2>
-<table class="min-w-full text-sm">
-  ... standard job table (ID, Phase, State, Status, Exit, Duration, Created) ...
-</table>
+{% include "pipeline/partials/_recent_jobs_table.html" %}
 ```
 
 **Template filter**: Uses `|intcomma` from `django.contrib.humanize`. Verify `django.contrib.humanize` is in INSTALLED_APPS and `{% load humanize %}` at top of template. If not available, format numbers in the view.
@@ -282,40 +362,13 @@ Stats by state pill grid template pattern:
 
 **Note**: `{% widthratio %}` computes integer percentages without a custom filter. Alternatively, compute the percentage in the view and pass it as a field.
 
-Recent jobs table — reuse the same table pattern from the seeder:
+Recent jobs table — use the shared partial:
 ```html
 <h3 class="text-md font-semibold mb-2">Recent Resolve Jobs</h3>
-<table class="min-w-full text-sm">
-  <thead class="bg-gray-100">
-    <tr>
-      <th class="px-2 py-1 text-left">ID</th>
-      <th class="px-2 py-1 text-left">State</th>
-      <th class="px-2 py-1 text-left">Status</th>
-      <th class="px-2 py-1 text-left">Exit</th>
-      <th class="px-2 py-1 text-left">Progress</th>
-      <th class="px-2 py-1 text-left">Duration</th>
-      <th class="px-2 py-1 text-left">Created</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for job in recent_jobs %}
-    <tr class="border-b">
-      <td class="px-2 py-1"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600">{{ job.pk }}</a></td>
-      <td class="px-2 py-1">{{ job.state_code|default:"—" }}</td>
-      <td class="px-2 py-1">{{ job.status }}</td>
-      <td class="px-2 py-1">{{ job.exit_code|default:"—" }}</td>
-      <td class="px-2 py-1">{% if job.progress_total %}{{ job.progress_current }}/{{ job.progress_total }}{% else %}—{% endif %}</td>
-      <td class="px-2 py-1">{% if job.finished_at and job.started_at %}...{% else %}—{% endif %}</td>
-      <td class="px-2 py-1">{{ job.created_at|timesince }} ago</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="7" class="px-2 py-4 text-center text-gray-400">No resolve jobs yet</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+{% include "pipeline/partials/_recent_jobs_table.html" %}
 ```
 
-**Duration calculation**: Use `|timesince` for "Created" column. For Duration, compute `finished_at - started_at` in the view or use a template filter. The seeder already has this pattern — copy it exactly.
+The view annotates `recent_jobs` with `_annotate_recent_jobs()` before passing to context, which adds `duration_display` to each job.
 
 ## Step 4: Classifier, Crawler, Phone Enrich Pages
 
@@ -405,16 +458,7 @@ Simpler variant — add recent jobs table only (no state stats).
 - Add recent jobs table after the existing Filing & People Counts section
 - Enhance running job display to show config params
 
-## Step 6: Template Includes (DRY)
-
-The recent jobs table and stats pill grid appear on 7+ pages. Extract shared partials:
-
-- `templates/pipeline/partials/_recent_jobs_table.html` — takes `recent_jobs` context var, renders the standard table
-- `templates/pipeline/partials/_stats_pills.html` — takes `stats` and `numerator_key`/`denominator_key` vars, renders the pill grid with color coding
-
-Each page then uses `{% include %}` with the appropriate context. This prevents divergence across pages.
-
-## Step 7: Verification
+## Step 6: Verification
 
 After implementation, verify:
 
@@ -429,18 +473,17 @@ After implementation, verify:
 
 | File | Lines Changed (est.) | Description |
 |------|---------------------|-------------|
-| `views.py` | ~80 new, ~50 replaced | Config helper, rewrite _dashboard_stats, add context to 6 views |
+| `views.py` | ~120 (80 new + 50 replaced) | Config/duration helpers, rewrite _dashboard_stats, add context to 6 views |
 | `partials/dashboard_stats.html` | ~80 rewrite | State progress table + running/recent jobs |
 | `partials/_recent_jobs_table.html` | ~30 new | Shared recent jobs table partial |
-| `partials/_stats_pills.html` | ~15 new | Shared stats pill grid partial |
-| `resolver.html` | ~40 added | Stats pills + recent jobs sections |
-| `classifier.html` | ~40 added | Stats pills + recent jobs sections |
-| `crawler.html` | ~40 added | Stats pills + recent jobs sections |
-| `phone_enrich.html` | ~40 added | Stats pills + recent jobs, replaces About |
-| `990_index.html` | ~30 added | Recent jobs section |
-| `990_parse.html` | ~30 added | Recent jobs section |
+| `resolver.html` | ~30 added | Inline stats pills + include recent jobs partial |
+| `classifier.html` | ~30 added | Inline stats pills + include recent jobs partial |
+| `crawler.html` | ~30 added | Inline stats pills + include recent jobs partial |
+| `phone_enrich.html` | ~30 added | Inline stats pills + include recent jobs partial |
+| `990_index.html` | ~15 added | Include recent jobs partial |
+| `990_parse.html` | ~15 added | Include recent jobs partial |
 
-**Total**: ~10 files, ~400 lines of changes.
+**Total**: 1 Python file + 8 templates (1 rewrite, 6 enhanced, 1 new partial) = ~380 lines of changes.
 
 ## Acceptance Criteria Mapping
 
@@ -460,6 +503,7 @@ After implementation, verify:
 
 ## Risks
 
-1. **Query performance** — the two dashboard aggregation queries hit the full dataset every 5s. If >2s, add `django.core.cache` with 30s TTL on the state_rows result.
-2. **Template complexity** — 8 templates changing at once. The shared partials (Step 6) reduce risk of divergence but the builder must test each page individually.
+1. **Query performance** — the two dashboard aggregation queries hit the full dataset every 5s. If >2s, cache only `state_rows` (30s TTL). Running/recent jobs are never cached.
+2. **Template complexity** — 8 templates changing at once. The shared recent jobs partial reduces divergence. Stats pills are inline per-page (8 lines each) — consistent visual pattern but different data keys.
 3. **humanize filter** — if `django.contrib.humanize` isn't in INSTALLED_APPS, `|intcomma` won't work. Check and add if needed.
+4. **Progress semantics on 990 pages** — 990 jobs may not use `progress_current`/`progress_total` the same way as resolve/classify jobs. The recent jobs partial handles this gracefully: shows `current/total` if `progress_total` is set, `—` otherwise.
