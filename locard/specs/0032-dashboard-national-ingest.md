@@ -9,7 +9,7 @@ The resolver and classifier phase pages lack the operational context that the se
 ## Goals
 
 1. **National ingest tracker** — replace the current dashboard with a state × pipeline-stage progress grid so operators can see the full ingest status at a glance
-2. **Phase page parity** — bring ALL pipeline phase pages up to the seeder's standard: recent jobs table, running job with config, per-state stats (or equivalent grouping for 990 pages)
+2. **Phase page parity** — bring all state-oriented phase pages (resolver, classifier, crawler, phone enrich) up to the seeder's standard: recent jobs table, running job with config, per-state stats. For non-state pages (990 index, 990 parse), add recent jobs table and enhanced running job display only (no state grouping — these are organized by filing year).
 3. **Running job visibility** — show job config (engines, QPS, LLM, limits) on running jobs so operators know what's executing without checking logs
 
 ## Non-Goals
@@ -43,9 +43,11 @@ Replace the current six summary cards with a **state progress table** — one ro
 - **Classified**: count of reports with non-null classification for orgs in this state
 - **Reports**: total reports archived for orgs in this state
 
-**Row ordering**: states with active/pending jobs first (highlighted), then by seeded count descending.
+**Row ordering**: states with `running` or `pending` jobs (per Job.status) first, highlighted with a left border accent (e.g. blue-500 for running, yellow-500 for pending). Then remaining states by seeded count descending.
 
 **States not yet seeded**: do NOT show. Only states with rows in nonprofits_seed appear.
+
+**Zero values**: show `0` for raw counts, `0 / N (0%)` for ratio columns. If denominator is also 0, show `—`.
 
 #### Running & Recent Jobs Section
 
@@ -59,8 +61,8 @@ Above the state table, show:
 
 Show key config params inline so operators know what's executing. Pull from `job.config_json`.
 
-**Recent Jobs** (last 10 across all phases):
-Standard job table: ID, Phase, State, Status, Exit Code, Duration, Created.
+**Recent Jobs** (last 10 across all phases, all statuses including running/pending):
+Standard job table: ID, Phase, State, Status, Exit Code, Duration, Created. Jobs without a state_code show `—` in the State column.
 
 ### 2. Resolver Page Enhancement
 
@@ -75,7 +77,7 @@ TX: 85/109 (78%)  |  FL: 4180/5971 (70%)  |  CT: 1356/1832 (74%)  |  ...
 Each pill shows `resolved / total (pct)`. Color: gray if 0%, yellow if <80%, green if ≥80%.
 
 #### Recent Resolve Jobs
-Job table matching the seeder pattern: ID, State, Status, Exit Code, Progress, Duration, Created. Last 20 resolve jobs.
+Last 20 resolve jobs. Standard job table columns: ID, State, Status, Exit Code, Progress (current/total), Duration, Created.
 
 ### 3. Classifier Page Enhancement
 
@@ -152,18 +154,21 @@ GROUP BY s.state
 ORDER BY COUNT(*) DESC
 ```
 
-Report/classification counts per state require joining through corpus:
+Report/classification counts per state require joining through corpus. Use subquery to avoid double-counting from the seed→corpus join:
 ```sql
 SELECT
     s.state,
     COUNT(DISTINCT c.content_sha256) as total_reports,
-    SUM(CASE WHEN c.classification IS NOT NULL THEN 1 ELSE 0 END) as classified
+    COUNT(DISTINCT CASE WHEN c.classification IS NOT NULL THEN c.content_sha256 END) as classified
 FROM lava_corpus.nonprofits_seed s
 JOIN lava_corpus.corpus c ON s.ein = c.source_org_ein
 GROUP BY s.state
 ```
+Both total_reports and classified use `COUNT(DISTINCT content_sha256)` to prevent inflation from duplicate join rows.
 
-**Performance**: These are aggregation queries over the full dataset. With 50 states × ~200K orgs, they should complete in <2s on RDS. The dashboard already uses HTMX polling (every 5s) — keep that pattern. If queries get slow at scale, add a materialized summary or cache.
+**Performance**: These are aggregation queries over the full dataset. With 50 states × ~200K orgs, they should complete in <2s on RDS. The view merges the two result sets in Python (dict keyed by state).
+
+**HTMX polling**: Only the main dashboard auto-refreshes (every 5s, existing pattern). Phase pages load on navigation and do NOT auto-poll — their stats and recent jobs are current as of page load. This avoids multiplying DB pressure across 7+ open tabs. If queries get slow at scale, add a materialized summary or cache.
 
 ### Files Changed
 
@@ -191,6 +196,8 @@ Extract display-worthy keys from `job.config_json` for the running job display:
 - **990-parse**: filing_year, limit
 
 Format as compact inline text, not a raw JSON dump.
+
+**Security**: Only render keys from the per-phase allowlist above. Never surface `api_key`, `ssm`, `password`, or unknown keys. Django templates auto-escape by default — do not use `|safe` on config values. Handle missing keys gracefully: skip absent keys, show `—` for null values. Old jobs may have incomplete config_json.
 
 ## Acceptance Criteria
 
@@ -235,7 +242,7 @@ Format as compact inline text, not a raw JSON dump.
 ### General
 25. No new database migrations required
 26. Pages load in <3s even with 50 states of data
-27. Mobile-responsive (existing Tailwind grid patterns)
+27. Mobile-responsive: dashboard state table uses horizontal scroll (`overflow-x-auto`) on narrow screens; phase page pill grids wrap naturally via flexbox
 28. All running job displays show config params (not raw JSON)
 
 ## Traps to Avoid
@@ -244,3 +251,5 @@ Format as compact inline text, not a raw JSON dump.
 2. **Don't N+1 the state queries** — one query per section, not one per state. The conditional aggregation pattern above handles this.
 3. **Don't break the HTMX refresh** — the dashboard partial must remain a standalone includable template for the polling endpoint.
 4. **Job config display** — don't dump raw JSON. Extract human-readable keys and format them. Handle missing keys gracefully (old jobs may not have search_engines).
+5. **SQL parameterization** — raw SQL queries here are static aggregations with no user input, but if future filters add state/phase parameters, always use parameterized queries (`cursor.execute(sql, [param])`) — never string interpolation.
+6. **Multiple running jobs** — the dashboard may show 0, 1, or several running jobs simultaneously (e.g. resolver on TX + classifier on FL). Display all of them, not just the first.
