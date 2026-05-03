@@ -1,0 +1,32 @@
+{% load humanize pipeline_tags %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead><tr class="text-left text-gray-500 border-b">
+      <th class="pb-2">ID</th>
+      {% if show_phase %}<th class="pb-2">Phase</th>{% endif %}
+      <th class="pb-2">State</th><th class="pb-2">Status</th><th class="pb-2">Exit</th><th class="pb-2">Progress</th><th class="pb-2">Duration</th><th class="pb-2">Created</th>
+    </tr></thead>
+    <tbody>
+      {% for job in recent_jobs %}
+      <tr class="border-b hover:bg-gray-50">
+        <td class="py-2"><a href="{% url 'job_detail' job.pk %}" class="text-blue-600 hover:underline">#{{ job.pk }}</a></td>
+        {% if show_phase %}<td class="py-2">{{ job.phase }}</td>{% endif %}
+        <td class="py-2">{{ job.state_code|default:"—" }}</td>
+        <td class="py-2">
+          {% if job.status == "running" %}<span class="text-blue-600">Running</span>
+          {% elif job.status == "completed" %}<span class="text-green-600">Completed</span>
+          {% elif job.status == "failed" %}<span class="text-red-600">Failed</span>
+          {% elif job.status == "pending" %}<span class="text-yellow-600">Pending</span>
+          {% else %}<span class="text-gray-500">{{ job.status }}</span>{% endif %}
+        </td>
+        <td class="py-2">{{ job.exit_code|default:"—" }}</td>
+        <td class="py-2">{% if job.progress_total %}{{ job.progress_current|intcomma }}/{{ job.progress_total|intcomma }}{% else %}—{% endif %}</td>
+        <td class="py-2">{{ job.duration_display|default:"—" }}</td>
+        <td class="py-2 text-gray-500 text-xs">{{ job.created_at|timesince }} ago</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="{% if show_phase %}8{% else %}7{% endif %}" class="px-2 py-4 text-center text-gray-400">No jobs yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

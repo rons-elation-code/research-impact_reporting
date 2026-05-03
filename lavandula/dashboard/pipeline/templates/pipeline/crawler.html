@@ -1,5 +1,5 @@
 {% extends "pipeline/base.html" %}
-{% load pipeline_tags %}
+{% load humanize pipeline_tags %}
 {% block title %}Crawler — Lavandula Pipeline{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold text-gray-900 mb-6">Crawler Controls</h1>
@@ -16,6 +16,9 @@
         <span class="font-medium">Job #{{ running_job.pk }} running</span>
       </div>
       <div class="text-sm text-gray-500">PID: {{ running_job.pid|default:"-" }} | Started: {{ running_job.started_at|elapsed_since }} ago</div>
+      {% if running_job.config_display %}
+      <div class="text-xs text-gray-500 mt-1 font-mono">{{ running_job.config_display|join:" | " }}</div>
+      {% endif %}
       {% elif process and process.status == "running" %}
       <div class="flex items-center gap-2 mb-2">
         <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></span>
@@ -69,6 +72,26 @@
 
   <!-- Results -->
   <div class="lg:col-span-2 space-y-6">
+    <!-- Crawled Orgs by State -->
+    {% if crawl_stats %}
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Crawled Orgs by State</h2>
+      <div class="flex flex-wrap gap-2">
+        {% for stat in crawl_stats %}
+        <span class="px-2 py-1 rounded text-xs font-mono {% if stat.pct == 0 %}bg-gray-100 text-gray-500{% elif stat.pct < 80 %}bg-yellow-100 text-yellow-700{% else %}bg-green-100 text-green-700{% endif %}">
+          {{ stat.state }}: {{ stat.crawled|intcomma }}/{{ stat.resolved|intcomma }} ({{ stat.pct }}%)
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Crawl Jobs -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Crawl Jobs</h2>
+      {% include "pipeline/partials/_recent_jobs_table.html" %}
+    </div>
+
     <!-- Recently Crawled Orgs -->
     <div class="bg-white rounded-lg shadow p-5">
       <h2 class="text-lg font-semibold text-gray-900 mb-3">Recently Crawled Orgs</h2>
