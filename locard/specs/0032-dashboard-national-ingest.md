@@ -43,7 +43,7 @@ Replace the current six summary cards with a **state progress table** — one ro
 - **Classified**: count of reports with non-null classification for orgs in this state
 - **Reports**: total reports archived for orgs in this state
 
-**Row ordering**: states with `running` or `pending` jobs (per Job.status) first, highlighted with a left border accent (e.g. blue-500 for running, yellow-500 for pending). Then remaining states by seeded count descending.
+**Row ordering**: states with `running` or `pending` jobs (per `Job.status` where `Job.state_code` matches the row's state) first, highlighted with a left border accent (e.g. blue-500 for running, yellow-500 for pending). Then remaining states by seeded count descending. Global jobs (no `state_code`, e.g. multi-state seed jobs) appear in the Running Jobs section above the table but do not reorder any state row.
 
 **States not yet seeded**: do NOT show. Only states with rows in nonprofits_seed appear.
 
@@ -147,7 +147,7 @@ SELECT
     SUM(CASE WHEN s.resolver_status = 'unresolved' THEN 1 ELSE 0 END) as unresolved,
     SUM(CASE WHEN s.resolver_status IS NULL THEN 1 ELSE 0 END) as pending,
     COUNT(DISTINCT co.ein) as crawled,
-    SUM(CASE WHEN s.phone IS NOT NULL THEN 1 ELSE 0 END) as has_phone
+    SUM(CASE WHEN s.phone IS NOT NULL AND s.phone != '' THEN 1 ELSE 0 END) as has_phone
 FROM lava_corpus.nonprofits_seed s
 LEFT JOIN lava_corpus.crawled_orgs co ON s.ein = co.ein
 GROUP BY s.state
@@ -166,9 +166,11 @@ GROUP BY s.state
 ```
 Both total_reports and classified use `COUNT(DISTINCT content_sha256)` to prevent inflation from duplicate join rows.
 
-**Performance**: These are aggregation queries over the full dataset. With 50 states × ~200K orgs, they should complete in <2s on RDS. The view merges the two result sets in Python (dict keyed by state).
+**Database connection**: Execute raw SQL against `connections["pipeline"]` (search_path=lava_corpus). Both `default` (lava_dashboard) and `pipeline` (lava_corpus) point to the same RDS instance — schema-qualified table names (`lava_corpus.nonprofits_seed`) work on either, but using `pipeline` is consistent with existing view patterns. Job queries use Django ORM on `default` as they already do.
 
-**HTMX polling**: Only the main dashboard auto-refreshes (every 5s, existing pattern). Phase pages load on navigation and do NOT auto-poll — their stats and recent jobs are current as of page load. This avoids multiplying DB pressure across 7+ open tabs. If queries get slow at scale, add a materialized summary or cache.
+**Performance**: These are aggregation queries over the full dataset. With 50 states × ~200K orgs, they should complete in <2s on RDS. Required indexes: `crawled_orgs(ein)` (already exists as PK), `corpus(source_org_ein)` (verify exists — add if not). The view merges the two result sets in Python (dict keyed by state).
+
+**HTMX polling**: Only the main dashboard auto-refreshes (every 5s, existing pattern). Phase pages load on navigation and do NOT auto-poll — their stats and recent jobs are current as of page load. This avoids multiplying DB pressure across 7+ open tabs. If the dashboard aggregation queries exceed 2s under load, add a 30s Django cache on the state progress data (the running/recent jobs section stays uncached).
 
 ### Files Changed
 
@@ -253,3 +255,13 @@ Format as compact inline text, not a raw JSON dump.
 4. **Job config display** — don't dump raw JSON. Extract human-readable keys and format them. Handle missing keys gracefully (old jobs may not have search_engines).
 5. **SQL parameterization** — raw SQL queries here are static aggregations with no user input, but if future filters add state/phase parameters, always use parameterized queries (`cursor.execute(sql, [param])`) — never string interpolation.
 6. **Multiple running jobs** — the dashboard may show 0, 1, or several running jobs simultaneously (e.g. resolver on TX + classifier on FL). Display all of them, not just the first.
+7. **Phone empty-string vs NULL** — use `phone IS NOT NULL AND phone != ''` consistently. The existing PhoneEnrichView already excludes both.
+
+## Testing
+
+Manual verification against the live dashboard with current production data. No SQLite test path — these views use raw SQL against Postgres. Verification checklist:
+- Each page loads without error and renders new sections alongside existing ones
+- State progress table counts match per-page counts (cross-check resolver stats vs dashboard Resolved column)
+- Running job config display works for each phase type
+- Empty states (zero crawled, zero reports) display correctly
+- Dashboard HTMX auto-refresh still works (stats partial loads independently)
