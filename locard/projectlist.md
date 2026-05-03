@@ -516,11 +516,11 @@ projects:
   - id: "0032"
     title: "Dashboard & Phase Pages for National Ingest Tracking"
     summary: "Overhaul the main dashboard into a national ingest tracker with state-by-state pipeline progress grid, and enhance resolver/classifier phase pages with recent jobs, running job config, and per-state stats — matching the seeder page pattern."
-    status: conceived
+    status: planned
     priority: high
     files:
       spec: locard/specs/0032-dashboard-national-ingest.md
-      plan: null
+      plan: locard/plans/0032-dashboard-national-ingest.md
       review: null
     dependencies: []
     tags: [dashboard, ui, operations, national-ingest]
