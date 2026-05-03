@@ -265,3 +265,10 @@ Manual verification against the live dashboard with current production data. No 
 - Running job config display works for each phase type
 - Empty states (zero crawled, zero reports) display correctly
 - Dashboard HTMX auto-refresh still works (stats partial loads independently)
+
+## Consultation Log
+
+- **Codex spec-review**: REQUEST_CHANGES → addressed (COUNT DISTINCT consistency, job status semantics, config_json security, HTMX polling scope, zero-denominator handling)
+- **Claude spec-review**: COMMENT → addressed (multi-DB connection alias, query performance/indexes, phone NULL vs empty-string, global job row ordering, testing section)
+- **Codex red-team-spec**: Sandbox crash (bubblewrap permissions) — no findings produced. Self-review: low attack surface (read-only dashboard behind Django auth, static SQL, config allowlist).
+- **Gemini spec-review**: Subscription capacity exhausted — unavailable.

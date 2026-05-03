@@ -507,3 +507,9 @@ After implementation, verify:
 2. **Template complexity** — 8 templates changing at once. The shared recent jobs partial reduces divergence. Stats pills are inline per-page (8 lines each) — consistent visual pattern but different data keys.
 3. **humanize filter** — if `django.contrib.humanize` isn't in INSTALLED_APPS, `|intcomma` won't work. Check and add if needed.
 4. **Progress semantics on 990 pages** — 990 jobs may not use `progress_current`/`progress_total` the same way as resolve/classify jobs. The recent jobs partial handles this gracefully: shows `current/total` if `progress_total` is set, `—` otherwise.
+
+## Consultation Log
+
+- **Codex plan-review**: REQUEST_CHANGES → addressed (running/pending row distinction, shared partials ordering, stats pills kept inline, caching scope, file count mismatch, 990 progress semantics)
+- **Claude plan-review**: No output produced (API timeout)
+- **Codex red-team-plan**: Sandbox crash (bubblewrap permissions) — no findings produced.
