@@ -513,9 +513,22 @@ projects:
     tags: [resolver, search, cost-optimization, serpex, multi-engine]
     notes: "Motivated by experiment 0001: Serpex matched Brave on easy cases (90% overlap), slightly outperformed on hard cases (5 wins vs 2 losses in manual review of 15 zero-overlap samples). Multi-engine mode addresses the 47% zero-overlap on hard cases — different engines surface different candidates."
 
+  - id: "0032"
+    title: "Dashboard & Phase Pages for National Ingest Tracking"
+    summary: "Overhaul the main dashboard into a national ingest tracker with state-by-state pipeline progress grid, and enhance resolver/classifier phase pages with recent jobs, running job config, and per-state stats — matching the seeder page pattern."
+    status: conceived
+    priority: high
+    files:
+      spec: locard/specs/0032-dashboard-national-ingest.md
+      plan: null
+      review: null
+    dependencies: []
+    tags: [dashboard, ui, operations, national-ingest]
+    notes: "Motivated by upcoming full US ingest. Current dashboard shows only aggregates — need per-state pipeline stage visibility to track what's done and what's not across 50 states."
+
 ## Next Available Number
 
-**0032** - Reserve this number for your next project
+**0033** - Reserve this number for your next project
 
 ---
 
