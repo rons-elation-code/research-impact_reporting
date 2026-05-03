@@ -68,6 +68,17 @@
       <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Phone Enrich Jobs</h2>
       {% include "pipeline/partials/_recent_jobs_table.html" %}
     </div>
+
+    <!-- About -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h2 class="text-lg font-semibold text-gray-900 mb-3">About</h2>
+      <p class="text-sm text-gray-600">
+        The phone enrichment pipeline finds phone numbers for resolved orgs by searching for
+        "{org name} {city} {state} phone number" and extracting US phone numbers from search
+        snippets. If no phone is found in snippets, it falls back to fetching the org's website
+        contact/about page.
+      </p>
+    </div>
   </div>
 </div>
 {% endblock %}

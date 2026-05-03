@@ -188,7 +188,7 @@ def _dashboard_stats():
         row["resolved_pct"] = round(row["resolved"] / row["seeded"] * 100) if row["seeded"] > 0 else 0
 
     running_jobs = _annotate_running_jobs(
-        Job.objects.filter(status="running").select_related()
+        Job.objects.filter(status="running")
     )
 
     running_states = set()
