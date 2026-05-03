@@ -26,6 +26,7 @@
         <li><a href="{% url 'classifier' %}" class="block px-4 py-2 hover:bg-gray-800 hover:text-white {% if request.resolver_match.url_name == 'classifier' %}bg-gray-800 text-white{% endif %}">Classifier</a></li>
         <li><a href="{% url 'enrich_index' %}" class="block px-4 py-2 hover:bg-gray-800 hover:text-white {% if 'enrich_index' in request.resolver_match.url_name %}bg-gray-800 text-white{% endif %}">990 Index</a></li>
         <li><a href="{% url 'enrich_parse' %}" class="block px-4 py-2 hover:bg-gray-800 hover:text-white {% if 'enrich_parse' in request.resolver_match.url_name %}bg-gray-800 text-white{% endif %}">990 Parse</a></li>
+        <li><a href="{% url 'phone_enrich' %}" class="block px-4 py-2 hover:bg-gray-800 hover:text-white {% if 'phone_enrich' in request.resolver_match.url_name %}bg-gray-800 text-white{% endif %}">Phone Enrich</a></li>
         <li class="pt-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Operations</li>
         <li><a href="{% url 'job_list' %}" class="block px-4 py-2 hover:bg-gray-800 hover:text-white {% if 'job' in request.resolver_match.url_name %}bg-gray-800 text-white{% endif %}">Jobs</a></li>
         <li class="pt-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data</li>

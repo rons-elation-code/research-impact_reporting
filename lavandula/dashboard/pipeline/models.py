@@ -17,6 +17,8 @@ class NonprofitSeed(models.Model):
     resolver_method = models.TextField(null=True)
     resolver_reason = models.TextField(null=True)
     resolver_updated_at = models.DateTimeField(null=True)
+    phone = models.TextField(null=True)
+    phone_source = models.TextField(null=True)
 
     class Meta:
         managed = False
@@ -157,6 +159,7 @@ class Job(models.Model):
         ("990-enrich", "990 Enrich"),
         ("990-index", "990 Index"),
         ("990-parse", "990 Parse"),
+        ("enrich-phone", "Phone Enrich"),
     ]
     STATUS_CHOICES = [
         ("pending", "Pending"),
